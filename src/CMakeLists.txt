@@ -1,1 +1,10 @@
-add_executable (ads active-drag-system.cpp)
+add_executable(sensors
+        pru/sensor.cpp
+        pru/sensor.h
+        pru/logger.cpp
+        pru/logger.h
+)
+add_executable(servos
+        pru/servos.cpp
+        pru/servos.h
+)
