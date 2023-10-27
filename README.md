@@ -7,6 +7,19 @@ vagrant ssh
 cmake /vagrant
 cmake --build .
 
+## BUILD Alternative (Windows)
+Enable WSL2 in windows
+Install Ubuntu 22 LTS from Windows Store
+```shell
+sudo apt update && upgrade
+sudo apt install build-essential cmake valgrind crossbuild-essential-armhf
+```
+Then to actually build:
+```shell
+cmake CMakeLists.txt
+cmake --build .
+```
+
 ## RUN
 scp -r src/ads debian@beaglebone.local:~/
 ssh debian@beaglebone.local

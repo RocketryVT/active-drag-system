@@ -19,7 +19,7 @@ Vagrant.configure("2") do |config|
 
   # (default timeout is 300 s)
   config.vm.boot_timeout = 600
-  config.vm.synced_folder "/mnt/bbb-sysroot", "/vagrant/bbb-sysroot"
+  config.vm.synced_folder "/mnt/bbb-sysroot", "/vagrant/bbb-sysroot", create: true
 
   # set up the VM
   config.vm.provision "shell", inline: $bootstrap
