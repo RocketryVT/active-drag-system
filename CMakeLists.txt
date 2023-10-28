@@ -8,22 +8,23 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS TRUE)
 if(CMAKE_HOST_APPLE)
     message(STATUS "Running on an Apple system")
 
-    # Apple Settings 
+    # Apple Settings
+    # Musl has many targets, must select one
     set(CMAKE_C_COMPILER /opt/homebrew/bin/arm-linux-musleabihf-gcc)
     set(CMAKE_CXX_COMPILER /opt/homebrew/bin/arm-linux-musleabihf-g++)
+    # Set the architecture and flags
+    set(CMAKE_C_FLAGS "-march=armv7-a+fp")
+    set(CMAKE_CXX_FLAGS "-march=armv7-a+fp")
 elseif(UNIX)
     message(STATUS "Running on an Linux system")
 
     # Linux Settings
+    # (arm-linux-gnueabihf- is 32 bit, aarch64-linux... is the 64 bit version)
     set(CMAKE_C_COMPILER /usr/bin/arm-linux-gnueabihf-gcc)
     set(CMAKE_CXX_COMPILER /usr/bin/arm-linux-gnueabihf-g++)
 endif()
 
 project(Active-Drag-System CXX)
-
-# Set the architecture and flags
-set(CMAKE_C_FLAGS "-march=armv7-a+fp")
-set(CMAKE_CXX_FLAGS "-march=armv7-a+fp")
 
 # sysroot location; mounted using sshfs
 # set(CMAKE_SYSROOT "/vagrant/bbb-sysroot")

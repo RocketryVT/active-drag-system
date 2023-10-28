@@ -15,6 +15,7 @@ Install Ubuntu 22 LTS from Windows Store
 ```shell
 sudo apt update && upgrade
 sudo apt install build-essential cmake valgrind crossbuild-essential-armhf
+sudo apt install musl musl-tools
 ```
 Then to actually build:
 ```shell
