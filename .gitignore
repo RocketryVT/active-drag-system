@@ -10,3 +10,6 @@ Makefile
 src/CMakeFiles
 src/cmake_install.cmake
 src/Makefile
+
+build/*
+!buiild/out/*
