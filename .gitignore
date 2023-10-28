@@ -1,4 +1,5 @@
 Testing/*
+.DS_Store
 .vagrant/*
 .idea/*
 

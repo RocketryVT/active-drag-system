@@ -2,10 +2,12 @@
 This is the main codebase for Rocketry at Virginia Tech's Active Drag System, also known colloquially as the ADS, for the 2023-2024 competition year. It runs primarily on a BeagleBone Black, and its goal is to autonomously control the ADS' deployment during flight.
 
 ## BUILD
+```shell
 vagrant up
 vagrant ssh
 cmake /vagrant
 cmake --build .
+```
 
 ## BUILD Alternative (Windows)
 Enable WSL2 in windows
@@ -20,15 +22,35 @@ cmake -B build
 cmake --build build/
 ```
 
+## BUILD Alternative (Mac)
+```shell
+brew install arm-linux-gnueabihf-binutils
+# This installs just the arm library, you can remove x86_64 if you want those too
+brew install FiloSottile/musl-cross/musl-cross --without-x86_64 --with-arm-hf
+```
+To check if installed correctly run:
+```shell
+ls /opt/homebrew/bin | grep "musl"
+```
+you should see:
+```shell
+arm-linux-musleabihf-gcc
+arm-linux-musleabihf-g++
+```
+
 ## RUN
+```shell
 scp -r src/ads debian@beaglebone.local:~/
 ssh debian@beaglebone.local
 ./ads
+```
 
 ## TEST
+```shell
 scp -r test/test_ads debian@beaglebone.local:~/
 ssh debian@beaglebone.local
 ./test_ads
+```
 
 ## GPIO Pins
 The GPIO number is calculated by taking the GPIO chip
