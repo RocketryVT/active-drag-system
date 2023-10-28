@@ -3,8 +3,7 @@ enable_testing()
 add_executable(
   hello_test
   hello_test.cc
-        ../src/pru/sensor.cpp
-        ../src/pru/sensor.h
+        ../src/pru1/sensor.cpp
 )
 target_link_libraries(
   hello_test

@@ -1,10 +1,7 @@
 add_executable(sensors
-        pru/sensor.cpp
-        pru/sensor.h
-        pru/logger.cpp
-        pru/logger.h
+        pru1/sensor.cpp
+        pru1/logger.cpp
 )
 add_executable(servos
-        pru/servos.cpp
-        pru/servos.h
+        pru2/servos.cpp
 )

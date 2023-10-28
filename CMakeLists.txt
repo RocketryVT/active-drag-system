@@ -9,6 +9,8 @@ set(CMAKE_CXX_COMPILER /usr/bin/arm-linux-gnueabihf-g++)
 # sysroot location; mounted using sshfs
 set(CMAKE_SYSROOT "/vagrant/bbb-sysroot")
 
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/out")
+
 # look in beaglebone for libraries and not host system
 set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
 set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
