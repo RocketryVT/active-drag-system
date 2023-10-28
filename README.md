@@ -16,8 +16,8 @@ sudo apt install build-essential cmake valgrind crossbuild-essential-armhf
 ```
 Then to actually build:
 ```shell
-cmake .
-cmake --build .
+cmake -B build
+cmake --build build/
 ```
 
 ## RUN

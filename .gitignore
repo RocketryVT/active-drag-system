@@ -12,4 +12,4 @@ src/cmake_install.cmake
 src/Makefile
 
 build/*
-!buiild/out/*
+!/build/out
