@@ -1,10 +1,8 @@
 cmake_minimum_required(VERSION 3.14)
 set(CMAKE_SYSTEM_NAME Linux)
 set(CMAKE_SYSTEM_PROCESSOR ARM)
-set(CMAKE_BUILD_TYPE DEBUG)
+set(CMAKE_BUILD_TYPE Debug)
 set(CMAKE_EXPORT_COMPILE_COMMANDS TRUE)
-
-project(Active-Drag-System CXX)
 
 # Set the cross-compiler for ARM32
 if(CMAKE_HOST_APPLE)
@@ -20,6 +18,8 @@ elseif(UNIX)
     set(CMAKE_C_COMPILER /usr/bin/arm-linux-gnueabihf-gcc)
     set(CMAKE_CXX_COMPILER /usr/bin/arm-linux-gnueabihf-g++)
 endif()
+
+project(Active-Drag-System CXX)
 
 # Set the architecture and flags
 set(CMAKE_C_FLAGS "-march=armv7-a+fp")
