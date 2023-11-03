@@ -6,7 +6,18 @@
 
 namespace pru1 {
     struct imuData {
-        // Angular Velocity
+        // Absolute Orientation Euler Vector
+        double aoEX;
+        double aoEY;
+        double aoEZ;
+
+        // Absolute Orientation Quaternion
+        double aoQX;
+        double aoQY;
+        double aoQZ;
+        double aoQW;
+
+        // Angular Velocity (rad/s)
         double x;
         double y;
         double z;
@@ -17,6 +28,5 @@ namespace pru1 {
         double ay;
         double az;
     };
-
     extern imuData imuData;
 }
