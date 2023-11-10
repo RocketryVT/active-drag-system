@@ -10,6 +10,7 @@
 #include "rocketUtils.hpp"
 #include "sensorIMU.hpp"
 #include "sensorAltimeter.hpp"
+#include "motor.hpp"
 #include "eigen3/Eigen/Dense"
 
 using namespace Eigen;
@@ -23,6 +24,7 @@ class ADS {
 
         IMUSensor imu;
         AltimeterSensor altimeter;
+        Motor motor;
         Vehicle rocket;
 
         void logSummary();

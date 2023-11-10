@@ -24,8 +24,10 @@ class SurfaceFitModelTest : public ::testing::Test {
  *	@brief Test a 
  *
  * **/
-TEST_F(SurfaceFitModelTest, run) {
+TEST_F(SurfaceFitModelTest, getFit) {
 	
-	
+	double res = surfFM->getFit(2, 3);
+
+
 	// ASSERT Statements.....
 }

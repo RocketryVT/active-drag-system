@@ -1,6 +1,7 @@
 #pragma once
 #include "actuator.hpp"
 #include "logger.hpp"
+#include "rocketUtils.hpp"
 
 class Motor : public Actuator {
 
@@ -11,7 +12,7 @@ class Motor : public Actuator {
 
         Motor();
 
-        virtual bool init() override;
+        virtual bool init(void* data) override;
 
         virtual bool writeData(void* data) override;
 };

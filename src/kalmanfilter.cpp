@@ -13,12 +13,12 @@ void KalmanFilter::matrixInit() {
     R = MatrixXf::Zero(m, m); 
 
     // Setup State Transition Matrix
-    F << 1.0, DT, 
+    F << 1.0, dt, 
         0.0, 1.0;
     
     // Setup Control Input Matrix
-    B << 0.5*std::pow(DT, 2), // (Linear Displacement Eq.)
-        DT; 
+    B << 0.5 * std::pow(dt, 2), // (Linear Displacement Eq.)
+        dt; 
     
     // Setup Process-Noise Covariance
     Q(0,0) = 0.01;
@@ -26,6 +26,14 @@ void KalmanFilter::matrixInit() {
 
     // Setup Measurement Covariance
     R << 0.1;
+}
+
+
+void KalmanFilter::updateMatrices() {
+
+    F(0, 1) = dt;
+    B(0, 0) = 0.5 * std::pow(dt, 2);
+    B(1, 0) = dt;
 }
 
 
@@ -59,11 +67,12 @@ KalmanFilter::KalmanFilter() {
 }
 
 
-KalmanFilter::KalmanFilter(int state_dim, int control_dim, int measurement_dim) {
+KalmanFilter::KalmanFilter(int state_dim, int control_dim, int measurement_dim, double _dt) {
 
     n = state_dim;
     p = control_dim;
     m = measurement_dim;
+    dt = _dt;
     matrixInit();
 }
 
@@ -80,12 +89,17 @@ bool KalmanFilter::setInitialState(VectorXf state_vec, MatrixXf state_cov) {
 }
 
 
-VectorXf KalmanFilter::run(VectorXf control, VectorXf measurement) {
+
+
+VectorXf KalmanFilter::run(VectorXf control, VectorXf measurement, double _dt) {
     
      if (control.size() != p || measurement.size() != m) {
         std::cout << "Invalid size for Control or Measurement" << std::endl;
         return x;
     }
+
+    dt = _dt;
+    updateMatrices();
 
     prediction(control);
     update(measurement);

@@ -47,10 +47,7 @@ void ADS::updateSensorData() {
     if (!rocket.imuInitFail) {
         
         try {
-            IMUData data;
-            imu.getData((void*)&data);
-            //rocket.acceleration = data.acceleration; // HOW TO ASSIGN ONE VECTOR TO ANOTHER??
-            //rocket.linear_acceleration = data.linear_acceleration;
+            imu.getData((void*)&rocket);
         }
 
         catch (...) {
@@ -90,7 +87,7 @@ void ADS::updateRocketState() {
     VectorXf measurement(1);
     control_input << rocket.acceleration[2];
     measurement << rocket.current_altitude;
-    VectorXf filtered = kf.run(control_input, measurement);
+    VectorXf filtered = kf.run(control_input, measurement, rocket.dt);
     rocket.filtered_altitude = filtered(0);
     rocket.filtered_velocity = filtered(1);
 
@@ -151,16 +148,6 @@ void ADS::updateRocketState() {
 // Public----------------------------------------------------------------------
 ADS::ADS(ActuationPlan _plan) {
 
-    plan = _plan;
-    imu = IMUSensor();
-    altimeter = AltimeterSensor();
-    kf = KalmanFilter(2, 1, 1);
-
-    Logger::Get().openLog(LOG_FILENAME);
-
-    imu.init();
-    altimeter.init();
-
     rocket.status = ON_PAD;
 
     rocket.apogee_altitude = 0;
@@ -170,7 +157,10 @@ ADS::ADS(ActuationPlan _plan) {
 
     rocket.filtered_velocity = 0;
 
-    rocket.deployment_angle = deploy_percentage_to_angle(INIT_DEPLOYMENT);
+    rocket.duty_span = DUTY_MAX - DUTY_MIN;
+    rocket.deployment_angle = deploy_percentage_to_angle(INIT_DEPLOYMENT); 
+
+    rocket.dt = 0.1;
 
     rocket.imuInitFail = false;
     rocket.imuReadFail = false;
@@ -184,6 +174,25 @@ ADS::ADS(ActuationPlan _plan) {
     rocket.fail_time = rocket.start_time;
     rocket.relog_time = rocket.start_time;
     rocket.led_time = rocket.start_time;
+
+    plan = _plan;
+    imu = IMUSensor();
+    altimeter = AltimeterSensor();
+    motor = Motor();
+    kf = KalmanFilter(2, 1, 1, rocket.dt);
+
+    Logger::Get().openLog(LOG_FILENAME);
+
+    
+    motor.init(&rocket);
+
+    imu.init(nullptr);
+    altimeter.init(nullptr);
+
+    if (TEST_MODE) {
+
+        Logger::Get().log("TEST Record Start --");
+    }
 }
 
 
@@ -222,12 +231,12 @@ void ADS::run() {
             if (rocket.imuReadFail || rocket.altiReadFail) {
 
                 if (rocket.imuReadFail) {
-                    imu.init(); // Restart
+                    imu.init(nullptr); // Restart
                     Logger::Get().log("Altimeter reset attempt");
                 }
 
                 if (rocket.altiReadFail) {
-                    altimeter.init(); // Restart
+                    altimeter.init(nullptr); // Restart
                     Logger::Get().log("IMU reset attempt");
                 }
             }
@@ -241,12 +250,12 @@ void ADS::run() {
             }
 
             if (rocket.altiInitFail || rocket.altiReadFail) {
-                imu.init(); // Restart
+                imu.init(nullptr); // Restart
                 Logger::Get().log("Altimeter reset attempt");
             }
 
             if (rocket.imuInitFail || rocket.imuReadFail) {
-                altimeter.init(); // Restart
+                altimeter.init(nullptr); // Restart
                 Logger::Get().log("IMU reset attempt");
             }
 
@@ -254,14 +263,18 @@ void ADS::run() {
         }
 
         // Actuate Servos
+        motor.writeData(&rocket);
 
         logSummary();
 
-        // Handle LED
+        // Blink Beaglebone LED 1
         if (time(nullptr) - rocket.led_time > LED_GAP_TIME) {
-
-
+            led_out(&rocket);
         }
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        rocket.dt = time(nullptr) - rocket.loop_time;
+        rocket.loop_time = time(nullptr);
     }
 
     Logger::Get().closeLog();

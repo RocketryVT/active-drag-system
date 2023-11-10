@@ -5,6 +5,7 @@
 #include <vector>
 #include <iomanip>
 #include <sstream>
+#include <fstream>
 
 // Deployment angle limits
 #define MAX_ANGLE 100
@@ -34,11 +35,16 @@
 
 #define PAD_PRESSURE 102250
 
+#define DUTY_MAX 14.5
+#define DUTY_MIN 3
+
 #define LAUNCH_DATE "4-15-2023"
 #define LOG_FILENAME "DataLog_" LAUNCH_DATE ".txt"
 
 #define LED_GAP_TIME 0.5
-#define LED_BRIGHTNESS 1
+#define LED_ONE_PATH "/sys/class/leds/beaglebone:green:usr1"
+#define LED_BRIGHTNESS_FILE "brightness"
+#define LED_FILENAME LED_ONE_PATH LED_BRIGHTNESS_FILE
 
 #define TEST_MODE false
 
@@ -70,6 +76,12 @@ struct Vehicle {
 	double ON_PAD_altitude;
 	bool ON_PAD_fail;
 
+	double duty_span;
+
+	double dt;
+
+	int led_brightness;
+
 	time_t start_time;
 	time_t fail_time; // For failure termination
 	time_t liftoff_time;
@@ -91,3 +103,6 @@ double deploy_percentage_to_angle(double percentage);
  * @return A string with the formatted data.
  */
 std::string format_data(std::string prefix, double data, int precision);
+
+
+bool led_out(Vehicle *vehicle);

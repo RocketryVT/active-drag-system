@@ -26,6 +26,9 @@ class ADSTest : public ::testing::Test {
  *
  * **/
 TEST_F(ADSTest, run) {
-		
+	
+	ads->run();
+
+	
 	// ASSERT Statements.....
 }

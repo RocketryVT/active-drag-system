@@ -5,8 +5,6 @@
 
 using namespace Eigen;
 
-#define DT 1 // Timestep
-
 class KalmanFilter {
 
     private:
@@ -27,11 +25,20 @@ class KalmanFilter {
         int p; // Control Vector Dimension
         int m; // Measurement Vector Dimension
 
+        double dt; // timestep
+
         /**
          * @brief Initialize all necessary matrices.
          * 
          */
         void matrixInit();
+
+        /**
+         * @brief Update any existing variable elements in your State Transition 
+         * & Control Input matrices.
+         * 
+         */
+        void updateMatrices();
 
         /**
          * @brief Predict current State Vector & State Covariance 
@@ -61,8 +68,9 @@ class KalmanFilter {
          * @param state_dim State Vector Dimension. i.e. dim(x)
          * @param control_dim Control/Input Vector Dimension. i.e. dim(u)
          * @param measurement_dim Measurement Vector Dimension. i.e. dim(z)
+         * @param dt timestep
          */
-        KalmanFilter(int state_dim, int control_dim, int measurement_dim);
+        KalmanFilter(int state_dim, int control_dim, int measurement_dim, double _dt);
 
 
         /**
@@ -82,8 +90,9 @@ class KalmanFilter {
          * 
          * @param control current control command
          * @param measurement current measurement
+         * @param dt timestep
          * 
          * @return Filtered state vector
          */
-        VectorXf run(VectorXf control, VectorXf measurement);
+        VectorXf run(VectorXf control, VectorXf measurement, double _dt);
 };

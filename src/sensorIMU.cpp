@@ -7,7 +7,7 @@ IMUSensor::IMUSensor() {
 
 }
 
-bool IMUSensor::init() {
+bool IMUSensor::init(void* data) {
 
     return true;
 }
@@ -15,23 +15,28 @@ bool IMUSensor::init() {
 
 bool IMUSensor::getData(void* data) {
 
-    IMUData *imuData = (IMUData *) data;
+    Vehicle *vehicle = (Vehicle *) data;
 
-    // Get Data (Temp Example) -- For testing
-    imuData->acceleration->push_back(3.0);
-    imuData->acceleration->push_back(4.0);
-    imuData->acceleration->push_back(5.0);
+    // Get Data from somewhere
+    // ....
+    // ....
 
-    imuData->linear_acceleration->push_back(20.0);
-    imuData->linear_acceleration->push_back(25.0);
-    imuData->linear_acceleration->push_back(47.0);
+
+    // Example for testing
+    // vehicle->acceleration->push_back(3.0);
+    // vehicle->acceleration->push_back(4.0);
+    // vehicle->acceleration->push_back(5.0);
+
+    // vehicle->linear_acceleration->push_back(20.0);
+    // vehicle->linear_acceleration->push_back(25.0);
+    // vehicle->linear_acceleration->push_back(47.0);
 
     if (1 == 2) {
         Logger::Get().logErr("IMU Data Error");
         return false;
     }
 
-    data = (void*) imuData;
+    data = (void*) vehicle; // Is this necessary?
     return true;
 }
 

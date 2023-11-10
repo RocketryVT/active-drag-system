@@ -8,10 +8,12 @@ class Sensor {
         /**
          * @brief Initialize the sensor. 
          * 
+         * @param data Data for initializing the sensor
+         * 
          * @return true Initialization Success
          * @return false Initialization Failure
          */
-        virtual bool init() = 0;
+        virtual bool init(void* data) = 0;
 
         /**
          * @brief Read data from the sensor. 

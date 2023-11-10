@@ -11,10 +11,12 @@ class Actuator {
         /**
          * @brief Initialize the actuator. 
          * 
+         * @param data Data for initializing the actuator
+         * 
          * @return true Initialization Success
          * @return false Initialization Failure
          */
-        virtual bool init() = 0;
+        virtual bool init(void* data) = 0;
 
         /**
          * @brief Pass data to the actuator. 

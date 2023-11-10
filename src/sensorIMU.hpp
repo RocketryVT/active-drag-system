@@ -2,6 +2,7 @@
 #include <vector>
 #include "sensor.hpp"
 #include "logger.hpp"
+#include "rocketUtils.hpp"
 
 struct IMUData {
     std::vector<double> acceleration[3];
@@ -17,7 +18,7 @@ class IMUSensor : public Sensor {
 
         IMUSensor();
 
-        bool init() override;
+        bool init(void* data) override;
 
         bool getData(void* data) override;
 };

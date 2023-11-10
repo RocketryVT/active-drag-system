@@ -1,6 +1,7 @@
 #pragma once
 #include "sensor.hpp"
 #include "logger.hpp"
+#include "rocketUtils.hpp"
 
 
 class AltimeterSensor : public Sensor {
@@ -12,7 +13,7 @@ class AltimeterSensor : public Sensor {
 
         AltimeterSensor();
 
-        bool init() override;
+        bool init(void* data) override;
 
         bool getData(void* data) override;
 };
