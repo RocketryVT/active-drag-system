@@ -14,7 +14,7 @@ class Sensor {
         virtual bool init() = 0;
 
         /**
-         * @brief Initialize the sensor. 
+         * @brief Read data from the sensor. 
          * 
          * @param data Data to be obtained from sensor
          * 

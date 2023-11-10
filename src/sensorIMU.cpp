@@ -17,7 +17,7 @@ bool IMUSensor::getData(void* data) {
 
     IMUData *imuData = (IMUData *) data;
 
-    // Get Data (Temp Example)
+    // Get Data (Temp Example) -- For testing
     imuData->acceleration->push_back(3.0);
     imuData->acceleration->push_back(4.0);
     imuData->acceleration->push_back(5.0);
