@@ -1,7 +1,14 @@
-#include <cstdlib>
 #include <iostream>
+#include <cstdlib>
+#include "surfaceFitModel.hpp"
+#include "actuationPlan.hpp"
+#include "ads.hpp"
 
 int main() {
-    std::cout << "ADS Deployed!" << std::endl;
+    
+    SurfaceFitModel sfm = SurfaceFitModel();
+    ActuationPlan plan = ActuationPlan(sfm);
+    ADS ads = ADS(plan);
+    ads.run();
     return EXIT_SUCCESS;
 }

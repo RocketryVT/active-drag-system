@@ -1,7 +1,8 @@
 #include <cstdlib>
 #include "surfaceFitModel.hpp"
-#include "ads.hpp"
 #include "actuationPlan.hpp"
+#include "ads.hpp"
+
 
 
 int main(int argc, char *argv[]) {
