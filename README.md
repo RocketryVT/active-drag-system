@@ -61,4 +61,3 @@ GPIO1_12 = (1 × 32) + 12 = GPIO 44.
 ```shell
 /sys/class/gpio/gpio44 = GPIO1_12
 ```
-
