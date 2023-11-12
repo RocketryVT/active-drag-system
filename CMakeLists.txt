@@ -12,30 +12,22 @@ if(CMAKE_HOST_APPLE)
     # Musl has many targets, must select one
     set(CMAKE_C_COMPILER /opt/homebrew/bin/arm-linux-musleabihf-gcc)
     set(CMAKE_CXX_COMPILER /opt/homebrew/bin/arm-linux-musleabihf-g++)
-    # Set the architecture and flags
-    set(CMAKE_C_FLAGS "-march=armv7-a+fp")
-    set(CMAKE_CXX_FLAGS "-march=armv7-a+fp")
 elseif(UNIX)
     message(STATUS "Running on an Linux system")
 
     # Linux Settings
-    # (arm-linux-gnueabihf- is 32 bit, aarch64-linux... is the 64 bit version)
-    set(CMAKE_C_COMPILER /usr/bin/arm-linux-gnueabihf-gcc)
-    set(CMAKE_CXX_COMPILER /usr/bin/arm-linux-gnueabihf-g++)
+    # (arm-linux-musleabihf- is 32 bit, aarch64-linux... is the 64 bit version)
+    set(CMAKE_C_COMPILER arm-linux-musleabihf-gcc)
+    set(CMAKE_CXX_COMPILER arm-linux-musleabihf-g++)
 endif()
+
+# Set the architecture and flags
+set(CMAKE_C_FLAGS "-march=armv7-a+fp")
+set(CMAKE_CXX_FLAGS "-march=armv7-a+fp")
 
 project(Active-Drag-System CXX)
 
-# sysroot location; mounted using sshfs
-# set(CMAKE_SYSROOT "/vagrant/bbb-sysroot")
-
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/out")
-
-# look in beaglebone for libraries and not host system
-# set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
-# set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
-# set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE ONLY)
-# set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
 
 add_subdirectory(src)
 

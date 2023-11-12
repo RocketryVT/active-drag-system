@@ -13,4 +13,3 @@ src/cmake_install.cmake
 src/Makefile
 
 build/*
-!/build/out
