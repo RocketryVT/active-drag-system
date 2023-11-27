@@ -37,7 +37,7 @@ class ADS {
 
     public:
 
-        ADS(ActuationPlan _plan);
+        ADS(ActuationPlan plan);
 
         void run();
 };

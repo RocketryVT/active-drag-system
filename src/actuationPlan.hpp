@@ -15,7 +15,7 @@ class ActuationPlan {
 
         ActuationPlan();
         
-        ActuationPlan(SurfaceFitModel _sfitM);
+        ActuationPlan(SurfaceFitModel sFitModel);
 
-        void runPlan(Vehicle *rocket);
+        void runPlan(Vehicle& rocket);
 };

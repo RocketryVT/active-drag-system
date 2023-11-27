@@ -70,7 +70,7 @@ class KalmanFilter {
          * @param measurement_dim Measurement Vector Dimension. i.e. dim(z)
          * @param dt timestep
          */
-        KalmanFilter(int state_dim, int control_dim, int measurement_dim, double _dt);
+        KalmanFilter(int state_dim, int control_dim, int measurement_dim, double dt);
 
 
         /**

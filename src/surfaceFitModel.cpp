@@ -1,7 +1,5 @@
 #include "surfaceFitModel.hpp"
 
-
-
 SurfaceFitModel::SurfaceFitModel() {
 
     p = MatrixXd::Zero(X_DEGREE + 1, Y_DEGREE + 1);

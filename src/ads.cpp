@@ -146,7 +146,7 @@ void ADS::updateRocketState() {
 
 
 // Public----------------------------------------------------------------------
-ADS::ADS(ActuationPlan _plan) {
+ADS::ADS(ActuationPlan plan) : plan(plan) {
 
     rocket.status = ON_PAD;
 
@@ -175,14 +175,12 @@ ADS::ADS(ActuationPlan _plan) {
     rocket.relog_time = rocket.start_time;
     rocket.led_time = rocket.start_time;
 
-    plan = _plan;
     imu = IMUSensor();
     altimeter = AltimeterSensor();
     motor = Motor();
     kf = KalmanFilter(2, 1, 1, rocket.dt);
 
     Logger::Get().openLog(LOG_FILENAME);
-
     
     motor.init(&rocket);
 
@@ -226,7 +224,7 @@ void ADS::run() {
             }
 
             // Run the Actuation Plan----------------------------------
-            plan.runPlan(&rocket);
+            plan.runPlan(rocket);
 
             if (rocket.imuReadFail || rocket.altiReadFail) {
 

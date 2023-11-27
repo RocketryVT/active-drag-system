@@ -31,7 +31,7 @@ bool IMUSensor::getData(void* data) {
     // vehicle->linear_acceleration->push_back(25.0);
     // vehicle->linear_acceleration->push_back(47.0);
 
-    if (1 == 2) {
+    if (1 == 2) { // Temporary bullshit
         Logger::Get().logErr("IMU Data Error");
         return false;
     }

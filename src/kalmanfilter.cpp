@@ -67,19 +67,16 @@ KalmanFilter::KalmanFilter() {
 }
 
 
-KalmanFilter::KalmanFilter(int state_dim, int control_dim, int measurement_dim, double _dt) {
+KalmanFilter::KalmanFilter(int state_dim, int control_dim, int measurement_dim, double dt) 
+    : n(state_dim), p(control_dim), m(measurement_dim), dt(dt) {
 
-    n = state_dim;
-    p = control_dim;
-    m = measurement_dim;
-    dt = _dt;
     matrixInit();
 }
 
 bool KalmanFilter::setInitialState(VectorXf state_vec, MatrixXf state_cov) {
 
     if (state_vec.size() != n || state_cov.rows() != n) {
-        std::cout << "Invalid size for Initial States" << std::endl;
+        std::cout << "Error: Max State & Covariance Dimension should be " << n << std::endl;
         return false;
     }
 
@@ -94,7 +91,8 @@ bool KalmanFilter::setInitialState(VectorXf state_vec, MatrixXf state_cov) {
 VectorXf KalmanFilter::run(VectorXf control, VectorXf measurement, double _dt) {
     
      if (control.size() != p || measurement.size() != m) {
-        std::cout << "Invalid size for Control or Measurement" << std::endl;
+        std::cout << "Error: Control Vector Size should be "<< p 
+            << " Measurement Vector Size should be " << m << std::endl;
         return x;
     }
 

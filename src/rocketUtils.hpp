@@ -56,8 +56,8 @@ struct Vehicle {
 
 	int status;
 
-	std::vector<double> acceleration; // Probably change to vectors
-    std::vector<double> linear_acceleration[3];
+	std::vector<double> acceleration; 
+    std::vector<double> linear_acceleration;
 
     double apogee_altitude;
 	double previous_altitude;
