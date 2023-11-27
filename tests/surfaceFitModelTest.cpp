@@ -28,6 +28,5 @@ TEST_F(SurfaceFitModelTest, getFit) {
 	
 	double res = surfFM->getFit(2, 3);
 
-
-	// ASSERT Statements.....
+	EXPECT_NEAR(res, 1, 0.01); // Finish this
 }

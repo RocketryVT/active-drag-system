@@ -21,7 +21,7 @@ class KalmanFilterTest : public ::testing::Test {
 
 
 /**
- *	@brief Test 
+ *	@brief Test Setting the initial state x & P
  *
  * **/
 TEST_F(KalmanFilterTest, setInitialState) {
@@ -30,11 +30,14 @@ TEST_F(KalmanFilterTest, setInitialState) {
 	MatrixXf state_cov(2, 2);
 	state_vec << 1, 2;
 	state_cov << 1, 3, 4, 9;
+	
+	// Success Case
+	EXPECT_TRUE(kf->setInitialState(state_vec, state_cov));
 
-	kf->setInitialState(state_vec, state_cov);
-	
-	
-	// ASSERT Statements.....
+	// Failure Case
+	VectorXf state_vec2(4);
+	state_vec2 << 1, 2, 3, 4;
+	EXPECT_FALSE(kf->setInitialState(state_vec2, state_cov));
 }
 
 /**
@@ -50,9 +53,31 @@ TEST_F(KalmanFilterTest, run) {
 	VectorXf res(1);
 
 	res = kf->run(control, measurement, 1);
+
+	EXPECT_NEAR(0.5454, res(0), 0.0001);
+	EXPECT_NEAR(1, res(1), 0.0001);
+}
+
+
+/**
+ * @brief Test run() when the time step value is changed between function calls.
+ * 
+ */
+TEST_F(KalmanFilterTest, runChange) {
 	
-	
-	// ASSERT Statements.....
+	VectorXf control(1);
+	VectorXf measurement(1);
+	control << 1;
+	measurement << 1;
+	VectorXf res(1);
+
+	res = kf->run(control, measurement, 0.1);
+	EXPECT_NEAR(0.09545, res(0), 0.00001);
+	EXPECT_NEAR(0.1, res(1), 0.1);
+
+	res = kf->run(control, measurement, 0.15);
+	EXPECT_NEAR(0.2761, res(0), 0.0001);
+	EXPECT_NEAR(0.3585, res(1), 0.0001);
 }
 
 
