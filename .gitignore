@@ -13,3 +13,8 @@ src/cmake_install.cmake
 src/Makefile
 
 build/*
+tests/output.txt
+tests/loggerRun
+docs/150_VirginiaTech_TechnicalReport.pdf
+docs/Chen_Presentation_ADS.pdf
+docs/TestLaunch2-Critical.txt
