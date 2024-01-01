@@ -1,7 +1,7 @@
 build/*
 Testing/*
-tests/output.txt
-tests/loggerRun
+test/output.txt
+test/loggerRun
 docs/150_VirginiaTech_TechnicalReport.pdf
 docs/Chen_Presentation_ADS.pdf
 docs/TestLaunch2-Critical.txt
