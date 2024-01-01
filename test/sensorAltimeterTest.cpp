@@ -1,8 +1,8 @@
 #include <iostream>
 #include <vector>
 #include <gtest/gtest.h>
-#include "../src/sensorAltimeter.hpp"
-#include "../src/rocketUtils.hpp"
+#include "../include/sensorAltimeter.hpp"
+#include "../include/rocketUtils.hpp"
 
 class AltimeterSensorTest : public ::testing::Test {
 

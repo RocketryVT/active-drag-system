@@ -1,7 +1,7 @@
 #include <iostream>
 #include <gtest/gtest.h>
 #include "eigen3/Eigen/Dense"
-#include "../src/surfaceFitModel.hpp"
+#include "../include/surfaceFitModel.hpp"
 
 using namespace Eigen;
 

@@ -1,8 +1,8 @@
 #include <iostream>
 #include <vector>
 #include <gtest/gtest.h>
-#include "../src/motor.hpp"
-#include "../src/rocketUtils.hpp"
+#include "../include/motor.hpp"
+#include "../include/rocketUtils.hpp"
 
 class MotorTest : public ::testing::Test {
 

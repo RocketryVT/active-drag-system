@@ -1,4 +1,4 @@
-#include "surfaceFitModel.hpp"
+#include "../include/surfaceFitModel.hpp"
 
 SurfaceFitModel::SurfaceFitModel() {
 

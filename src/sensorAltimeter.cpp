@@ -1,4 +1,4 @@
-#include "sensorAltimeter.hpp"
+#include "../include/sensorAltimeter.hpp"
 
 AltimeterSensor::AltimeterSensor() {
 
@@ -7,6 +7,12 @@ AltimeterSensor::AltimeterSensor() {
 
 bool AltimeterSensor::init(void* data) {
 
+    Vehicle *vehicle = (Vehicle *) data;
+
+    // Do Stuff 
+
+    data = (void*) vehicle;
+    
     return true;
 }
 

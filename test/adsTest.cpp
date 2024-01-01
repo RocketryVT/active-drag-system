@@ -1,8 +1,8 @@
 #include <iostream>
 #include <gtest/gtest.h>
-#include "../src/surfaceFitModel.hpp"
-#include "../src/actuationPlan.hpp"
-#include "../src/ads.hpp"
+#include "../include/surfaceFitModel.hpp"
+#include "../include/actuationPlan.hpp"
+#include "../include/ads.hpp"
 
 class ADSTest : public ::testing::Test {
 

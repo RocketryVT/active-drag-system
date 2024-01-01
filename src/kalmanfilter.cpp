@@ -1,4 +1,4 @@
-#include "kalmanfilter.hpp"
+#include "../include/kalmanfilter.hpp"
 
 // Private----------------------------------------------------------------------
 void KalmanFilter::matrixInit() {

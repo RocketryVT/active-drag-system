@@ -1,4 +1,4 @@
-#include "sensorIMU.hpp"
+#include "../include/sensorIMU.hpp"
 
 
 
@@ -9,6 +9,12 @@ IMUSensor::IMUSensor() {
 
 bool IMUSensor::init(void* data) {
 
+    Vehicle *vehicle = (Vehicle *) data;
+
+    // Do Stuff 
+
+    data = (void*) vehicle;
+    
     return true;
 }
 

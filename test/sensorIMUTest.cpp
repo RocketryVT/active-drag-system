@@ -1,8 +1,8 @@
 #include <iostream>
 #include <vector>
 #include <gtest/gtest.h>
-#include "../src/sensorIMU.hpp"
-#include "../src/rocketUtils.hpp"
+#include "../include/sensorIMU.hpp"
+#include "../include/rocketUtils.hpp"
 
 class IMUSensorTest : public ::testing::Test {
 

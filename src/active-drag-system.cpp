@@ -1,8 +1,8 @@
 #include <iostream>
 #include <cstdlib>
-#include "surfaceFitModel.hpp"
-#include "actuationPlan.hpp"
-#include "ads.hpp"
+#include "../include/surfaceFitModel.hpp"
+#include "../include/actuationPlan.hpp"
+#include "../include/ads.hpp"
 
 int main() {
     
