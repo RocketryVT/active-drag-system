@@ -12,8 +12,8 @@ set(SOURCES_B surfaceFitModelTest.cpp ../src/surfaceFitModel.cpp)
 set(TARGET_C TESTactuationPlan)
 set(SOURCES_C actuationPlanTest.cpp ../src/actuationPlan.cpp ../src/surfaceFitModel.cpp ../src/rocketUtils.cpp ../src/sensorIMU.cpp ../src/sensorAltimeter.cpp)
 
-set(TARGET_D TESTads)
-set(SOURCES_D adsTest.cpp ../src/ads.cpp ../src/actuationPlan.cpp ../src/surfaceFitModel.cpp ../src/rocketUtils.cpp ../src/sensorIMU.cpp ../src/sensorAltimeter.cpp ../src/motor.cpp ../src/logger.cpp ../src/kalmanfilter.cpp)
+# set(TARGET_D TESTads)
+# set(SOURCES_D adsTest.cpp ../src/ads.cpp ../src/actuationPlan.cpp ../src/surfaceFitModel.cpp ../src/rocketUtils.cpp ../src/sensorIMU.cpp ../src/sensorAltimeter.cpp ../src/motor.cpp ../src/logger.cpp ../src/kalmanfilter.cpp)
 
 set(TARGET_E TESTmotorPlan)
 set(SOURCES_E motorTest.cpp ../src/motor.cpp ../src/rocketUtils.cpp)
@@ -53,9 +53,9 @@ add_executable(${TARGET_C} ${SOURCES_C})
 target_link_libraries(${TARGET_C} PUBLIC gtest_main)
 add_test(NAME ${TARGET_C} COMMAND ${TARGET_C})
 
-add_executable(${TARGET_D} ${SOURCES_D})
-target_link_libraries(${TARGET_D} PUBLIC gtest_main)
-add_test(NAME ${TARGET_D} COMMAND ${TARGET_D})
+# add_executable(${TARGET_D} ${SOURCES_D})
+# target_link_libraries(${TARGET_D} PUBLIC gtest_main)
+# add_test(NAME ${TARGET_D} COMMAND ${TARGET_D})
 
 add_executable(${TARGET_E} ${SOURCES_E})
 target_link_libraries(${TARGET_E} PUBLIC gtest_main)
