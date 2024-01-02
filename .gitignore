@@ -2,6 +2,7 @@ build/*
 Testing/*
 test/output.txt
 test/loggerRun
+test/adsTest.cpp
 docs/150_VirginiaTech_TechnicalReport.pdf
 docs/Chen_Presentation_ADS.pdf
 docs/TestLaunch2-Critical.txt
