@@ -15,10 +15,27 @@ class IMUSensor : public Sensor {
 
 
     public:
-
+        /**
+         * @brief Construct a new IMUSensor object
+         * 
+         */
         IMUSensor();
 
+        /**
+         * @brief Inititlize the IMU
+         * 
+         * @param data Data for initializing the sensor
+         * @return true Initialization Success
+         * @return false Initialization Failure
+         */
         bool init(void* data) override;
 
+        /**
+         * @brief Read data from the IMU. 
+         * 
+         * @param data Data to be obtained from IMU
+         * @return true Sensor read Success
+         * @return false Sensor read Failure
+         */
         bool getData(void* data) override;
 };

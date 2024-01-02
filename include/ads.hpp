@@ -27,17 +27,40 @@ class ADS {
         Motor motor;
         Vehicle rocket;
 
-        void logSummary();
+        /**
+         * @brief Logs a summary of all pertinent current rocket data
+         *  (e.g. Altitude, Velocity, Acceleration)
+         */
+        virtual void logSummary();
         
-        void updateOnPadAltitude();
+        /**
+         * @brief Performs a routine to calculate the average altitude
+         *      while the vehicle is waiting on the pad.
+         */
+        virtual void updateOnPadAltitude();
 
-        void updateSensorData();
+        /**
+         * @brief Update the vehicle with the current sensor (IMU & Altimeter) readings
+         */
+        virtual void updateSensorData();
 
-        void updateRocketState();
+        /**
+         * @brief Update the rocket state based on its current telemetry readings.
+         *     Also Log pertinent telemetry and rocket state data
+         */
+        virtual void updateRocketState();
 
     public:
 
+        /**
+         * @brief Construct a new ADS object
+         * 
+         * @param plan The Actuation Plan for the Rocket
+         */
         ADS(ActuationPlan plan);
 
-        void run();
+        /**
+         * @brief Run the full active drag system from launch to landing.
+         */
+        virtual void run();
 };

@@ -34,15 +34,50 @@ class Logger {
 
     public:
         
+        /**
+         * @brief 
+         * 
+         */
         static Logger& Get();
 
+        /**
+         * @brief Open a Log File for writing
+         * 
+         * @param _filename Name of file to open
+         * @return true Successful Open
+         * @return false Unsuccessful Open
+         */
         bool openLog(std::string _filename);
 
+        /**
+         * @brief Close the Log File
+         * 
+         */
         void closeLog();
 
+        /**
+         * @brief Write data to Log file
+         * 
+         * @param data Data to log
+         * @return true Data Successfully Logged
+         * @return false Data Logging Unsuccessful
+         */
         bool log(std::string data);
 
+        /**
+         * @brief Write error data to Log file
+         * 
+         * @param data Error Data to log
+         * @return true Data Successfully Logged
+         * @return false Data Logging Unsuccessful
+         */
         bool logErr(std::string data);
 
+        /**
+         * @brief Print Log Data to Terminal
+         * 
+         * @return true Successful Print
+         * @return false Unsuccessful Print
+         */
         bool printLog();
 };

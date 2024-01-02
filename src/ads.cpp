@@ -210,18 +210,13 @@ void ADS::run() {
     }
 
     rocket.loop_time = time(nullptr);
-    while (true) {
+    while (rocket.status != DONE) {
 
         updateSensorData();
 
         if (!rocket.imuInitFail && !rocket.altiInitFail) {
 
             updateRocketState();
-
-            // Mission Complete
-            if (rocket.status == DONE) {
-                break;
-            }
 
             // Run the Actuation Plan----------------------------------
             plan.runPlan(rocket);
