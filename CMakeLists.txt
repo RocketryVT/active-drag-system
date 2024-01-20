@@ -7,7 +7,10 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS TRUE)
 # Set the cross-compiler for ARM32
 if(CMAKE_HOST_APPLE)
     message(STATUS "Running on an Apple system")
-
+    set(CMAKE_CXX_STANDARD 14)
+    set(CMAKE_CXX_STANDARD_REQUIRED ON)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra")
+    include(CTest)
     # Apple Settings
     # Musl has many targets, must select one
     set(CMAKE_C_COMPILER /opt/homebrew/bin/arm-linux-musleabihf-gcc)
@@ -22,12 +25,12 @@ elseif(UNIX)
 endif()
 
 # Set the architecture and flags
-set(CMAKE_C_FLAGS "-march=armv7-a+fp")
-set(CMAKE_CXX_FLAGS "-march=armv7-a+fp")
+# set(CMAKE_C_FLAGS "-march=armv7-a+fp")
+# set(CMAKE_CXX_FLAGS "-march=armv7-a+fp")
 
-project(Active-Drag-System CXX)
+# project(Active-Drag-System CXX)
 
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/out")
+# set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/out")
 
 add_subdirectory(src)
 
@@ -46,4 +49,3 @@ if(BUILD_TESTING)
     set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
     FetchContent_MakeAvailable(googletest)
 endif()
-

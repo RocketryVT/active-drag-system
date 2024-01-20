@@ -15,7 +15,18 @@ class SurfaceFitModel {
 
     public:
 
+        /**
+         * @brief Construct a new Surface Fit Model object
+         * 
+         */
         SurfaceFitModel();
 
+        /**
+         * @brief 
+         * 
+         * @param x 
+         * @param y 
+         * @return double 
+         */
         double getFit(double x, double y);
 };

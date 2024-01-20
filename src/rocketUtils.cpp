@@ -1,4 +1,4 @@
-#include "rocketUtils.hpp"
+#include "../include/rocketUtils.hpp"
 
 double deploy_percentage_to_angle(double percentage) {
 

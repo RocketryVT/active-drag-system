@@ -1,7 +1,7 @@
 #include <iostream>
 #include <gtest/gtest.h>
 #include "eigen3/Eigen/Dense"
-#include "../src/kalmanfilter.hpp"
+#include "../include/kalmanfilter.hpp"
 
 using namespace Eigen;
 

@@ -91,12 +91,19 @@ struct Vehicle {
 	time_t led_time;
 };
 
+/**
+ * @brief Convert fin deployment percentage to fin rotation angle
+ * 
+ * @param percentage Fin deployment percentage
+ * @return double 
+ */
 double deploy_percentage_to_angle(double percentage);
 
 /**
- * @brief ..........................................................
+ * @brief Set the decimal precision of the given data, and return it 
+ * 		as a formatted string with a prefix containing a relevant description of the data. 
  * 
- * @param prefix Identifying information ............................
+ * @param prefix Identifying or clarifying information about the loggef data
  * @param data Data to Log
  * @param precision The decimal precision value for the data
  * 
@@ -104,5 +111,11 @@ double deploy_percentage_to_angle(double percentage);
  */
 std::string format_data(std::string prefix, double data, int precision);
 
-
+/**
+ * @brief Blink Beaglebone LED 1
+ * 
+ * @param vehicle Holds settings pertinent to the Beaglebone LED
+ * @return true Successful Blink
+ * @return false Unsuccessful Blink
+ */
 bool led_out(Vehicle *vehicle);

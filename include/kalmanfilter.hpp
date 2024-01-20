@@ -9,15 +9,15 @@ class KalmanFilter {
 
     private:
 
-        VectorXf x; // State Vector
-        MatrixXf P; // State Covariance
+        VectorXf state_vector; // x
+        MatrixXf state_covariance; // P
 
-        MatrixXf F; // State Transition Matrix
-        MatrixXf B; // Control Input Matrix
-        MatrixXf H; // Measurement Matrix
+        MatrixXf state_transition_M; // F
+        MatrixXf control_input_M; // B
+        MatrixXf measurement_M; // H
 
-        MatrixXf Q; // Process-Noise Covariance
-        MatrixXf R; // Measurement Covariance
+        MatrixXf process_noise_covariance; // Q
+        MatrixXf measurement_covariance; // R
 
         MatrixXf I; // Identity
 
