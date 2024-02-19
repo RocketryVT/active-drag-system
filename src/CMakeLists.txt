@@ -14,8 +14,6 @@ target_link_options(pru1 PRIVATE -static)
 target_link_options(pru2 PRIVATE -static)
 cmake_minimum_required(VERSION 3.16.3)
 
-project(ADS)
-
 include_directories( ../include )
 
 # Set Variables
