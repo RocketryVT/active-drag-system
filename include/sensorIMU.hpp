@@ -1,6 +1,6 @@
 #pragma once
 #include <vector>
-#include "sensor.hpp"
+#include "sensorI2C.hpp"
 #include "logger.hpp"
 #include "rocketUtils.hpp"
 
@@ -9,7 +9,7 @@ struct IMUData {
     std::vector<double> linear_acceleration[3];
 };
 
-class IMUSensor : public Sensor {
+class IMUSensor : public sensorI2C {
 
     private:
 
