@@ -11,7 +11,8 @@ Designed using subclass for I2C handler for Beaglebone Black
 */
 
 class AltimeterSensor : public sensorI2C {
-
+    
+    //Set device address
     deviceAddress = 0x60;
 
     private:
@@ -37,6 +38,8 @@ class AltimeterSensor : public sensorI2C {
             MPL3115A2_OUT_T_DELTA_LSB = (0x0B),
 
             MPL3115A2_WHOAMI = (0x0C),
+            //This is hard-coded in the device from the factory
+            MPL3115A2_WHOAMI_EXPECTED = (0xC4),
 
             MPL3115A2_BAR_IN_MSB = (0x14),
             MPL3115A2_BAR_IN_LSB = (0x15),
@@ -103,6 +106,33 @@ class AltimeterSensor : public sensorI2C {
             MPL3115A2_TEMPERATURE,
         } mpl3115a2_meas_t;
 
+        //This never actually gets used, and I can't find anything in the datasheet about it??
+        #define MPL3115A2_REGISTER_STARTCONVERSION (0x12) ///< start conversion
+
+        //Store current operating mode, sent to device during startup procedure
+        //This is why an enum is used rather than raw #define statements
+        mpl3115a2_mode_t currentMode;
+
+        //Struct for storing ctrl register contents, copied from adafruit implementation
+        typedef union {
+            struct {
+                uint8_t SBYB : 1;
+                uint8_t OST : 1;
+                uint8_t RST : 1;
+                uint8_t OS : 3;
+                uint8_t RAW : 1;
+                uint8_t ALT : 1;
+            } bit;
+            uint8_t reg;
+        } CTRL_REG_1_STRUCT;
+        //Create instance of this register config to use during device startup and operation
+        CTRL_REG_1_STRUCT ctrl_reg1;
+
+        //Create internal fields to store data for when the device doesn't have new data available yet
+        double currentPressure;
+        double currentAltitude;
+        double currentTemperature;
+
     public:
 
         /**
@@ -118,7 +148,18 @@ class AltimeterSensor : public sensorI2C {
          * @return true Initialization Success
          * @return false Initialization Failure
          */
-        bool init() override;
+        bool init(std::string I2C_FILE) override;
+
+        //Data getters and setters
+        double getPressure();
+        double getAltitude();
+        double getTemperature();
+        double setSeaLevelPressure(double pressure);
+
+        //Data and mode handlers
+        //Use altimeter mode by default as this is what rocket logger wants
+        void setMode(mpl3115a2_mode_t mode = MPL3115A2_ALTIMETER);
+
 };
 
 

@@ -11,7 +11,7 @@
 
 class sensorI2C {
     
-    virtual unsigned short deviceAddress;
+    virtual unsigned char deviceAddress;
     int i2c_bus;
 
     //Predominantly used for I2C handler functions; implement high-level functions in sensor classes
@@ -65,6 +65,24 @@ class sensorI2C {
             }
         }
 
+        //Intakes device address and file 
+        //Private because IT'S ASSUMED PROGRAMMER WILL CALL THIS METHOD DURING INIT() ROUTINE
+        int setupI2C(std::string I2C_FILE) {
+            // Open i2c driver file
+            if((i2c_bus = open(I2C_FILE, O_RDWR)) < 0){
+                perror("FAILED TO OPEN I2C BUS USING FILE %s\n");
+                close(i2c_bus);
+                return 1;
+            }
+
+            // Identify slave device address (MODIFIED FROM INITIAL IMPLEMENTATION, USES INTERNAL deviceAddress INSTEAD OF PARAMETER)
+            if(ioctl(i2c_bus, I2C_SLAVE, deviceAddress) < 0){
+                perror("FAILED TO CONNECT TO DEVICE AT ADDRESS %x VIA I2C\n");
+                close(i2c_bus);
+                return 1;
+            }
+        }
+
     public:
 
         /**
@@ -76,25 +94,6 @@ class sensorI2C {
          * @return false Initialization Failure
          */
         virtual bool init() = 0;
-
-        virtual void updateData() = 0;
-
-        //Intakes device address and file 
-        int setupI2C(std::string I2C_FILE, int slave_address) {
-            // Open i2c driver file
-            if((i2c_bus = open(I2C_FILE, O_RDWR)) < 0){
-                perror("FAILED TO OPEN I2C BUS USING FILE %s\n");
-                close(i2c_bus);
-                return 1;
-            }
-
-            // Identify slave device address
-            if(ioctl(i2c_bus, I2C_SLAVE, slave_address) < 0){
-                perror("FAILED TO CONNECT TO DEVICE AT ADDRESS %x VIA I2C\n");
-                close(i2c_bus);
-                return 1;
-            }
-        }
 
     return 0;
 }
