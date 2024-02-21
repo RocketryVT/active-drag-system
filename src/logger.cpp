@@ -47,23 +47,23 @@ Logger& Logger::Get() {
 
 bool Logger::openLog(std::string _filename) {
 
-    filename = _filename;
-    
-    if (file_open) {
+    txt_filename = _filename + ".txt";
+    csv_filename = _filename + ".csv";
+
+    // Start each file
+    txt_file_open = false;
+    csv_file_open = false;
+    txt_file.open(txt_filename, std::ios::in | std::ios::out | std::ios::app);
+    csv_file.open(csv_filename, std::ios::in | std::ios::out | std::ios::app);
+    if (!txt_file || !csv_file) {
         return false;
     }
-    
-    file.open(filename, std::ios::in | std::ios::out | std::ios::app);
-
-    if (!file) {
-        return false;
-    }
-
-    file_open = true;
+    txt_file_open = true;
+    csv_file_open = true;
     std::string date = getDate();
     std::string timestamp = getTime();
-    file << timestamp << infoTag << "Log Start---- " << date << std::endl;
-
+    txt_file << timestamp << infoTag << "Log Start---- " << date << std::endl;
+    
     return true;
 }
 
@@ -71,62 +71,110 @@ bool Logger::openLog(std::string _filename) {
 void Logger::closeLog() {
 
     std::string timestamp = getTime();
-    file << timestamp << infoTag << "Log End----\n\n";
+    txt_file << timestamp << infoTag << "Log End----\n\n";
 
-    file.close();
-    file_open = false;
+    txt_file.close();
+    csv_file.close();
+    txt_file_open = false;
+    csv_file_open = false;
 }
 
 
-bool Logger::log(std::string data) {
+bool Logger::log(std::string data, FileTypes type) {
 
-    if (!file) {
-        return false;
+    if (type == TXT) {
+
+        if (!txt_file) {
+            return false;
+        }
+
+        if (!txt_file_open) {
+            return false;
+        }
+
+        std::string timestamp = getTime();
+        txt_file << timestamp << infoTag << data << std::endl;
     }
 
-    if (!file_open) {
-        return false;
+    else if (type == CSV) {
+
+        if (!csv_file) {
+            return false;
+        }
+
+        if (!csv_file_open) {
+            return false;
+        }
+
+        csv_file << data << std::endl;
+        
     }
-    std::string timestamp = getTime();
-    file << timestamp << infoTag << data << std::endl;
+
     return true;
 }
+
+
+
 
 bool Logger::logErr(std::string data) {
 
-    if (!file) {
+    if (!txt_file || !csv_file) {
         return false;
     }
 
-    if (!file_open) {
+    if (!txt_file_open || csv_file_open) {
         return false;
     }
 
     std::string timestamp = getTime();
-    file << timestamp << errorTag << data << std::endl;
+    txt_file << timestamp << errorTag << data << std::endl;
     return true;
 }
 
 
-bool Logger::printLog() {
+bool Logger::printLog(FileTypes type) {
 
-    if (file.is_open()) {
-        std::cout << "Log still open. Please close Log." << std::endl;
-        return false;
+    if (type == TXT) {
+
+        if (txt_file.is_open()) {
+            std::cout << "Log still open. Please close Log." << std::endl;
+            return false;
+        }
+
+        txt_file.open(txt_filename, std::ios::in);
+
+        if (!txt_file.is_open()) {
+            return false;
+        }
+
+        std::string line;
+        while(getline(txt_file, line)) {
+            std::cout << line << std::endl;
+        }
+
+        txt_file.close();
     }
 
-    file.open(filename, std::ios::in);
+    else if (type == CSV) {
 
-    if (!file.is_open()) {
-        return false;
+        if (csv_file.is_open()) {
+            std::cout << "Log still open. Please close Log." << std::endl;
+            return false;
+        }
+
+        csv_file.open(csv_filename, std::ios::in);
+
+        if (!csv_file.is_open()) {
+            return false;
+        }
+
+        std::string line;
+        while(getline(csv_file, line)) {
+            std::cout << line << std::endl;
+        }
+
+        csv_file.close();
     }
-
-    std::string line;
-    while(getline(file, line)) {
-        std::cout << line << std::endl;
-    }
-
-    file.close();
-
+    
     return true;
 }

@@ -39,7 +39,8 @@
 #define DUTY_MIN 3
 
 #define LAUNCH_DATE "4-15-2023"
-#define LOG_FILENAME "DataLog_" LAUNCH_DATE ".txt"
+#define LOG_FILENAME "DataLog_" LAUNCH_DATE
+
 
 #define LED_GAP_TIME 0.5
 #define LED_ONE_PATH "/sys/class/leds/beaglebone:green:usr1"

@@ -8,13 +8,17 @@ class Two {
         }
 
         void WritetoLog() {
-            Logger::Get().log("THIS IS A NEEEEEWWWW TEST!!!!!");
+            Logger::Get().log("THIS IS A NEEEEEWWWW TEST!!!!!", TXT);
+            Logger::Get().log("a,b,c,d,e,f,g", CSV);
+            Logger::Get().log("a,b,c,d,e,f,g", CSV);
+            Logger::Get().log("a,b,c,d,e,f,g", CSV);
             Logger::Get().logErr("ERRORRRRRRRR");
-            Logger::Get().printLog();
+            Logger::Get().printLog(TXT);
+            Logger::Get().printLog(CSV);
         }
 
         void TryPrint() {
-            Logger::Get().printLog();
+            Logger::Get().printLog(TXT);
         }
 };
 
@@ -27,7 +31,7 @@ class One {
         }
 
         void OpenLog() {
-            Logger::Get().openLog("output.txt");
+            Logger::Get().openLog("output");
             two.WritetoLog();
             Logger::Get().closeLog();
             two.TryPrint();

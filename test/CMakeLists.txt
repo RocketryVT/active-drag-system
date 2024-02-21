@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.16.3)
 
 project(ADSTests)
+# set(CMAKE_BUILD_TYPE Debug)
 
 # Set Variables
 set(TARGET_A TESTkalmanFilter)
@@ -15,14 +16,17 @@ set(SOURCES_C actuationPlanTest.cpp ../src/actuationPlan.cpp ../src/surfaceFitMo
 # set(TARGET_D TESTads)
 # set(SOURCES_D adsTest.cpp ../src/ads.cpp ../src/actuationPlan.cpp ../src/surfaceFitModel.cpp ../src/rocketUtils.cpp ../src/sensorIMU.cpp ../src/sensorAltimeter.cpp ../src/motor.cpp ../src/logger.cpp ../src/kalmanfilter.cpp)
 
-set(TARGET_E TESTmotorPlan)
+set(TARGET_E TESTmotor)
 set(SOURCES_E motorTest.cpp ../src/motor.cpp ../src/rocketUtils.cpp)
 
-set(TARGET_F TESTsensorAltimeterPlan)
+set(TARGET_F TESTsensorAltimeter)
 set(SOURCES_F sensorAltimeterTest.cpp ../src/sensorAltimeter.cpp ../src/rocketUtils.cpp)
 
-set(TARGET_G TESTsensorIMUPlan)
+set(TARGET_G TESTsensorIMU)
 set(SOURCES_G sensorIMUTest.cpp ../src/sensorIMU.cpp ../src/rocketUtils.cpp)
+
+set(TARGET_H TESTlogger)
+set(SOURCES_H loggerTest.cpp ../src/logger.cpp)
 
 
 #Set-up Google Test
@@ -68,3 +72,7 @@ add_test(NAME ${TARGET_F} COMMAND ${TARGET_F})
 add_executable(${TARGET_G} ${SOURCES_G})
 target_link_libraries(${TARGET_G} PUBLIC gtest_main)
 add_test(NAME ${TARGET_G} COMMAND ${TARGET_G})
+
+add_executable(${TARGET_H} ${SOURCES_H})
+target_link_libraries(${TARGET_H} PUBLIC gtest_main)
+add_test(NAME ${TARGET_H} COMMAND ${TARGET_H})

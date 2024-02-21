@@ -31,24 +31,33 @@ class ADS {
          * @brief Logs a summary of all pertinent current rocket data
          *  (e.g. Altitude, Velocity, Acceleration)
          */
-        virtual void logSummary();
+        void logSummary();
+
+        /**
+         * @brief Add a csv entry of all pertinent current rocket data
+         *  (e.g. Altitude, Velocity, Acceleration)
+         * 
+         */
+        void csvLog();
         
         /**
          * @brief Performs a routine to calculate the average altitude
          *      while the vehicle is waiting on the pad.
          */
-        virtual void updateOnPadAltitude();
+        void updateOnPadAltitude();
 
         /**
          * @brief Update the vehicle with the current sensor (IMU & Altimeter) readings
          */
-        virtual void updateSensorData();
+        void updateSensorData();
 
         /**
          * @brief Update the rocket state based on its current telemetry readings.
          *     Also Log pertinent telemetry and rocket state data
+         * 
+         * @return 
          */
-        virtual void updateRocketState();
+        int updateRocketState();
 
     public:
 

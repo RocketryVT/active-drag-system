@@ -5,21 +5,58 @@
 void ADS::logSummary() {
     
     std::string output_string = "" + state_for_log[rocket.status];
+    std::string csv_string = "" + state_for_log[rocket.status];
 
     if (!rocket.altiInitFail && !rocket.altiReadFail) {
 
-        output_string += format_data(" ", rocket.filtered_altitude, 3);     
+        output_string += format_data(" ", rocket.filtered_altitude, 3);
+        csv_string += format_data(",", rocket.filtered_altitude, 3);        
     }
 
     output_string += format_data(" ", rocket.deployment_angle, 2);    
+    csv_string += format_data(",", rocket.deployment_angle, 2);    
 
     if (!rocket.imuInitFail && !rocket.imuReadFail) {
 
         output_string += format_data(" ", rocket.acceleration[2], 2);    
-        output_string += format_data(" ", rocket.filtered_velocity, 2);    
+        output_string += format_data(" ", rocket.filtered_velocity, 2); 
+
+        csv_string += format_data(",", rocket.acceleration[2], 2);    
+        csv_string += format_data(",", rocket.filtered_velocity, 2);       
     }
 
-    Logger::Get().log(output_string);
+    Logger::Get().log(output_string, TXT);
+}
+
+
+void ADS::csvLog() {
+
+    // altitude, deployment_angle, acceleration, velocity
+    std::string csv_string = "" + state_for_log[rocket.status];
+
+    if (!rocket.altiInitFail && !rocket.altiReadFail) {
+
+        csv_string += format_data(",", rocket.filtered_altitude, 3);        
+    }
+
+    else {
+        csv_string += ",-";
+    }
+  
+    csv_string += format_data(",", rocket.deployment_angle, 2);    
+
+    if (!rocket.imuInitFail && !rocket.imuReadFail) {
+
+        csv_string += format_data(",", rocket.acceleration[2], 2);    
+        csv_string += format_data(",", rocket.filtered_velocity, 2);       
+    }
+
+    else {
+        csv_string += ",-";
+    }
+
+    // Log to CSV file.
+    Logger::Get().log(csv_string, CSV);
 }
 
 
@@ -37,7 +74,7 @@ void ADS::updateOnPadAltitude() {
         avg_alt = (avg_alt * (alt_read_count - 1) + rocket.current_altitude) / alt_read_count;
     }
  
-    Logger::Get().log(format_data("pad altitude initialization complete - ", avg_alt, 3));
+    Logger::Get().log(format_data("pad altitude initialization complete - ", avg_alt, 3), TXT);
     rocket.ON_PAD_altitude = avg_alt;
 }
 
@@ -80,7 +117,7 @@ void ADS::updateSensorData() {
 }
 
 
-void ADS::updateRocketState() {
+int ADS::updateRocketState() {
 
     // Filter sensor data
     VectorXf control_input(1);
@@ -101,11 +138,11 @@ void ADS::updateRocketState() {
         // If launch detected
         if (rocket.acceleration[2] >= BOOST_ACCEL_THRESH * G_0 
             && rocket.filtered_altitude >= BOOST_HEIGHT_THRESH + rocket.ON_PAD_altitude) {
-            Logger::Get().log(format_data("LOM at -- ", (double)(rocket.liftoff_time - rocket.start_time), 3));
+            Logger::Get().log(format_data("LOM at -- ", (double)(rocket.liftoff_time - rocket.start_time), 3), TXT);
         }
 
         if (TEST_MODE && time(nullptr) - rocket.start_time >= 15) {
-            Logger::Get().log(format_data("TEST LOM at -- ", (double)(rocket.liftoff_time - rocket.start_time), 3));
+            Logger::Get().log(format_data("TEST LOM at -- ", (double)(rocket.liftoff_time - rocket.start_time), 3), TXT);
         }
 
         if (time(nullptr) - rocket.relog_time > 2*60*60 
@@ -130,7 +167,7 @@ void ADS::updateRocketState() {
         if (rocket.filtered_altitude < rocket.apogee_altitude - APOGEE_FSM_CHANGE 
             || time(nullptr) - rocket.liftoff_time >= TIME_BO + TIME_APO) {
             rocket.status = APOGEE;
-            Logger::Get().log(format_data("APO: ", (double)(rocket.apogee_altitude), 2));
+            Logger::Get().log(format_data("APO: ", (double)(rocket.apogee_altitude), 2), TXT);
         }
     }
 
@@ -139,9 +176,11 @@ void ADS::updateRocketState() {
 
         if (rocket.filtered_altitude <= FSM_DONE_SURFACE_ALTITUDE + rocket.ON_PAD_altitude) {
             rocket.status = DONE;
-            return;
+            return 0;
         }
     }
+
+    return 1;
 }
 
 
@@ -189,7 +228,7 @@ ADS::ADS(ActuationPlan plan) : plan(plan) {
 
     if (TEST_MODE) {
 
-        Logger::Get().log("TEST Record Start --");
+        Logger::Get().log("TEST Record Start --", TXT);
     }
 }
 
@@ -210,13 +249,14 @@ void ADS::run() {
     }
 
     rocket.loop_time = time(nullptr);
-    while (rocket.status != DONE) {
+    while (true) {
 
         updateSensorData();
 
         if (!rocket.imuInitFail && !rocket.altiInitFail) {
 
-            updateRocketState();
+            if (updateRocketState() == 0)
+                break;
 
             // Run the Actuation Plan----------------------------------
             plan.runPlan(rocket);
@@ -225,12 +265,12 @@ void ADS::run() {
 
                 if (rocket.imuReadFail) {
                     imu.init(nullptr); // Restart
-                    Logger::Get().log("Altimeter reset attempt");
+                    Logger::Get().log("Altimeter reset attempt", TXT);
                 }
 
                 if (rocket.altiReadFail) {
                     altimeter.init(nullptr); // Restart
-                    Logger::Get().log("IMU reset attempt");
+                    Logger::Get().log("IMU reset attempt", TXT);
                 }
             }
         }
@@ -244,12 +284,12 @@ void ADS::run() {
 
             if (rocket.altiInitFail || rocket.altiReadFail) {
                 imu.init(nullptr); // Restart
-                Logger::Get().log("Altimeter reset attempt");
+                Logger::Get().log("Altimeter reset attempt", TXT);
             }
 
             if (rocket.imuInitFail || rocket.imuReadFail) {
                 altimeter.init(nullptr); // Restart
-                Logger::Get().log("IMU reset attempt");
+                Logger::Get().log("IMU reset attempt", TXT);
             }
 
             rocket.deployment_angle = deploy_percentage_to_angle(INIT_DEPLOYMENT);
@@ -259,6 +299,7 @@ void ADS::run() {
         motor.writeData(&rocket);
 
         logSummary();
+        csvLog();
 
         // Blink Beaglebone LED 1
         if (time(nullptr) - rocket.led_time > LED_GAP_TIME) {

@@ -1,6 +1,6 @@
 build/*
 Testing/*
-test/output.txt
+test/output.*
 test/loggerRun
 test/adsTest.cpp
 docs/150_VirginiaTech_TechnicalReport.pdf

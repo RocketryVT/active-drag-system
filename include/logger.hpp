@@ -2,15 +2,23 @@
 #include <iostream>
 #include <fstream>
 #include <ctime>
+#include <vector>
+#include <cstring>
+
+enum FileTypes { TXT, CSV };
 
 class Logger {
 
     private:
-        std::fstream file;
-        std::string filename;
+        std::fstream txt_file;
+        std::fstream csv_file;
+        std::string txt_filename;
+        std::string csv_filename;
+        bool txt_file_open;
+        bool csv_file_open;
+        
         time_t t;
         tm* now;
-        bool file_open;
 
         std::string infoTag = "-> [INFO]: ";
         std::string errorTag = "-> [ERROR]: ";
@@ -41,9 +49,9 @@ class Logger {
         static Logger& Get();
 
         /**
-         * @brief Open a Log File for writing
+         * @brief Open a .txt and .csv log file with the given filename.
          * 
-         * @param _filename Name of file to open
+         * @param _filename Name of file to open. No Suffix. (e.g "filename". NOT "filename.txt")
          * @return true Successful Open
          * @return false Unsuccessful Open
          */
@@ -59,10 +67,11 @@ class Logger {
          * @brief Write data to Log file
          * 
          * @param data Data to log
+         * @param type Specifies the file to write to (TXT or CSV)
          * @return true Data Successfully Logged
          * @return false Data Logging Unsuccessful
          */
-        bool log(std::string data);
+        bool log(std::string data, FileTypes type);
 
         /**
          * @brief Write error data to Log file
@@ -76,8 +85,9 @@ class Logger {
         /**
          * @brief Print Log Data to Terminal
          * 
+         * @param type Specifies the file to print (TXT or CSV)
          * @return true Successful Print
          * @return false Unsuccessful Print
          */
-        bool printLog();
+        bool printLog(FileTypes type);
 };
