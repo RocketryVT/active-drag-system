@@ -11,11 +11,14 @@ Designed using subclass for I2C handler for Beaglebone Black
 */
 
 class AltimeterSensor : public sensorI2C {
-    
+
     //Set device address
     deviceAddress = 0x60;
 
     private:
+        double internalTemperature = 0;
+        double internalAltitude = 0;
+        
         //ENUMS COPIED DIRECTLY FROM ADAFRUIT IMPLEMENTATION
         /** MPL3115A2 registers **/
         enum {
@@ -128,18 +131,13 @@ class AltimeterSensor : public sensorI2C {
         //Create instance of this register config to use during device startup and operation
         CTRL_REG_1_STRUCT ctrl_reg1;
 
-        //Create internal fields to store data for when the device doesn't have new data available yet
-        double currentPressure;
-        double currentAltitude;
-        double currentTemperature;
-
     public:
 
         /**
          * @brief Construct a new Altimeter Sensor object
          * 
          */
-        AltimeterSensor();
+        AltimeterSensor(std::string I2C_FILE);
 
         /**
          * @brief Initialize the Altimeter
@@ -148,10 +146,10 @@ class AltimeterSensor : public sensorI2C {
          * @return true Initialization Success
          * @return false Initialization Failure
          */
-        bool init(std::string I2C_FILE) override;
+        bool init() override;
 
         //Data getters and setters
-        double getPressure();
+        // double getPressure();
         double getAltitude();
         double getTemperature();
         double setSeaLevelPressure(double pressure);
@@ -159,6 +157,10 @@ class AltimeterSensor : public sensorI2C {
         //Data and mode handlers
         //Use altimeter mode by default as this is what rocket logger wants
         void setMode(mpl3115a2_mode_t mode = MPL3115A2_ALTIMETER);
+        void requestOneShotReading();
+        void isNewDataAvailable();
+        double getCurrentDataBuffer();
+
 
 };
 
