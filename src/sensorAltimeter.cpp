@@ -1,7 +1,8 @@
-#include "../include/sensorAltimeter.hpp"
+#include "sensorAltimeter.hpp"
 
-AltimeterSensor::AltimeterSensor(std::string I2C_FILE) {
-    this -> I2C_FILE = I2C_FILE;
+AltimeterSensor::AltimeterSensor(std::string I2C_FILE_in) {
+    I2C_FILE = I2C_FILE_in;
+    deviceAddress = 0x60;
 }
 
 //Startup routine copied from Adafruit library, as is most of the data getting methods
@@ -17,8 +18,8 @@ bool AltimeterSensor::init() {
 
     // Check a register with a hard-coded value to see if comms are working
     uint8_t whoami = readSingleRegister(MPL3115A2_WHOAMI);
-    if (whoami != MPL3115A2_WHOAMI_EXPECTED) {
-        fprintf(stderr, "MPL INITIALIZATION DID NOT PASS WHOAMI DEVICE CHECK!")
+    if (whoami != 0xC4) {
+        fprintf(stderr, "MPL INITIALIZATION DID NOT PASS WHOAMI DEVICE CHECK!, got: %X, expected: 0xC4\n", whoami);
         return false;
     }
 
@@ -84,7 +85,7 @@ void AltimeterSensor::requestOneShotReading() {
     }
 }
 
-void AltimeterSensor::isNewDataAvailable() {
+bool AltimeterSensor::isNewDataAvailable() {
     //Returns PTDR bit of status register, 1 if new data for Temp OR Alt/Pres is available
     //There *are* registers available for exclusively temperature *or* pressure/altitude, but 
     //for simplicity's sake we'll use the combined one for now.
@@ -92,7 +93,7 @@ void AltimeterSensor::isNewDataAvailable() {
 }
 
 //Adafruit returns specific field based on input parameter, this method updates all internal fields at once instead
-double AltimeterSensor::updateCurrentDataBuffer() {
+void AltimeterSensor::updateCurrentDataBuffer() {
     uint8_t buffer[5] = {MPL3115A2_REGISTER_PRESSURE_MSB, 0, 0, 0, 0};
     readMultipleRegisters(MPL3115A2_REGISTER_PRESSURE_MSB, 5);
 

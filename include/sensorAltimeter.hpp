@@ -1,7 +1,5 @@
 #pragma once
 #include "sensorI2C.hpp"
-#include "logger.hpp"
-#include "rocketUtils.hpp"
 #include <string>
 
 /*
@@ -12,8 +10,6 @@ Designed using subclass for I2C handler for Beaglebone Black
 
 class AltimeterSensor : public sensorI2C {
 
-    //Set device address
-    deviceAddress = 0x60;
 
     private:
         double internalTemperature = 0;
@@ -158,8 +154,8 @@ class AltimeterSensor : public sensorI2C {
         //Use altimeter mode by default as this is what rocket logger wants
         void setMode(mpl3115a2_mode_t mode = MPL3115A2_ALTIMETER);
         void requestOneShotReading();
-        void isNewDataAvailable();
-        double getCurrentDataBuffer();
+        bool isNewDataAvailable();
+        void updateCurrentDataBuffer();
 
 
 };
