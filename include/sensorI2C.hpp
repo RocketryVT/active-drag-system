@@ -13,6 +13,7 @@ class sensorI2C {
     
     virtual unsigned char deviceAddress;
     int i2c_bus;
+    std::string I2C_FILE
 
     //Predominantly used for I2C handler functions; implement high-level functions in sensor classes
     //Implemented as a combination of Jazz' implementation and Derek Malloy's code
