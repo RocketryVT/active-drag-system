@@ -11,7 +11,7 @@
 
 class sensorI2C {
     
-    virtual unsigned char deviceAddress;
+    unsigned char deviceAddress;
     int i2c_bus;
     std::string I2C_FILE
 
@@ -27,7 +27,7 @@ class sensorI2C {
 
             //Expect 1 byte response from 1 byte write
             if (write(i2c_bus, convertedAddress, 1) != 1) {
-                perror("ERROR DOING INITIAL READ TRANSACTION WRITE TO REGISTER %x FOR DEVICE %x", registerAddress, deviceAddress);
+                fprintf(stderr, "ERROR DOING INITIAL READ TRANSACTION WRITE TO REGISTER %x FOR DEVICE %x", registerAddress, deviceAddress);
                 return 0;
             }
             return 1;
@@ -42,7 +42,7 @@ class sensorI2C {
             //Expect 2 byte output
             if (write(i2c_bus, writeBuffer, 2) != 2) {
                 //These error messages are kind of obtuse but I'd rather have too much information than not enough
-                perror("ERROR WRITING %x TO REGISTER %x ON DEVICE %x", value, registerAddress, deviceAddress);
+                fprintf(stderr, "ERROR WRITING %x TO REGISTER %x ON DEVICE %x", value, registerAddress, deviceAddress);
             } 
         }
 
@@ -51,7 +51,7 @@ class sensorI2C {
             initialWrite(registerAddress);
             unsigned char readBuffer[1];
             if (read(i2c_bus, readBuffer, 1)!=1){
-                perror("FAILED TO READ VALUE FROM REGISTER %x ON DEVICE %x\n", registerAddress, deviceAddress);
+                fprintf(stderr, "FAILED TO READ VALUE FROM REGISTER %x ON DEVICE %x\n", registerAddress, deviceAddress);
                 return NULL;
             }
             return buffer[0];
@@ -61,9 +61,10 @@ class sensorI2C {
             initialWrite(startingRegisterAddress);
             unsigned char* readBuffer[numberOfRegisters];
             if (read(i2c_bus, readBuffer, numberOfRegisters) != numberOfRegisters)) {
-                perror("ERROR TRYING TO READ %d REGISTERS STARTING AT ADDRESS %x ON DEVICE %x", 
+                fprintf(stderr, "ERROR TRYING TO READ %d REGISTERS STARTING AT ADDRESS %x ON DEVICE %x", 
                     numberOfRegisters, startingRegisterAddress, deviceAddress);
             }
+            return readBuffer;
         }
 
         //Intakes device address and file 
@@ -71,14 +72,14 @@ class sensorI2C {
         int setupI2C(std::string I2C_FILE) {
             // Open i2c driver file
             if((i2c_bus = open(I2C_FILE, O_RDWR)) < 0){
-                perror("FAILED TO OPEN I2C BUS USING FILE %s\n");
+                fprintf(stderr, "FAILED TO OPEN I2C BUS USING FILE %s\n");
                 close(i2c_bus);
                 return 1;
             }
 
             // Identify slave device address (MODIFIED FROM INITIAL IMPLEMENTATION, USES INTERNAL deviceAddress INSTEAD OF PARAMETER)
             if(ioctl(i2c_bus, I2C_SLAVE, deviceAddress) < 0){
-                perror("FAILED TO CONNECT TO DEVICE AT ADDRESS %x VIA I2C\n");
+                fprintf(stderr, "FAILED TO CONNECT TO DEVICE AT ADDRESS %x VIA I2C\n");
                 close(i2c_bus);
                 return 1;
             }

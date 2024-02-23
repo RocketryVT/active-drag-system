@@ -60,6 +60,7 @@ typedef enum {
 class IMUSensor : public sensorI2C {
 
     private:
+        deviceAddress = BNO055_ADDRESS_A;
 
         adafruit_bno055_opmode_t default_mode = OPERATION_MODE_NDOF;
         /** BNO055 Registers **/
@@ -261,12 +262,15 @@ class IMUSensor : public sensorI2C {
             VECTOR_GRAVITY = BNO055_GRAVITY_DATA_X_LSB_ADDR
         } adafruit_vector_type_t;
 
+        int32_t _sensorID;
+        adafruit_bno055_opmode_t currentMode;
+
     public:
         /**
          * @brief Construct a new IMUSensor object
          * 
          */
-        IMUSensor();
+        IMUSensor(std::string I2C_FILE);
 
         /**
          * @brief Inititlize the IMU
@@ -275,14 +279,34 @@ class IMUSensor : public sensorI2C {
          * @return true Initialization Success
          * @return false Initialization Failure
          */
-        bool init(void* data) override;
+        bool init() override;
 
-        /**
-         * @brief Read data from the IMU. 
-         * 
-         * @param data Data to be obtained from IMU
-         * @return true Sensor read Success
-         * @return false Sensor read Failure
-         */
-        bool getData(void* data) override;
+        //Data handlers, copied from adafruit implementation (not all of them)
+        void setModeTemp(adafruit_bno055_opmode_t mode);
+        void setModeHard(adafruit_bno055_opmode_t mode);
+        adafruit_bno055_opmode_t getMode();
+
+        imu::Vector<3> getVector(adafruit_vector_type_t vector_type);
+        imu::Quaternion getQuat();
+        int8_t getTemp();
+
+        //Configuration and status getters/setters
+        void setAxisRemap(adafruit_bno055_axis_remap_config_t remapcode);
+        void setAxisSign(adafruit_bno055_axis_remap_sign_t remapsign);        
+        void getSystemStatus(uint8_t *system_status, uint8_t *self_test_result,
+                       uint8_t *system_error);
+        void getCalibration(uint8_t *sys, uint8_t *gyro, uint8_t *accel,
+                      uint8_t *mag);
+
+        /* Functions to deal with raw calibration data */
+        bool getSensorOffsets(uint8_t *calibData);
+        bool getSensorOffsets(adafruit_bno055_offsets_t &offsets_type);
+        void setSensorOffsets(const uint8_t *calibData);
+        void setSensorOffsets(const adafruit_bno055_offsets_t &offsets_type);
+        bool isFullyCalibrated();
+
+        /* Power managments functions */
+        void enterSuspendMode();
+        void enterNormalMode();
+
 };

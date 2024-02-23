@@ -18,22 +18,22 @@ bool AltimeterSensor::init() {
     // Check a register with a hard-coded value to see if comms are working
     uint8_t whoami = readSingleRegister(MPL3115A2_WHOAMI);
     if (whoami != MPL3115A2_WHOAMI_EXPECTED) {
-        perror("MPL INITIALIZATION DID NOT PASS WHOAMI DEVICE CHECK!")
+        fprintf(stderr, "MPL INITIALIZATION DID NOT PASS WHOAMI DEVICE CHECK!")
         return false;
     }
 
     //Send device dedicated reset byte to CTRL1 Register
-    writeSingleRegister(MPL3115A2_CTRL_REG1, MPL3115A2_CTRL_REG1_RST);
+    writeRegister(MPL3115A2_CTRL_REG1, MPL3115A2_CTRL_REG1_RST);
     //Wait for reset to wipe its way through device and reset appropriate bit of CTRL1 Register
     while (readSingleRegister(MPL3115A2_CTRL_REG1) & MPL3115A2_CTRL_REG1_RST);
 
      //Set oversampling (?) and altitude mode by default
     currentMode = MPL3115A2_ALTIMETER;
     ctrl_reg1.reg = MPL3115A2_CTRL_REG1_OS128 | MPL3115A2_CTRL_REG1_ALT;
-    writeSingleRegister(MPL3115A2_CTRL_REG1, ctrl_reg1.reg);
+    writeRegister(MPL3115A2_CTRL_REG1, ctrl_reg1.reg);
 
     //Configure data return types, I don't really understand this chunk but Adafruit does it this way so we will too I guess
-    writeSingleRegister(MPL3115A2_PT_DATA_CFG, MPL3115A2_PT_DATA_CFG_TDEFE |
+    writeRegister(MPL3115A2_PT_DATA_CFG, MPL3115A2_PT_DATA_CFG_TDEFE |
                                     MPL3115A2_PT_DATA_CFG_PDEFE |
                                     MPL3115A2_PT_DATA_CFG_DREM);
 
@@ -42,10 +42,10 @@ bool AltimeterSensor::init() {
 
 //EXPECTED THAT USER WILL NEVER SET MODE TO PRESSURE AFTER INITIAL CONFIGURATION
 void AltimeterSensor::setMode(mpl3115a2_mode_t mode) {
-  ctrl_reg1.reg = readSingleRegister(MPL3115A2_CTRL_REG1);
-  ctrl_reg1.bit.ALT = mode;
-  writeSingleRegister(MPL3115A2_CTRL_REG1, ctrl_reg1.reg);
-  currentMode = mode;
+    ctrl_reg1.reg = readSingleRegister(MPL3115A2_CTRL_REG1);
+    ctrl_reg1.bit.ALT = mode;
+    writeRegister(MPL3115A2_CTRL_REG1, ctrl_reg1.reg);
+    currentMode = mode;
 }
 
 double AltimeterSensor::getAltitude() {
@@ -80,7 +80,7 @@ void AltimeterSensor::requestOneShotReading() {
     if (!ctrl_reg1.bit.OST) {
         // initiate one-shot measurement
         ctrl_reg1.bit.OST = 1;
-        writeSingleRegister(MPL3115A2_CTRL_REG1, ctrl_reg1.reg);
+        writeRegister(MPL3115A2_CTRL_REG1, ctrl_reg1.reg);
     }
 }
 
@@ -88,7 +88,7 @@ void AltimeterSensor::isNewDataAvailable() {
     //Returns PTDR bit of status register, 1 if new data for Temp OR Alt/Pres is available
     //There *are* registers available for exclusively temperature *or* pressure/altitude, but 
     //for simplicity's sake we'll use the combined one for now.
-    return ((read8(MPL3115A2_REGISTER_STATUS) & MPL3115A2_REGISTER_STATUS_PTDR) != 0);
+    return ((readSingleRegister(MPL3115A2_REGISTER_STATUS) & MPL3115A2_REGISTER_STATUS_PTDR) != 0);
 }
 
 //Adafruit returns specific field based on input parameter, this method updates all internal fields at once instead
