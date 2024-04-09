@@ -54,19 +54,29 @@ int main() {
     gpio_pull_up(PICO_DEFAULT_I2C_SDA_PIN);
     gpio_pull_up(PICO_DEFAULT_I2C_SCL_PIN);
 
+    gpio_init(INT1_PIN);
+    gpio_pull_up(INT1_PIN);
 
     alarm_pool_init_default();
 
     uint8_t config[2] = {0};
-	// Select control register(0x26)
-	// Active mode, OSR = 128, altimeter mode(0xB9)
+
+    // Select control register(0x26)
+    // Active mode, OSR = 128, altimeter mode(0xB9)
     config[0] = 0x26;
     config[1] = 0xB9;
     i2c_write_blocking(i2c_default, ADDR, config, 2, false);
-	// Select data configuration register(0x13)
-	// Data ready event enabled for altitude, pressure, temperature(0x07)
+
+    // Select data configuration register(0x13)
+    // Data ready event enabled for altitude, pressure, temperature(0x07)
     config[0] = 0x13;
     config[1] = 0x07;
+    i2c_write_blocking(i2c_default, ADDR, config, 2, false);
+
+    // Select control register 3 (0x28)
+    // Set bot interrupt pins to active low and enable internal pullups
+    config[0] = 0x28;
+    config[1] = 0x01;
     i2c_write_blocking(i2c_default, ADDR, config, 2, false);
 
     // Below configures the interrupt for the first transition from PAD to BOOST
@@ -98,10 +108,10 @@ int main() {
     config[1] = 0x08;
     i2c_write_blocking(i2c_default, ADDR, config, 2, false);
 
-    gpio_set_irq_enabled_with_callback(INT1_PIN, GPIO_IRQ_EDGE_RISE, true, pad_callback);
+    gpio_set_irq_enabled_with_callback(INT1_PIN, GPIO_IRQ_LEVEL_LOW, true, &pad_callback);
     // End of configuration of interrupt for first transition from PAD to BOOST
 
-    if (!add_repeating_timer_us(-1000000 / DATA_RATE_HZ,  timer_callback, NULL, &timer)) {
+    if (!add_repeating_timer_us(-1000000 / DATA_RATE_HZ,  &timer_callback, NULL, &timer)) {
         printf("Failed to add timer!\n");
         return 1;
     }
@@ -126,7 +136,7 @@ bool timer_callback(repeating_timer_t *rt) {
 
 void pad_callback(uint gpio, uint32_t event_mask) {
 
-    gpio_set_irq_enabled_with_callback(INT1_PIN, GPIO_IRQ_EDGE_RISE, false, pad_callback);
+    gpio_set_irq_enabled_with_callback(INT1_PIN, GPIO_IRQ_LEVEL_LOW, false, &pad_callback);
     uint8_t config[2] = {0};
     // Select interrupt enable register (0x29)
     // Set interrupt enabled for altitude threshold(0x08)
@@ -142,14 +152,14 @@ void pad_callback(uint gpio, uint32_t event_mask) {
 
     state = BOOST;
     // start motor burn timer with this function as callback
-    add_alarm_in_ms(MOTOR_BURN_TIME, boost_callback, NULL, false);
+    add_alarm_in_ms(MOTOR_BURN_TIME, &boost_callback, NULL, false);
 }
 
 int64_t boost_callback(alarm_id_t id, void* user_data) {
     // Configure accelerometer and/or altimeter to generate interrupt
     // for when velocity is negative with this function as callback to
     // transition to APOGEE
-    add_alarm_in_ms(1000, coast_callback, NULL, false);
+    add_alarm_in_ms(1000, &coast_callback, NULL, false);
     state = COAST;
     return 0;
 }
@@ -157,10 +167,10 @@ int64_t boost_callback(alarm_id_t id, void* user_data) {
 int64_t coast_callback(alarm_id_t id, void* user_data) {
     // Want to somehow immediately transition to RECOVERY from APOGEE (extremely short timer?)
     if (velocity < 0.0f) {
-        add_alarm_in_ms(1, apogee_callback, NULL, false);
+        add_alarm_in_ms(1, &apogee_callback, NULL, false);
         state = APOGEE;
     } else {
-        add_alarm_in_ms(1000, coast_callback, NULL, false);
+        add_alarm_in_ms(1000, &coast_callback, NULL, false);
     }
     return 0;
 }
@@ -194,7 +204,7 @@ int64_t apogee_callback(alarm_id_t id, void* user_data) {
     config[1] = 0x08;
     i2c_write_blocking(i2c_default, ADDR, config, 2, false);
 
-    gpio_set_irq_enabled_with_callback(INT1_PIN, GPIO_IRQ_EDGE_RISE, true, recovery_callback);
+    gpio_set_irq_enabled_with_callback(INT1_PIN, GPIO_IRQ_LEVEL_LOW, true, &recovery_callback);
     state = RECOVERY;
     return 0;
 }
