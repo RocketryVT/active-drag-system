@@ -31,6 +31,9 @@ typedef enum {
 
 void pad_callback(uint gpio, uint32_t event_mask);
 int64_t boost_callback(alarm_id_t id, void* user_data);
+int64_t apogee_callback(alarm_id_t id, void* user_data);
+int64_t coast_callback(alarm_id_t id, void* user_data);
+void recovery_callback(uint gpio, uint32_t event_mask);
 
 bool timer_callback(repeating_timer_t *rt);
 float get_altitude();
@@ -122,32 +125,81 @@ bool timer_callback(repeating_timer_t *rt) {
 }
 
 void pad_callback(uint gpio, uint32_t event_mask) {
-    if (velocity >= threshold_velocity) {
-        state = BOOST;
-        // start motor burn timer with this function as callback
-        add_alarm_in_ms(MOTOR_BURN_TIME, boost_callback, NULL, false);
-    }
+
+    gpio_set_irq_enabled_with_callback(INT1_PIN, GPIO_IRQ_EDGE_RISE, false, pad_callback);
+    uint8_t config[2] = {0};
+    // Select interrupt enable register (0x29)
+    // Set interrupt enabled for altitude threshold(0x08)
+    config[0] = 0x29;
+    config[1] = 0x00;
+    i2c_write_blocking(i2c_default, ADDR, config, 2, false);
+
+    // Select interrupt configuration register (0x2A)
+    // Set interrupt enabled for altitude threshold to route to INT1 pin(0x08)
+    config[0] = 0x2A;
+    config[1] = 0x00;
+    i2c_write_blocking(i2c_default, ADDR, config, 2, false);
+
+    state = BOOST;
+    // start motor burn timer with this function as callback
+    add_alarm_in_ms(MOTOR_BURN_TIME, boost_callback, NULL, false);
 }
 
 int64_t boost_callback(alarm_id_t id, void* user_data) {
     // Configure accelerometer and/or altimeter to generate interrupt
     // for when velocity is negative with this function as callback to
     // transition to APOGEE
+    add_alarm_in_ms(1000, coast_callback, NULL, false);
     state = COAST;
     return 0;
 }
 
-void coast_callback() {
+int64_t coast_callback(alarm_id_t id, void* user_data) {
     // Want to somehow immediately transition to RECOVERY from APOGEE (extremely short timer?)
-    state = APOGEE;
+    if (velocity < 0.0f) {
+        add_alarm_in_ms(1, apogee_callback, NULL, false);
+        state = APOGEE;
+    } else {
+        add_alarm_in_ms(1000, coast_callback, NULL, false);
+    }
+    return 0;
 }
 
-void apogee_callback() {
+int64_t apogee_callback(alarm_id_t id, void* user_data) {
     // Set altimeter interrupt to occur for when rocket touches back to the ground
+
+    uint8_t config[2] = {0};
+    // Select pressure target MSB register(0x16)
+    // Set altitude target to 10 meters above ground altitude
+    float ground_altitude = threshold_altitude - 20.0f;
+    config[0] = 0x16;
+    config[1] = (uint16_t) (((uint32_t)(ground_altitude) & 0xFF00) >> 16);
+    i2c_write_blocking(i2c_default, ADDR, config, 2, false);
+
+    // Select pressure target LSB register(0x17)
+    // Set altitude target to 30 meters above ground altitude
+    config[0] = 0x17;
+    config[1] = (uint16_t) (((uint32_t)(ground_altitude) & 0x00FF));
+    i2c_write_blocking(i2c_default, ADDR, config, 2, false);
+
+    // Select interrupt enable register (0x29)
+    // Set interrupt enabled for altitude threshold(0x08)
+    config[0] = 0x29;
+    config[1] = 0x08;
+    i2c_write_blocking(i2c_default, ADDR, config, 2, false);
+
+    // Select interrupt configuration register (0x2A)
+    // Set interrupt enabled for altitude threshold to route to INT1 pin(0x08)
+    config[0] = 0x2A;
+    config[1] = 0x08;
+    i2c_write_blocking(i2c_default, ADDR, config, 2, false);
+
+    gpio_set_irq_enabled_with_callback(INT1_PIN, GPIO_IRQ_EDGE_RISE, true, recovery_callback);
     state = RECOVERY;
+    return 0;
 }
 
-void recovery_callback() {
+void recovery_callback(uint gpio, uint32_t event_mask) {
     // Essentially just a signal to stop logging data
     state = END;
 }
