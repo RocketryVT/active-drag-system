@@ -1,14 +1,19 @@
 cmake_minimum_required(VERSION 3.12)
 
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-set(CMAKE_C_COMPILER arm-none-eabi-gcc)
-set(CMAKE_C_COMPILER arm-none-eabi-g++)
-
 set(PICO_BOARD pico_w)
 set(PICO_SDK_FETCH_FROM_GIT on)
 set(PICO_SDK_FETCH_FROM_GIT_PATH ${CMAKE_CURRENT_SOURCE_DIR}/include/pico-sdk)
+
 # Pull in SDK (must be before project)
-# include(include/pico-sdk/pico_sdk_init.cmake)
+include(pico_sdk_import.cmake)
+
+include(pico_extras_import_optional.cmake)
+
+include(include/pico-sdk/pico_sdk_init.cmake)
+
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+set(CMAKE_C_COMPILER arm-none-eabi-gcc)
+set(CMAKE_CXX_COMPILER arm-none-eabi-g++)
 
 project(active-drag-system C CXX ASM)
 set(CMAKE_C_STANDARD 11)

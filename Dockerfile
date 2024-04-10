@@ -7,7 +7,6 @@ RUN apk update && \
             python3 \
             py3-pip \
             cmake \
-            build-essential\
             build-base \
             libusb-dev \
             bsd-compat-headers \
