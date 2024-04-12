@@ -224,9 +224,9 @@ typedef enum {
 } vector_type_t;
 
 struct LinearAcceleration {
-    double x;
-    double y;
-    double z;
+    float x;
+    float y;
+    float z;
 };
 
 class bno055 {

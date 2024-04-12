@@ -26,7 +26,7 @@ void bno055::read_lin_accel(volatile LinearAcceleration& linear_acceleration) {
     x = ((int16_t)buffer[0]) | (((int16_t)buffer[1]) << 8);
     y = ((int16_t)buffer[2]) | (((int16_t)buffer[3]) << 8);
     z = ((int16_t)buffer[4]) | (((int16_t)buffer[5]) << 8);
-    linear_acceleration.x = ((double)x) / 100.0;
-    linear_acceleration.y = ((double)y) / 100.0;
-    linear_acceleration.z = ((double)z) / 100.0;
+    linear_acceleration.x = ((float)x) / 100.0;
+    linear_acceleration.y = ((float)y) / 100.0;
+    linear_acceleration.z = ((float)z) / 100.0;
 }
