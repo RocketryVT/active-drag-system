@@ -51,6 +51,7 @@ volatile state_t state = PAD;
 volatile float threshold_altitude = 30.0f;
 volatile float threshold_velocity = 30.0f;
 volatile LinearAcceleration linear_acceleration;
+volatile ABSQuaternion abs_quaternion;
 
 /**
  * @brief Main function
@@ -158,6 +159,14 @@ bool timer_callback(repeating_timer_t *rt) {
 
     bno055.read_lin_accel(linear_acceleration);
     printf("Linear Acceleration: %4.2f, %4.2f, %4.2f\n", linear_acceleration.x, linear_acceleration.y, linear_acceleration.z);
+
+    bno055.read_abs_quaternion(abs_quaternion);
+    printf("Quaternion:\n");
+    printf("w: |%4.2f|\n", abs_quaternion.w);
+    printf("x: |%4.2f|\n", abs_quaternion.x);
+    printf("y: |%4.2f|\n", abs_quaternion.y);
+    printf("z: |%4.2f|\n", abs_quaternion.z);
+
 
     absolute_time_t now = get_absolute_time();
     int64_t time_delta = absolute_time_diff_us(last, now);

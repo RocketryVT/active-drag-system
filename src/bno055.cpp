@@ -77,3 +77,20 @@ void bno055::read_lin_accel(volatile LinearAcceleration& linear_acceleration) {
     linear_acceleration.y = ((float)y) / 100.0;
     linear_acceleration.z = ((float)z) / 100.0;
 }
+
+void bno055::read_abs_quaternion(volatile ABSQuaternion& abs_quaternion) {
+    uint8_t quat[8];
+    uint8_t quat_reg = BNO055_QUATERNION_DATA_W_LSB_ADDR;
+    i2c_write_blocking(i2c_default, bno055_address, &quat_reg, 1, true);
+    i2c_read_blocking(i2c_default, bno055_address, quat, 8, false);
+    int16_t w, x, y, z;
+    w = x = y = z = 0;
+    w = ((int16_t)quat[0]) | (((int16_t)quat[1]) << 8);
+    x = ((int16_t)quat[2]) | (((int16_t)quat[3]) << 8);
+    y = ((int16_t)quat[4]) | (((int16_t)quat[5]) << 8);
+    z = ((int16_t)quat[6]) | (((int16_t)quat[7]) << 8);
+    abs_quaternion.w = ((float)w) / 16384.0; // 2^14 LSB
+    abs_quaternion.x = ((float)x) / 16384.0;
+    abs_quaternion.y = ((float)y) / 16384.0;
+    abs_quaternion.z = ((float)z) / 16384.0;
+}

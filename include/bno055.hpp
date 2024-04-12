@@ -236,12 +236,20 @@ struct LinearAcceleration {
     float z;
 };
 
+struct ABSQuaternion {
+    float w;
+    float x;
+    float y;
+    float z;
+};
+
 class bno055 {
     public:
         bno055();
         //Sanity check for factory device ID 
         void init_bno055();
         void read_lin_accel(volatile LinearAcceleration& linear_acceleration);
+        void read_abs_quaternion(volatile ABSQuaternion& abs_quaternion);
     private:
         unsigned char bno055_address;
         int32_t _sensorID;
