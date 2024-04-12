@@ -203,7 +203,14 @@ typedef enum {
     ACCEL_RADIUS_LSB_ADDR = 0X67,
     ACCEL_RADIUS_MSB_ADDR = 0X68,
     MAG_RADIUS_LSB_ADDR = 0X69,
-    MAG_RADIUS_MSB_ADDR = 0X6A
+    MAG_RADIUS_MSB_ADDR = 0X6A,
+
+    /* Interrupt registers*/
+    RST_INT = 0x01,
+
+    NO_MOTION_INT_ADDR = 0x00,
+    SLOW_NO_MOTION_INT_ADDR = 0x01,
+    THRESHOLD_INT_ADDR = 0x02,
 } bno055_reg_t;
 
 /** BNO055 power settings */
@@ -236,7 +243,7 @@ class bno055 {
         void init_bno055();
         void read_lin_accel(volatile LinearAcceleration& linear_acceleration);
     private:
-        unsigned char deviceAddress;
+        unsigned char bno055_address;
         int32_t _sensorID;
         bno055_opmode_t default_mode;
 };
