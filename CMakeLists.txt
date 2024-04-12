@@ -1,13 +1,9 @@
 cmake_minimum_required(VERSION 3.12)
 
 set(PICO_BOARD pico_w)
-set(PICO_SDK_FETCH_FROM_GIT on)
-set(PICO_SDK_FETCH_FROM_GIT_PATH ${CMAKE_CURRENT_SOURCE_DIR}/include/pico-sdk)
 
 # Pull in SDK (must be before project)
 include(pico_sdk_import.cmake)
-
-include(pico_extras_import_optional.cmake)
 
 include(include/pico-sdk/pico_sdk_init.cmake)
 
