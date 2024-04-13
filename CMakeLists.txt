@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.12)
 set(PICO_BOARD pico_w)
 # Pull in SDK (must be before project)
 include(include/pico-sdk/pico_sdk_init.cmake)
+include_directories(include/eigen)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_C_COMPILER arm-none-eabi-gcc)

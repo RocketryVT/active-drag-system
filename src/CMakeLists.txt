@@ -4,7 +4,7 @@ add_executable(ads
         )
 
 # pull in common dependencies
-target_link_libraries(ads pico_stdlib hardware_i2c)
+target_link_libraries(ads pico_stdlib hardware_i2c ${Eigen_LIBRARIES})
 target_include_directories(ads PUBLIC ../include)
 
 pico_enable_stdio_usb(ads 1)

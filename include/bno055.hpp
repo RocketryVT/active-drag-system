@@ -10,6 +10,8 @@
 #include "pico/time.h"
 #include "pico/types.h"
 
+#include <Eigen/Geometry>
+
 //Register addresses and data structs copied from Adafruit implementation
 /** BNO055 Address A **/
 #define BNO055_ADDRESS_A (0x28)
@@ -230,26 +232,48 @@ typedef enum {
     VECTOR_GRAVITY = BNO055_GRAVITY_DATA_X_LSB_ADDR
 } vector_type_t;
 
-struct LinearAcceleration {
-    float x;
-    float y;
-    float z;
-};
-
-struct ABSQuaternion {
+struct quarternion {
     float w;
     float x;
     float y;
     float z;
 };
 
+struct vector3f {
+    float x;
+    float y;
+    float z;
+};
+
+struct CALIB_STATUS {
+    uint8_t sys;
+    uint8_t gyro;
+    uint8_t accel;
+    uint8_t mag;
+};
+
+extern volatile vector3f linear_acceleration;
+extern volatile vector3f acceleration;
+extern volatile quarternion abs_quaternion;
+extern volatile CALIB_STATUS calib_status;
+
+extern volatile vector3f euler_angles;
+extern volatile vector3f abs_lin_accel;
+
 class bno055 {
     public:
         bno055();
         //Sanity check for factory device ID 
+        void reset_bno055();
         void init_bno055();
-        void read_lin_accel(volatile LinearAcceleration& linear_acceleration);
-        void read_abs_quaternion(volatile ABSQuaternion& abs_quaternion);
+        void read_lin_accel();
+        void read_abs_quaternion();
+        void read_euler_angles();
+        void read_accel();
+        void read_calib_status();
+        void calculate_abs_linear_acceleration();
+        // void quaternion_to_euler(); 
+        
     private:
         unsigned char bno055_address;
         int32_t _sensorID;

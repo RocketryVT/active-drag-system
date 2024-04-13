@@ -20,7 +20,7 @@
 
 #define ALT_ADDR 0x60
 #define MAX_SCL 400000
-#define DATA_RATE_HZ 100
+#define DATA_RATE_HZ 10
 #define INT1_PIN 6 // INT1 PIN on MPL3115A2 connected to GPIO PIN 9 (GP6)
 
 #define MOTOR_BURN_TIME 6200 // Burn time in milliseconds for M1939
@@ -50,8 +50,15 @@ volatile float velocity = 0.0f;
 volatile state_t state = PAD;
 volatile float threshold_altitude = 30.0f;
 volatile float threshold_velocity = 30.0f;
-volatile LinearAcceleration linear_acceleration;
-volatile ABSQuaternion abs_quaternion;
+
+volatile vector3f linear_acceleration;
+volatile vector3f acceleration;
+volatile quarternion abs_quaternion;
+
+volatile vector3f euler_angles;
+volatile vector3f abs_lin_accel;
+
+volatile CALIB_STATUS calib_status;
 
 /**
  * @brief Main function
@@ -76,6 +83,7 @@ int main() {
     // Initialize altimeter
     init_altimeter();
 
+    // bno055.reset_bno055();
     bno055.init_bno055();
 
     gpio_set_irq_enabled_with_callback(INT1_PIN, GPIO_IRQ_LEVEL_LOW, true, &pad_callback);
@@ -157,20 +165,58 @@ bool timer_callback(repeating_timer_t *rt) {
     printf("Velocity: %4.2f\n", velocity);
     prev_altitude = altitude;
 
-    bno055.read_lin_accel(linear_acceleration);
-    printf("Linear Acceleration: %4.2f, %4.2f, %4.2f\n", linear_acceleration.x, linear_acceleration.y, linear_acceleration.z);
+    bno055.read_lin_accel();
+    printf("Linear Acceleration:\n" "x: %f\n" "y: %f\n" "z: %f\n",
+     linear_acceleration.x, linear_acceleration.y, linear_acceleration.z);
 
-    bno055.read_abs_quaternion(abs_quaternion);
-    printf("Quaternion:\n");
-    printf("w: |%4.2f|\n", abs_quaternion.w);
-    printf("x: |%4.2f|\n", abs_quaternion.x);
-    printf("y: |%4.2f|\n", abs_quaternion.y);
-    printf("z: |%4.2f|\n", abs_quaternion.z);
+    bno055.read_abs_quaternion();
+    printf("Absolute Quaternion:\n" "w: %f\n" "x: %f\n" "y: %f\n" "z: %f\n",
+     abs_quaternion.w, abs_quaternion.x, abs_quaternion.y, abs_quaternion.z);
+
+    bno055.read_euler_angles();
+    printf("Euler Angles:\n" "Roll: %f\n" "Pitch: %f\n" "Yaw: %f\n",
+     euler_angles.x, euler_angles.y, euler_angles.z);
+
+    // bno055.calculate_abs_linear_acceleration();
+    // printf("Absolute Linear Acceleration:\n" "x: %f\n" "y: %f\n" "z: %f\n",
+    //  abs_lin_accel.x, abs_lin_accel.y, abs_lin_accel.z);
+
+    // bno055.read_calib_status();
+    // printf("Calibration Status:\n" "System: %d\n" "Gyro: %d\n" "Accel: %d\n" "Mag: %d\n",
+    //  calib_status.sys, calib_status.gyro, calib_status.accel, calib_status.mag);
 
 
     absolute_time_t now = get_absolute_time();
     int64_t time_delta = absolute_time_diff_us(last, now);
     printf("Time Delta: %" PRIi64"\n", time_delta);
+    std::flush(std::cout);
+    return true;
+}
+
+bool test_timer_callback(repeating_timer_t *rt) {
+    static float prev_altitude = altitude;
+    absolute_time_t last = get_absolute_time();
+    altitude = get_altitude();
+    velocity = ((altitude - prev_altitude) / 0.01f);
+    prev_altitude = altitude;
+
+    bno055.read_lin_accel();
+    bno055.read_abs_quaternion();
+
+    absolute_time_t now = get_absolute_time();
+    int64_t time_delta = absolute_time_diff_us(last, now);
+
+    // std::cout << altitude << " "
+    //       << velocity << " "
+    //       << linear_acceleration.x << " "
+    //       << linear_acceleration.y << " "
+    //       << linear_acceleration.z << " "
+    //       << abs_quaternion.w << " "
+    //       << abs_quaternion.x << " "
+    //       << abs_quaternion.y << " "
+    //       << abs_quaternion.z << " "
+    //       << time_delta << std::endl;
+
     return true;
 }
 
