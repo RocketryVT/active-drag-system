@@ -22,13 +22,12 @@
 
 #define ALT_ADDR 0x60
 #define MAX_SCL 400000
-#define DATA_RATE_HZ 100
-#define LOOP_HZ (1.0/DATA_RATE_HZ)
+#define DATA_RATE_HZ 15
+#define LOOP_PERIOD (1.0f / DATA_RATE_HZ)
 #define INT1_PIN 6 // INT1 PIN on MPL3115A2 connected to GPIO PIN 9 (GP6)
 #define MOSFET_PIN 1 // MOSFET PIN connected to GPIO PIN 1 (GP1)
 
 #define GRAVITY -9.81
-#define DATA_RATE_HZ 15
 #define LOG_RATE_HZ 4
 #define INT1_PIN 6 // INT1 PIN on MPL3115A2 connected to GPIO PIN 9 (GP6)
 #define LED_PIN 28
@@ -358,7 +357,7 @@ bool timer_callback(repeating_timer_t *rt) {
 
     control(0) = abs_lin_accel.z;
     measurement(0) = altitude;
-    res = kf->run(control, measurement, LOOP_HZ);
+    res = kf->run(control, measurement, LOOP_PERIOD);
     printf("Kalman Altitude Filter Output: %f\n", res(0));
     // printf("Kalman Velocity Output: %f\n", res(1));
 
