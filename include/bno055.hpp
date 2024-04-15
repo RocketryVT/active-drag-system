@@ -23,6 +23,7 @@
 /** Offsets registers **/
 #define NUM_BNO055_OFFSET_REGISTERS (22)
 
+
 /** A structure to represent offsets **/
 typedef struct {
     int16_t accel_offset_x; /**< x acceleration offset */
@@ -263,6 +264,9 @@ extern volatile vector3f rot_y_vec;
 extern volatile vector3f vel_at_angle;
 
 extern volatile vector3f accel_gravity;
+
+extern uint8_t accel[6];
+extern uint8_t quat[8];
 
 class BNO055 {
     public:

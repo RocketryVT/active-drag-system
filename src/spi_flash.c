@@ -7,10 +7,6 @@
 // Example of reading/writing an external serial flash using the PL022 SPI interface
 
 #include "spi_flash.h"
-#include "boards/pico_w.h"
-#include "hardware/spi.h"
-#include "pico/time.h"
-#include "pico/types.h"
 
 static inline void cs_select(uint cs_pin) {
     asm volatile("nop \n nop \n nop"); // FIXME
@@ -125,7 +121,7 @@ void __not_in_flash_func(flash_write)(spi_inst_t *spi, uint cs_pin, uint32_t add
     flash_wait_done(spi, cs_pin);
 }
 
-void write_entry(uint8_t data_entry[PACKET_SIZE]) {
+void write_entry(uint8_t* data_entry) {
     flash_read(spi_default, PICO_DEFAULT_SPI_CSN_PIN, base_addr, page_buffer, FLASH_PAGE_SIZE);
     for (uint16_t i = 0; i < FLASH_PAGE_SIZE; i += PACKET_SIZE) {
         if (page_buffer[i] == 0xFF) {

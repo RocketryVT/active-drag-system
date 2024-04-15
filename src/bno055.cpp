@@ -84,7 +84,6 @@ void BNO055::read_calib_status() {
 }
 
 void BNO055::read_lin_accel() {
-    uint8_t accel[6];
     uint8_t lin_accel_reg = BNO055_LINEAR_ACCEL_DATA_X_LSB_ADDR;
     i2c_write_blocking(i2c_default, bno055_address, &lin_accel_reg, 1, true);
     i2c_read_blocking(i2c_default, bno055_address, accel, 6, false);
@@ -111,7 +110,6 @@ void BNO055::accel_to_gravity() {
 }
 
 void BNO055::read_abs_quaternion() {
-    uint8_t quat[8];
     uint8_t quat_reg = BNO055_QUATERNION_DATA_W_LSB_ADDR;
     i2c_write_blocking(i2c_default, bno055_address, &quat_reg, 1, true);
     i2c_read_blocking(i2c_default, bno055_address, quat, 8, false);
@@ -200,3 +198,4 @@ void BNO055::get_rotation_vector() {
     rot_y_vec.y = rotation_matrix(1, 1);
     rot_y_vec.z = rotation_matrix(1, 2);
 }
+

@@ -1,9 +1,14 @@
 #ifndef SPI_FLASH
 #define SPI_FLASH
 
+#include <stdint.h>
 #include "hardware/spi.h"
 #include "boards/pico_w.h"
 #include "pico/stdlib.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #define FLASH_PAGE_SIZE        256
 #define FLASH_NUM_PAGES        4096
@@ -21,13 +26,15 @@
 
 #define FLASH_STATUS_BUSY_MASK 0x01
 
-#define FLASH_TEST             0
+// #define FLASH_TEST
 
 #define PACKET_SIZE            32
 
 
 static uint8_t page_buffer[FLASH_PAGE_SIZE];
 static uint32_t base_addr = 0;
+
+void write_entry(uint8_t* data_entry);
 
 void __not_in_flash_func(flash_read)(spi_inst_t *spi, uint cs_pin, uint32_t addr, uint8_t *dest, size_t len);
 
@@ -42,6 +49,7 @@ void __not_in_flash_func(flash_sector_erase)(spi_inst_t *spi, uint cs_pin, uint3
 void __not_in_flash_func(flash_block_erase)(spi_inst_t *spi, uint cs_pin, uint32_t addr);
 void __not_in_flash_func(flash_erase)(spi_inst_t *spi, uint cs_pin);
 
-void write_entry(uint8_t data_entry[PACKET_SIZE]);
-
+#ifdef __cplusplus
+}
+#endif
 #endif
