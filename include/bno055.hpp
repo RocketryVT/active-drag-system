@@ -259,20 +259,27 @@ extern volatile CALIB_STATUS calib_status;
 
 extern volatile vector3f euler_angles;
 extern volatile vector3f abs_lin_accel;
+extern volatile vector3f rot_y_vec;
+extern volatile vector3f vel_at_angle;
 
-class bno055 {
+extern volatile vector3f accel_gravity;
+
+class BNO055 {
     public:
-        bno055();
+        BNO055();
         //Sanity check for factory device ID 
         void reset_bno055();
-        void init_bno055();
+        void init();
         void read_lin_accel();
         void read_abs_quaternion();
         void read_euler_angles();
         void read_accel();
         void read_calib_status();
         void calculate_abs_linear_acceleration();
-        // void quaternion_to_euler(); 
+        void accel_to_gravity();
+        void quaternion_to_euler(); 
+        void get_rotation_vector();
+        void clamp_close_zero(volatile float &val);
         
     private:
         unsigned char bno055_address;
