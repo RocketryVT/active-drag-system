@@ -5,6 +5,9 @@
  */
 #include <stdio.h>
 #include <inttypes.h>
+#include "pico/multicore.h"
+#include "pico/platform.h"
+#include "pico/sem.h"
 #include "spi_flash.h"
 // #include <inttypes.h>
 #include "boards/pico_w.h"
@@ -57,10 +60,14 @@ float get_deploy_percent(float velocity, float altitude);
 bool timer_callback(repeating_timer_t *rt);
 bool test_timer_callback(repeating_timer_t *rt);
 
-void snapshot();
-bool logging_callback(repeating_timer_t *rt);
 float get_altitude();
 float get_velocity();
+
+void snapshot();
+bool logging_callback(repeating_timer_t *rt);
+void logging_core();
+
+semaphore_t sem;
 
 
 volatile float altitude = 0.0f;
@@ -103,7 +110,9 @@ float predicted_apogee;
  * @return int erorr code
  */
 int main() {
-    // stdio_init_all();
+    stdio_init_all();
+
+    getchar();
 
     i2c_init(i2c_default, MAX_SCL);
     gpio_set_function(PICO_DEFAULT_I2C_SDA_PIN, GPIO_FUNC_I2C);
@@ -131,6 +140,7 @@ int main() {
     
     alarm_pool_init_default();
 
+
     // Initialize altimeter
     init_altimeter();
 
@@ -154,16 +164,25 @@ int main() {
 
     predicted_apogee = altitude;
 
+    sem_init(&sem, 1, 1);
+
+    printf("Number of permits available: %d", sem_available(&sem));
 
     if (!add_repeating_timer_us(-1000000 / DATA_RATE_HZ,  &timer_callback, NULL, &data_timer)) {
         // printf("Failed to add timer!\n");
         return -1;
     }
 
-    if (!add_repeating_timer_us(-1000000 / LOG_RATE_HZ,  &logging_callback, NULL, &log_timer)) {
-        // printf("Failed to add timer!\n");
-        return -1;
+    multicore_launch_core1(logging_core);
+
+    while (1) {
+        tight_loop_contents();
     }
+}
+
+void logging_core() {
+    add_repeating_timer_us(-1000000 / LOG_RATE_HZ,  &logging_callback, NULL, &log_timer);
+
     while (1) {
         tight_loop_contents();
     }
@@ -303,14 +322,17 @@ void snapshot() {
 }
 
 bool logging_callback(repeating_timer_t *rt) {
+    sem_acquire_blocking(&sem);
     snapshot();
+    sem_release(&sem);
     return true;
 }
 
 bool timer_callback(repeating_timer_t *rt) {
     absolute_time_t last = get_absolute_time();
+    sem_acquire_blocking(&sem);
     altitude = get_altitude();
-    printf("Altitude: %4.2f\n", altitude);
+    // printf("Altitude: %4.2f\n", altitude);
     velocity = get_velocity();
     // printf("Velocity_Delta: %4.2f\tVelocity_Prev: %4.2f\n", velocity, ((altitude - prev_altitude) * DATA_RATE_HZ));
 
@@ -386,6 +408,7 @@ bool timer_callback(repeating_timer_t *rt) {
     //         break;
     // }
 
+    sem_release(&sem);
     return true;
 }
 
@@ -475,28 +498,34 @@ void pad_callback(uint gpio, uint32_t event_mask) {
     config[1] = 0x00;
     i2c_write_blocking(i2c_default, ALT_ADDR, config, 2, true);
 
+    sem_acquire_blocking(&sem);
     state = BOOST;
     // start motor burn timer with this function as callback
     add_alarm_in_ms(MOTOR_BURN_TIME, &boost_callback, NULL, false);
     snapshot();
+    sem_release(&sem);
 }
 
 int64_t boost_callback(alarm_id_t id, void* user_data) {
     // Configure accelerometer and/or altimeter to generate interrupt
     // for when velocity is negative with this function as callback to
     // transition to APOGEE
-    add_alarm_in_ms(1000, &coast_callback, NULL, false);
+    sem_acquire_blocking(&sem);
     state = COAST;
     snapshot();
+    sem_release(&sem);
+    add_alarm_in_ms(1000, &coast_callback, NULL, false);
     return 0;
 }
 
 int64_t coast_callback(alarm_id_t id, void* user_data) {
     // Want to somehow immediately transition to RECOVERY from APOGEE (extremely short timer?)
     if (velocity <= 0.0f) {
-        add_alarm_in_ms(1, &apogee_callback, NULL, false);
+        sem_acquire_blocking(&sem);
         state = APOGEE;
         snapshot();
+        sem_release(&sem);
+        add_alarm_in_ms(1, &apogee_callback, NULL, false);
     } else {
         add_alarm_in_ms(250, &coast_callback, NULL, false);
     }
@@ -536,16 +565,20 @@ int64_t apogee_callback(alarm_id_t id, void* user_data) {
     config[1] = 0x08;
     i2c_write_blocking(i2c_default, ALT_ADDR, config, 2, true);
 
-    gpio_set_irq_enabled_with_callback(INT1_PIN, GPIO_IRQ_LEVEL_LOW, true, &recovery_callback);
+    sem_acquire_blocking(&sem);
     state = RECOVERY;
     snapshot();
+    sem_release(&sem);
+    gpio_set_irq_enabled_with_callback(INT1_PIN, GPIO_IRQ_LEVEL_LOW, true, &recovery_callback);
     return 0;
 }
 
 void recovery_callback(uint gpio, uint32_t event_mask) {
     // Essentially just a signal to stop logging data
+    sem_acquire_blocking(&sem);
     state = END;
     snapshot();
+    sem_acquire_blocking(&sem);
 }
 
 float get_altitude() {
