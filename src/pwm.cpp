@@ -30,6 +30,6 @@ void PWM::set_duty_cycle(int duty_cycle_percent) {
 void PWM::set_servo_percent(int percent) {
     // Calculate the value by clamping the percent from 0 to 100
     // to the SERVO_MIN and SERVO_MAX
-    uint32_t value = ((percent * SERVO_RANGE) / 100.0) + SERVO_MIN;
+    uint32_t value = ((percent * SERVO_RANGE) / 100) + SERVO_MIN;
     PWM::set_duty_cycle(value);
 }

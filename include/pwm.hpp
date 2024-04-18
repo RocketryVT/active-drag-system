@@ -10,9 +10,9 @@
 #define SERVO_PIN 0 // Servo motor connected to GPIO PIN 0 (GP0)
 #define WRAP_VALUE 65535
 #define CLOCK_DIV_RATE 38.15
-#define SERVO_MIN 3
-#define SERVO_MAX 13
-#define SERVO_RANGE (SERVO_MAX - SERVO_MIN)
+#define SERVO_MIN 13
+#define SERVO_MAX 3
+#define SERVO_RANGE -10
 
 class PWM {
     public:

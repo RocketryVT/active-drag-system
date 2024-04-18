@@ -3,29 +3,28 @@
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
+#include <algorithm>
 #include <stdio.h>
-#include <inttypes.h>
 #include "pico/multicore.h"
 #include "pico/platform.h"
 #include "pico/sem.h"
 #include "spi_flash.h"
-// #include <inttypes.h>
 #include "boards/pico_w.h"
 #include "hardware/gpio.h"
 #include "hardware/i2c.h"
 #include "pico/stdlib.h"
 #include "pico/time.h"
 #include "pico/types.h"
-#include "pico/divider.h"
 #include <math.h>
 
 #include "bno055.hpp"
-#include "kalmanfilter.hpp"
+#include "AltEst/altitude.h"
 #include "pwm.hpp"
+#include "SimpleKalmanFilter.h"
 
 #define ALT_ADDR 0x60
 #define MAX_SCL 400000
-#define DATA_RATE_HZ 15
+#define DATA_RATE_HZ 25
 #define LOOP_PERIOD (1.0f / DATA_RATE_HZ)
 #define INT1_PIN 6 // INT1 PIN on MPL3115A2 connected to GPIO PIN 9 (GP6)
 #define MOSFET_PIN 1 // MOSFET PIN connected to GPIO PIN 1 (GP1)
@@ -46,8 +45,12 @@ typedef enum {
 } state_t;
 
 BNO055 bno055;
-KalmanFilter *kf;
 PWM pwm;
+static AltitudeEstimator vKF = AltitudeEstimator(0.0005, // sigma Accel
+                                                      0.0005, // sigma Gyro
+                                                      0.018,   // sigma Baro
+                                                      0.5, // ca
+                                                      0.1);// accelThreshold
 
 void pad_callback(uint gpio, uint32_t event_mask);
 int64_t boost_callback(alarm_id_t id, void* user_data);
@@ -68,7 +71,6 @@ bool logging_callback(repeating_timer_t *rt);
 void logging_core();
 
 semaphore_t sem;
-
 
 volatile float altitude = 0.0f;
 volatile float prev_altitude = 0.0f;
@@ -98,11 +100,10 @@ uint8_t quat[8];
 repeating_timer_t data_timer;
 repeating_timer_t log_timer;
 
-VectorXf control(1);
-VectorXf measurement(1);
-VectorXf res(1);
-
 float predicted_apogee;
+
+SimpleKalmanFilter altitudeKF(2, 2, 0.01);
+SimpleKalmanFilter velocityKF(1, 1, 0.01);
 
 /**
  * @brief Main function
@@ -110,9 +111,7 @@ float predicted_apogee;
  * @return int erorr code
  */
 int main() {
-    stdio_init_all();
-
-    getchar();
+    // stdio_init_all();
 
     i2c_init(i2c_default, MAX_SCL);
     gpio_set_function(PICO_DEFAULT_I2C_SDA_PIN, GPIO_FUNC_I2C);
@@ -155,18 +154,14 @@ int main() {
     gpio_set_dir(MOSFET_PIN, GPIO_OUT);
 
     // Initialize Kalman Filter
-    kf = new KalmanFilter(2, 1, 1, 1);
-    VectorXf state_vec(2);
-	MatrixXf state_cov(2, 2);
-    state_vec << get_altitude(), 0.0;
-    state_cov << 0.1, 0.0, 0.0, 0.1;
-    kf->setInitialState(state_vec, state_cov);
+    float measurement = get_altitude();
+    float v_measurement = get_velocity();
+    altitudeKF.updateEstimate(measurement);
+    velocityKF.updateEstimate(measurement);
 
     predicted_apogee = altitude;
 
     sem_init(&sem, 1, 1);
-
-    printf("Number of permits available: %d", sem_available(&sem));
 
     if (!add_repeating_timer_us(-1000000 / DATA_RATE_HZ,  &timer_callback, NULL, &data_timer)) {
         // printf("Failed to add timer!\n");
@@ -201,7 +196,7 @@ void init_altimeter() {
     // Select control register(0x26)
     // Active mode, OSR = 16, altimeter mode(0xB8)
     config[0] = 0x26;
-    config[1] = 0xA1;
+    config[1] = 0x89;
     i2c_write_blocking(i2c_default, ALT_ADDR, config, 2, true);
 
     // Select data configuration register(0x13)
@@ -212,6 +207,8 @@ void init_altimeter() {
 
     // Below configures the interrupt for the first transition from PAD to BOOST
     // Initial Reading
+
+    sleep_ms(1000);
 
     while (altitude == 0.0f) {
         altitude = get_altitude();
@@ -263,6 +260,7 @@ void snapshot() {
     uint64_t now_us = to_us_since_boot(now);
     uint32_t alt_bits = *((uint32_t *)&altitude);
     uint32_t vel_bits = *((uint32_t *)&velocity);
+    uint32_t acc_bits = *((uint32_t *)&abs_lin_accel.z);
     entry[0] = now_us >> 56;
     entry[1] = now_us >> 48;
     entry[2] = now_us >> 40;
@@ -331,9 +329,14 @@ bool logging_callback(repeating_timer_t *rt) {
 bool timer_callback(repeating_timer_t *rt) {
     absolute_time_t last = get_absolute_time();
     sem_acquire_blocking(&sem);
-    altitude = get_altitude();
-    // printf("Altitude: %4.2f\n", altitude);
-    velocity = get_velocity();
+    float measurement = get_altitude();
+    altitude = altitudeKF.updateEstimate(measurement);
+    // float in_velocity = (altitude - prev_altitude) * DATA_RATE_HZ;
+    // velocity = velocityKF.updateEstimate(in_velocity);
+    float acceldata[3];
+    float gyrodata[3];
+
+
     // printf("Velocity_Delta: %4.2f\tVelocity_Prev: %4.2f\n", velocity, ((altitude - prev_altitude) * DATA_RATE_HZ));
 
     bno055.read_lin_accel();
@@ -351,9 +354,19 @@ bool timer_callback(repeating_timer_t *rt) {
     // Linear Acceleration and Absolute Quaternion are used to calculate Absolute Linear Acceleration
     // They must be read before calling this function
     bno055.calculate_abs_linear_acceleration();
-    printf("Absolute Linear Acceleration:\n" "x: %f\n" "y: %f\n" "z: %f\n",
-     abs_lin_accel.x, abs_lin_accel.y, abs_lin_accel.z);
+    // printf("Absolute Linear Acceleration:\n" "x: %f\n" "y: %f\n" "z: %f\n",
+    // abs_lin_accel.x, abs_lin_accel.y, abs_lin_accel.z);
     
+    acceldata[0] = abs_lin_accel.x;
+    acceldata[1] = abs_lin_accel.y;
+    acceldata[2] = abs_lin_accel.z - 0.4f;
+    gyrodata[0] = 0;
+    gyrodata[1] = 0;
+    gyrodata[2] = 0;
+
+    vKF.estimate(acceldata, gyrodata, altitude, to_us_since_boot(last));
+    velocity = vKF.getVerticalVelocity();
+    // printf("Measurement: %4.2f, Altitude: %4.2f, Velocity: %4.2f\n", measurement, altitude, velocity);
     // This is wrong but i'm going home.
     // velocity_vector.x = (prev_abs_lin_accel.x - abs_lin_accel.x) / 0.01f);
     // velocity_vector.y = (prev_abs_lin_accel.y - abs_lin_accel.y) / 0.01f);
@@ -366,48 +379,36 @@ bool timer_callback(repeating_timer_t *rt) {
     prev_abs_lin_accel.z = abs_lin_accel.z;
 
     bno055.accel_to_gravity();
-    // printf("Acceleration to Gravity:\n" "x: %f\n" "y: %f\n" "z: %f\n",
-    //  accel_gravity.x, accel_gravity.y, accel_gravity.z);
 
-    // bno055.get_rotation_vector();
-    // printf("Rotation Vector:\n" "x: %f\n" "y: %f\n" "z: %f\n",
-    //  rot_y_vec.x, rot_y_vec.y, rot_y_vec.z);
+    deployment_percent = (uint8_t)(std::min(std::max(30.0f, get_deploy_percent(velocity, altitude)), 100.0f));
 
-    // bno055.read_calib_status();
-    // printf("Calibration Status:\n" "System: %d\n" "Gyro: %d\n" "Accel: %d\n" "Mag: %d\n",
-    //  calib_status.sys, calib_status.gyro, calib_status.accel, calib_status.mag);
-
-    control(0) = abs_lin_accel.z;
-    measurement(0) = altitude;
-    res = kf->run(control, measurement, LOOP_PERIOD);
-    printf("Kalman Altitude Filter Output: %f\n", res(0));
-    // printf("Kalman Velocity Output: %f\n", res(1));
-
-    // float percent = get_deploy_percent(res(0), res(1));
-    // printf("Deploy Percent: %f\n", percent);
-
-    float time_to_apogee = res(1) / GRAVITY;
-    predicted_apogee += velocity_vector.z * time_to_apogee - 0.5 * (abs_lin_accel.z + GRAVITY)* std::pow(time_to_apogee, 2);
-    // printf("Time to Apogee: %f\n", time_to_apogee);
-    printf("Predicted Apogee: %f\n", predicted_apogee);
-
-    // switch(state) {
-    //     case PAD:
-    //         break;
-    //     case BOOST:
-    //         // gpio_put(MOSFET_PIN, 1);
-    //         break;
-    //     case COAST:
-    //         // pwm.set_servo_percent(percent);
-    //         break;
-    //     case APOGEE:
-    //         break;
-    //     case RECOVERY:
-    //         break;
-    //     case END:
-    //         break;
-    // }
-
+    switch(state) {
+        case PAD:
+            gpio_put(MOSFET_PIN, 0);
+            pwm.set_servo_percent(0);
+            break;
+        case BOOST:
+            gpio_put(MOSFET_PIN, 1);
+            pwm.set_servo_percent(0);
+            break;
+        case COAST:
+            gpio_put(MOSFET_PIN, 1);
+            pwm.set_servo_percent(deployment_percent);
+            break;
+        case APOGEE:
+            gpio_put(MOSFET_PIN, 1);
+            pwm.set_servo_percent(0);
+            break;
+        case RECOVERY:
+            gpio_put(MOSFET_PIN, 1);
+            pwm.set_servo_percent(0);
+            break;
+        case END:
+            gpio_put(MOSFET_PIN, 1);
+            pwm.set_servo_percent(0);
+            break;
+    }
+    prev_altitude = altitude;
     sem_release(&sem);
     return true;
 }
@@ -419,55 +420,55 @@ bool timer_callback(repeating_timer_t *rt) {
  * @return true
  * @return false 
  */
-bool test_timer_callback(repeating_timer_t *rt) {
-    static float prev_altitude = altitude;
-    absolute_time_t last = get_absolute_time();
-    altitude = get_altitude();
-    velocity = ((altitude - prev_altitude) / 0.01f);
-    prev_altitude = altitude;
-
-    bno055.read_lin_accel();
-    bno055.read_abs_quaternion();
-
-    absolute_time_t now = get_absolute_time();
-    int64_t time_delta = absolute_time_diff_us(last, now);
-
-    std::cout << altitude << " " << abs_quaternion.w << " "
-          << abs_quaternion.x << " "
-          << abs_quaternion.y << " "
-          << abs_quaternion.z << " "
-          << linear_acceleration.x << " "
-          << linear_acceleration.y << " "
-          << linear_acceleration.z << std::endl;
-
-    /* switch (state) {
-        case PAD:
-            printf("P\n");
-            break;
-        case BOOST:
-            printf("B\n");
-            break;
-        case COAST:
-            printf("C\n");
-            break;
-        case APOGEE:
-            printf("A\n");
-            break;
-        case RECOVERY:
-            printf("R\n");
-            break;
-        case END:
-            printf("E\n");
-            break;
-    }*/
-
-    // absolute_time_t now = get_absolute_time();
-    // int64_t time_delta = absolute_time_diff_us(last, now);
-    // printf("Time Delta: %" PRIi64"\n", time_delta);
-    // std::flush(std::cout);
-    prev_altitude = altitude;
-    return true;
-}
+// bool test_timer_callback(repeating_timer_t *rt) {
+//     static float prev_altitude = altitude;
+//     absolute_time_t last = get_absolute_time();
+//     altitude = get_altitude();
+//     velocity = ((altitude - prev_altitude) / 0.01f);
+//     prev_altitude = altitude;
+// 
+//     bno055.read_lin_accel();
+//     bno055.read_abs_quaternion();
+// 
+//     absolute_time_t now = get_absolute_time();
+//     int64_t time_delta = absolute_time_diff_us(last, now);
+// 
+//     std::cout << altitude << " " << abs_quaternion.w << " "
+//           << abs_quaternion.x << " "
+//           << abs_quaternion.y << " "
+//           << abs_quaternion.z << " "
+//           << linear_acceleration.x << " "
+//           << linear_acceleration.y << " "
+//           << linear_acceleration.z << std::endl;
+// 
+//     /* switch (state) {
+//         case PAD:
+//             printf("P\n");
+//             break;
+//         case BOOST:
+//             printf("B\n");
+//             break;
+//         case COAST:
+//             printf("C\n");
+//             break;
+//         case APOGEE:
+//             printf("A\n");
+//             break;
+//         case RECOVERY:
+//             printf("R\n");
+//             break;
+//         case END:
+//             printf("E\n");
+//             break;
+//     }*/
+// 
+//     // absolute_time_t now = get_absolute_time();
+//     // int64_t time_delta = absolute_time_diff_us(last, now);
+//     // printf("Time Delta: %" PRIi64"\n", time_delta);
+//     // std::flush(std::cout);
+//     prev_altitude = altitude;
+//     return true;
+// }
 
 /**
  * @brief Call back function for when rocket is on the pad
@@ -602,20 +603,20 @@ float get_altitude() {
  */
 float get_deploy_percent(float velocity, float altitude) {
     // Lookup table (Data from 'dragSurfFit.m' for Surface Fit Model Formula)
-    float p00 = -781536.384794701;
-    float p10 = 8623.59011973048;
-    float p01 = 643.65918253;
-    float p20 = -34.3646691281487;
-    float p11 = -5.46066535343611;
-    float p02 = -0.177121900557321;
-    float p30 = 0.0573287698655951;
-    float p21 = 0.0150031142038895;
-    float p12 = 0.00101871763126609;
-    float p03 = 1.63862900553892e-05;
-    float p40 = -3.21785828407871e-05;
-    float p31 = -1.3161091180883e-05;
-    float p22 = -1.42505256569339e-06;
-    float p13 = -4.76209793830867e-08;
+    float p00 = -8.498e+04;
+    float p10 = 924.4;
+    float p01 = 69.98;
+    float p20 = -3.62;
+    float p11 = -0.6196;
+    float p02 = -0.01897;
+    float p30 = 0.005983;
+    float p21 = 0.001756;
+    float p12 = 0.0001271;
+    float p03 = 1.693e-06;
+    float p40 = -3.451e-06;
+    float p31 = -1.582e-06;
+    float p22 = -2.004e-07;
+    float p13 = -7.476e-09;
 
 
     /* MATLAB Code:

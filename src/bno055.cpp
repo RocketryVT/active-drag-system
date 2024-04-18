@@ -183,7 +183,7 @@ void BNO055::calculate_abs_linear_acceleration() {
     lin_accel.z() = linear_acceleration.z;
     abs_lin_accel.x = lin_accel.x() * rotation_matrix(0, 0) + lin_accel.y() * rotation_matrix(0, 1) + lin_accel.z() * rotation_matrix(0, 2);
     abs_lin_accel.y = lin_accel.x() * rotation_matrix(1, 0) + lin_accel.y() * rotation_matrix(1, 1) + lin_accel.z() * rotation_matrix(1, 2);
-    abs_lin_accel.z = lin_accel.x() * rotation_matrix(2, 0) + lin_accel.y() * rotation_matrix(2, 1) + lin_accel.z() * rotation_matrix(2, 2);
+    abs_lin_accel.z = -1.0f * (lin_accel.x() * rotation_matrix(2, 0) + lin_accel.y() * rotation_matrix(2, 1) + lin_accel.z() * rotation_matrix(2, 2));
 }
 
 void BNO055::get_rotation_vector() {
