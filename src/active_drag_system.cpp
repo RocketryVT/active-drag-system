@@ -24,7 +24,7 @@
 
 #define ALT_ADDR 0x60
 #define MAX_SCL 400000
-#define DATA_RATE_HZ 25
+#define DATA_RATE_HZ 100
 #define LOOP_PERIOD (1.0f / DATA_RATE_HZ)
 #define INT1_PIN 6 // INT1 PIN on MPL3115A2 connected to GPIO PIN 9 (GP6)
 #define MOSFET_PIN 1 // MOSFET PIN connected to GPIO PIN 1 (GP1)
@@ -100,7 +100,7 @@ uint8_t quat[8];
 repeating_timer_t data_timer;
 repeating_timer_t log_timer;
 
-float predicted_apogee;
+float ground_altitude = 0.0f;
 
 SimpleKalmanFilter altitudeKF(2, 2, 0.01);
 SimpleKalmanFilter velocityKF(1, 1, 0.01);
@@ -159,7 +159,7 @@ int main() {
     altitudeKF.updateEstimate(measurement);
     velocityKF.updateEstimate(measurement);
 
-    predicted_apogee = altitude;
+    ground_altitude = altitude;
 
     sem_init(&sem, 1, 1);
 
@@ -255,68 +255,70 @@ void init_altimeter() {
 }
 
 void snapshot() {
-    uint8_t entry[PACKET_SIZE];
-    absolute_time_t now = get_absolute_time();
-    uint64_t now_us = to_us_since_boot(now);
-    uint32_t alt_bits = *((uint32_t *)&altitude);
-    uint32_t vel_bits = *((uint32_t *)&velocity);
-    uint32_t acc_bits = *((uint32_t *)&abs_lin_accel.z);
-    entry[0] = now_us >> 56;
-    entry[1] = now_us >> 48;
-    entry[2] = now_us >> 40;
-    entry[3] = now_us >> 32;
-    entry[4] = now_us >> 24;
-    entry[5] = now_us >> 16;
-    entry[6] = now_us >> 8;
-    entry[7] = now_us;
+    if (state != END) {
+        uint8_t entry[PACKET_SIZE];
+        absolute_time_t now = get_absolute_time();
+        uint64_t now_us = to_us_since_boot(now);
+        uint32_t alt_bits = *((uint32_t *)&altitude);
+        uint32_t vel_bits = *((uint32_t *)&velocity);
+        uint32_t acc_bits = *((uint32_t *)&abs_lin_accel.z);
+        entry[0] = now_us >> 56;
+        entry[1] = now_us >> 48;
+        entry[2] = now_us >> 40;
+        entry[3] = now_us >> 32;
+        entry[4] = now_us >> 24;
+        entry[5] = now_us >> 16;
+        entry[6] = now_us >> 8;
+        entry[7] = now_us;
 
-    switch (state) {
-        case PAD:
-            entry[8] = 'P';
-            break;
-        case BOOST:
-            entry[8] = 'B';
-            break;
-        case COAST:
-            entry[8] = 'C';
-            break;
-        case APOGEE:
-            entry[8] = 'A';
-            break;
-        case RECOVERY:
-            entry[8] = 'R';
-            break;
-        case END:
-            entry[8] = 'E';
-            break;
+        switch (state) {
+            case PAD:
+                entry[8] = 'P';
+                break;
+            case BOOST:
+                entry[8] = 'B';
+                break;
+            case COAST:
+                entry[8] = 'C';
+                break;
+            case APOGEE:
+                entry[8] = 'A';
+                break;
+            case RECOVERY:
+                entry[8] = 'R';
+                break;
+            case END:
+                entry[8] = 'E';
+                break;
+        }
+
+        entry[9] = deployment_percent;
+        entry[10] = alt_bits >> 24;
+        entry[11] = alt_bits >> 16;
+        entry[12] = alt_bits >> 8;
+        entry[13] = alt_bits;
+        entry[14] = vel_bits >> 24;
+        entry[15] = vel_bits >> 16;
+        entry[16] = vel_bits >> 8;
+        entry[17] = vel_bits;
+
+        entry[18] = quat[0];
+        entry[19] = quat[1];
+        entry[20] = quat[2];
+        entry[21] = quat[3];
+        entry[22] = quat[4];
+        entry[23] = quat[5];
+        entry[24] = quat[6];
+        entry[25] = quat[7];
+
+        entry[26] = acc_bits >> 24;
+        entry[27] = acc_bits >> 16;
+        entry[28] = acc_bits >> 8;
+        entry[29] = acc_bits;
+        entry[30] = accel[4];
+        entry[31] = accel[5];
+        write_entry(entry);
     }
-
-    entry[9] = deployment_percent;
-    entry[10] = alt_bits >> 24;
-    entry[11] = alt_bits >> 16;
-    entry[12] = alt_bits >> 8;
-    entry[13] = alt_bits;
-    entry[14] = vel_bits >> 24;
-    entry[15] = vel_bits >> 16;
-    entry[16] = vel_bits >> 8;
-    entry[17] = vel_bits;
-
-    entry[18] = quat[0];
-    entry[19] = quat[1];
-    entry[20] = quat[2];
-    entry[21] = quat[3];
-    entry[22] = quat[4];
-    entry[23] = quat[5];
-    entry[24] = quat[6];
-    entry[25] = quat[7];
-
-    entry[26] = accel[0];
-    entry[27] = accel[1];
-    entry[28] = accel[2];
-    entry[29] = accel[3];
-    entry[30] = accel[4];
-    entry[31] = accel[5];
-    write_entry(entry);
 }
 
 bool logging_callback(repeating_timer_t *rt) {
@@ -379,17 +381,20 @@ bool timer_callback(repeating_timer_t *rt) {
     prev_abs_lin_accel.z = abs_lin_accel.z;
 
     bno055.accel_to_gravity();
+    float agl = altitude - ground_altitude;
 
-    deployment_percent = (uint8_t)(std::min(std::max(30.0f, get_deploy_percent(velocity, altitude)), 100.0f));
+    deployment_percent = (uint8_t)(std::min(std::max(30.0f, get_deploy_percent(velocity, agl)), 100.0f));
 
     switch(state) {
         case PAD:
             gpio_put(MOSFET_PIN, 0);
             pwm.set_servo_percent(0);
+            deployment_percent = 0;
             break;
         case BOOST:
             gpio_put(MOSFET_PIN, 1);
             pwm.set_servo_percent(0);
+            deployment_percent = 0;
             break;
         case COAST:
             gpio_put(MOSFET_PIN, 1);
@@ -398,14 +403,17 @@ bool timer_callback(repeating_timer_t *rt) {
         case APOGEE:
             gpio_put(MOSFET_PIN, 1);
             pwm.set_servo_percent(0);
+            deployment_percent = 0;
             break;
         case RECOVERY:
             gpio_put(MOSFET_PIN, 1);
             pwm.set_servo_percent(0);
+            deployment_percent = 0;
             break;
         case END:
             gpio_put(MOSFET_PIN, 1);
             pwm.set_servo_percent(0);
+            deployment_percent = 0;
             break;
     }
     prev_altitude = altitude;
@@ -539,18 +547,18 @@ int64_t apogee_callback(alarm_id_t id, void* user_data) {
     uint8_t config[2] = {0};
     // Select pressure target MSB register(0x16)
     // Set altitude target to 10 meters above ground altitude
-    float ground_altitude = threshold_altitude - 20.0f;
+    float recov_altitude = ground_altitude + 10.0f;
     // Select pressure target MSB register(0x16)
     // Set altitude target to 30 meters above ground altitude
     config[0] = 0x16;
-    config[1] = (uint8_t) (((int16_t)(ground_altitude)) >> 8);
+    config[1] = (uint8_t) (((int16_t)(recov_altitude)) >> 8);
     // printf("threshold_alt upper half: %X\n", config[1]);
     i2c_write_blocking(i2c_default, ALT_ADDR, config, 2, true);
 
     // Select pressure target LSB register(0x17)
     // Set altitude target to 30 meters above ground altitude
     config[0] = 0x17;
-    config[1] = (uint8_t) (((int16_t)(ground_altitude)));
+    config[1] = (uint8_t) (((int16_t)(recov_altitude)));
     // printf("threshold_alt lower half: %X\n", config[1]);
     i2c_write_blocking(i2c_default, ALT_ADDR, config, 2, true);
 
@@ -627,9 +635,9 @@ float get_deploy_percent(float velocity, float altitude) {
 	* p13 * V * H ** 3
     */
 
-    return p00 + p10 * velocity + p01 * altitude + p20 * std::pow(velocity, 2) + p11 * velocity * altitude + p02 * std::pow(altitude, 2)
+    return (p00 + p10 * velocity + p01 * altitude + p20 * std::pow(velocity, 2) + p11 * velocity * altitude + p02 * std::pow(altitude, 2)
     + p30 * std::pow(velocity, 3) + p21 * std::pow(velocity, 2) * altitude + p12 * velocity * std::pow(altitude, 2) + p03 * std::pow(altitude, 3)
-    + p40 * std::pow(velocity, 4) + p31 * std::pow(velocity, 3) * altitude + p22 * std::pow(velocity, 2) * std::pow(altitude, 2) + p13 * velocity * std::pow(altitude, 3);
+    + p40 * std::pow(velocity, 4) + p31 * std::pow(velocity, 3) * altitude + p22 * std::pow(velocity, 2) * std::pow(altitude, 2) + p13 * velocity * std::pow(altitude, 3));
 
 
 }
