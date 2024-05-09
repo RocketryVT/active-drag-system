@@ -11,7 +11,7 @@ extern "C" {
 #endif
 
 #define FLASH_PAGE_SIZE        256
-#define FLASH_NUM_PAGES        4096
+#define FLASH_NUM_PAGES        32768
 #define FLASH_SECTOR_SIZE      4096
 #define FLASH_BLOCK_SIZE       65536
 #define FLASH_PHYS_SIZE        (FLASH_PAGE_SIZE * FLASH_NUM_PAGES)

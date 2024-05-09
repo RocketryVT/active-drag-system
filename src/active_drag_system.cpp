@@ -15,6 +15,7 @@
 #include "pico/stdlib.h"
 #include "pico/time.h"
 #include "pico/types.h"
+#include "pico/cyw43_arch.h"
 #include <math.h>
 
 #include "bno055.hpp"
@@ -27,14 +28,13 @@
 #define DATA_RATE_HZ 100
 #define LOOP_PERIOD (1.0f / DATA_RATE_HZ)
 #define INT1_PIN 6 // INT1 PIN on MPL3115A2 connected to GPIO PIN 9 (GP6)
-#define MOSFET_PIN 1 // MOSFET PIN connected to GPIO PIN 1 (GP1)
+#define MOSFET_PIN 26 // MOSFET PIN connected to GPIO PIN 31 (GP26)
 
 #define GRAVITY -9.81
 #define LOG_RATE_HZ 4
-#define INT1_PIN 6 // INT1 PIN on MPL3115A2 connected to GPIO PIN 9 (GP6)
-#define LED_PIN 28
 
-#define MOTOR_BURN_TIME 6200 // Burn time in milliseconds for M1939
+#define MOTOR_BURN_TIME 3900 // Burn time in milliseconds for M2500T
+
 typedef enum {
     PAD,
     BOOST,
@@ -113,6 +113,7 @@ SimpleKalmanFilter velocityKF(1, 1, 0.01);
 int main() {
     // stdio_init_all();
 
+    cyw43_arch_init();
     i2c_init(i2c_default, MAX_SCL);
     gpio_set_function(PICO_DEFAULT_I2C_SDA_PIN, GPIO_FUNC_I2C);
     gpio_set_function(PICO_DEFAULT_I2C_SCL_PIN, GPIO_FUNC_I2C);
@@ -129,10 +130,6 @@ int main() {
     gpio_init(PICO_DEFAULT_SPI_CSN_PIN);
     gpio_set_dir(PICO_DEFAULT_SPI_CSN_PIN, GPIO_OUT);
     gpio_put(PICO_DEFAULT_SPI_CSN_PIN, 1);
-
-    gpio_init(LED_PIN);
-    gpio_set_dir(LED_PIN, GPIO_OUT);
-    gpio_put(LED_PIN, 1);
 
     gpio_init(INT1_PIN);
     gpio_pull_up(INT1_PIN);
@@ -322,7 +319,10 @@ void snapshot() {
 }
 
 bool logging_callback(repeating_timer_t *rt) {
+    static bool LED_STATUS = 0;
     sem_acquire_blocking(&sem);
+    LED_STATUS = !LED_STATUS;
+    cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, LED_STATUS);
     snapshot();
     sem_release(&sem);
     return true;

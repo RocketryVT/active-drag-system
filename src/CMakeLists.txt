@@ -25,7 +25,7 @@ add_executable(alt_test
         )
 
 # pull in common dependencies
-target_link_libraries(ads pico_stdlib pico_multicore pico_sync hardware_i2c hardware_spi hardware_pwm ${Eigen_LIBRARIES})
+target_link_libraries(ads pico_stdlib pico_multicore pico_sync hardware_i2c hardware_spi hardware_pwm pico_cyw43_arch_none ${Eigen_LIBRARIES})
 target_include_directories(ads PUBLIC ../include)
 
 target_link_libraries(read_flash pico_stdlib hardware_spi)
