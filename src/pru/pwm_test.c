@@ -18,6 +18,7 @@
 
 #define CYCLES_PER_SECOND 200000000
 #define CYCLES_PER_PERIOD (CYCLES_PER_SECOND / 800)
+#define PRU_TIMER_PASSCODE 0x31138423
 
 uint32_t	*pru0DRAM_32int_ptr;		// Points to the start of local DRAM
 uint32_t	*pru1DRAM_32int_ptr;		// Points to the start of local DRAM
@@ -38,6 +39,7 @@ int start_pwm_count(uint32_t duty_cycle) {
 	
 	printf("old:\n\tcountOn: %d, countOff: %d, count: %d\nnew:\n\tcountOn: %d, countOff: %d, count: %d\n", old_count_on, old_count_off, old_count_off + old_count_on, new_count_on, new_count_off, new_count_off + new_count_on);
 	// write to PRU shared memory
+	pruDRAM_32int_ptr[1] = PRU_TIMER_PASSCODE;
 	pruDRAM_32int_ptr[0] = duty_cycle;	// On time
 	return 0;
 }

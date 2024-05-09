@@ -1,0 +1,15 @@
+[Unit]
+Description=ADS
+StartLimitIntervalSec=30
+StartLimitBurst=3
+After=generic-board-startup.service
+
+[Service]
+Type=simple
+User=root
+Restart=on-failure
+RestartSec=30
+ExecStart=/usr/sbin/test_launch
+
+[Install]
+WantedBy=multi-user.target
