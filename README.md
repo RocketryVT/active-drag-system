@@ -1,9 +1,13 @@
-# THIS IS THE BRANCH USED FOR SOUTH CAROLINA TEST LAUNCH 02/24/2024
-
 # Active Drag System (ADS)
-This is the main codebase for Rocketry at Virginia Tech's Active Drag System, also known colloquially as the ADS, for the 2023-2024 competition year. It runs primarily on a BeagleBone Black, and its goal is to autonomously control the ADS' deployment during flight.
+This is the main codebase for Rocketry at Virginia Tech's Active Drag System, also known colloquially as the ADS, for the 2023-2024 competition year. It runs primarily on a Raspberry Pi Pico, and its goal is to autonomously control the ADS' deployment during flight.
 
-`Eigen` Library, `cmake` and `Google Test` required for successful build.
+`Eigen` Library, `cmake`, and `arm-none-eabi-gcc` tooling required for successful build.
+## Before Build
+```shell
+git clone https://github.com/RocketryVT/active-drag-system.git
+cd active-drag-system/
+git submodule update --init --recursive
+```
 
 ## BUILD
 ```shell
@@ -18,50 +22,31 @@ Enable WSL2 in windows
 Install Ubuntu 22 LTS from Windows Store
 ```shell
 sudo apt update && upgrade
-sudo apt install build-essential cmake valgrind crossbuild-essential-armhf
-sudo apt install musl musl-tools
+sudo apt install build-essential cmake valgrind gcc-arm-none-eabi
 ```
 Then to actually build:
 ```shell
 cmake -B build
-cmake --build build/
+cmake --build build
 ```
 
 ## BUILD Alternative (Mac)
 ```shell
-brew install arm-linux-gnueabihf-binutils
-# This installs just the arm library, you can remove x86_64 if you want those too
-brew install FiloSottile/musl-cross/musl-cross --without-x86_64 --with-arm-hf
+brew install arm-none-eabi-gcc
 ```
 To check if installed correctly run:
 ```shell
-ls /opt/homebrew/bin | grep "musl"
+ls /opt/homebrew/bin | grep "none"
 ```
-you should see:
+you should see a list including but not limited to:
 ```shell
-arm-linux-musleabihf-gcc
-arm-linux-musleabihf-g++
+arm-none-eabi-gcc
+arm-none-eabi-g++
+```
+Next:
+```shell
+cmake -B build
+cmake --build build
 ```
 
-## RUN
-```shell
-scp -r src/ads debian@beaglebone.local:~/
-ssh debian@beaglebone.local
-./ads
-```
-
-## TEST
-```shell
-scp -r test/test_ads debian@beaglebone.local:~/
-ssh debian@beaglebone.local
-./test_ads
-```
-
-## GPIO Pins
-The GPIO number is calculated by taking the GPIO chip
-number, multiplying it by 32, and then adding the offset. For example,
-GPIO1_12 = (1 × 32) + 12 = GPIO 44.
-
-```shell
-/sys/class/gpio/gpio44 = GPIO1_12
-```
+Binary files should be located in build/src/*.uf2 after a successful build.

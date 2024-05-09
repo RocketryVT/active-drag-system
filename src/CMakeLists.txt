@@ -1,49 +1,54 @@
 add_executable(ads
-    active_drag_system.cpp
-)
+        active_drag_system.cpp
+        spi_flash.c
+        bno055.cpp
+        SimpleKalmanFilter.cpp
+        # kalmanfilter.cpp
+        pwm.cpp
+        AltEst/algebra.cpp
+        AltEst/altitude.cpp
+        AltEst/filters.cpp
+        )
 
-add_executable(pru1
-        pru1/sensors.cpp
-)
+add_executable(read_flash
+        read_flash.c
+        spi_flash.c
+        )
 
-add_executable(pru2
-        pru2/servos.cpp
-)
+add_executable(servo_test
+        servo_test.cpp
+        pwm.cpp
+        )
 
-target_link_options(pru1 PRIVATE -static)
-target_link_options(pru2 PRIVATE -static)
-cmake_minimum_required(VERSION 3.16.3)
+add_executable(alt_test
+        altimeter.cpp
+        )
 
-include_directories( ../include )
+# pull in common dependencies
+target_link_libraries(ads pico_stdlib pico_multicore pico_sync hardware_i2c hardware_spi hardware_pwm pico_cyw43_arch_none ${Eigen_LIBRARIES})
+target_include_directories(ads PUBLIC ../include)
 
-# Set Variables
-set(TARGET ActiveDragSystem)
-set(SOURCES active-drag-system.cpp ads.cpp actuationPlan.cpp surfaceFitModel.cpp rocketUtils.cpp sensorIMU.cpp sensorAltimeter.cpp motor.cpp logger.cpp kalmanfilter.cpp)
+target_link_libraries(read_flash pico_stdlib hardware_spi)
+target_include_directories(read_flash PUBLIC ../include)
 
+target_link_libraries(servo_test pico_stdlib hardware_pwm hardware_i2c)
+target_include_directories(servo_test PUBLIC ../include)
 
-# Create Executables & Link Dependencies
-add_executable(${TARGET} ${SOURCES})
+target_link_libraries(alt_test pico_stdlib hardware_i2c hardware_gpio)
 
-add_executable(${TARGET_B} ${SOURCES_B})
-target_link_libraries(${TARGET_B} PUBLIC gtest_main)
-add_test(NAME ${TARGET_B} COMMAND ${TARGET_B})
+pico_enable_stdio_usb(ads 1)
+pico_enable_stdio_uart(ads 0)
 
-add_executable(${TARGET_C} ${SOURCES_C})
-target_link_libraries(${TARGET_C} PUBLIC gtest_main)
-add_test(NAME ${TARGET_C} COMMAND ${TARGET_C})
+pico_enable_stdio_usb(read_flash 1)
+pico_enable_stdio_uart(read_flash 0)
 
-add_executable(${TARGET_D} ${SOURCES_D})
-target_link_libraries(${TARGET_D} PUBLIC gtest_main)
-add_test(NAME ${TARGET_D} COMMAND ${TARGET_D})
+pico_enable_stdio_usb(servo_test 1)
+pico_enable_stdio_uart(servo_test 0)
 
-add_executable(${TARGET_E} ${SOURCES_E})
-target_link_libraries(${TARGET_E} PUBLIC gtest_main)
-add_test(NAME ${TARGET_E} COMMAND ${TARGET_E})
-
-add_executable(${TARGET_F} ${SOURCES_F})
-target_link_libraries(${TARGET_F} PUBLIC gtest_main)
-add_test(NAME ${TARGET_F} COMMAND ${TARGET_F})
-
-add_executable(${TARGET_G} ${SOURCES_G})
-target_link_libraries(${TARGET_G} PUBLIC gtest_main)
-add_test(NAME ${TARGET_G} COMMAND ${TARGET_G})
+pico_enable_stdio_usb(alt_test 1)
+pico_enable_stdio_uart(alt_test 0)
+# create map/bin/hex file etc.
+pico_add_extra_outputs(ads)
+pico_add_extra_outputs(read_flash)
+pico_add_extra_outputs(servo_test)
+pico_add_extra_outputs(alt_test)

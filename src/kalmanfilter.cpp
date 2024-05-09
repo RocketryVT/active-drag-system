@@ -1,3 +1,4 @@
+#include <climits>
 #include "../include/kalmanfilter.hpp"
 
 // Private----------------------------------------------------------------------
@@ -25,7 +26,7 @@ void KalmanFilter::matrixInit() {
     process_noise_covariance(1,1) = 0.1;
 
     // Setup Measurement Covariance
-    measurement_covariance << 0.1;
+    measurement_covariance << 1e-12;
 }
 
 
