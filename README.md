@@ -49,4 +49,4 @@ cmake -B build
 cmake --build build
 ```
 
-Binary files should be located in build/src/*.elf after a successful build.
+Binary files should be located in build/src/*.uf2 after a successful build.

@@ -1,5 +1,3 @@
-
-
 #include <climits>
 #include "../include/kalmanfilter.hpp"
 

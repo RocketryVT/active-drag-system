@@ -1,8 +1,3 @@
-/**
- * Copyright (c) 2020 Raspberry Pi (Trading) Ltd.
- *
- * SPDX-License-Identifier: BSD-3-Clause
- */
 #include <algorithm>
 #include <stdio.h>
 #include "pico/multicore.h"
@@ -108,7 +103,7 @@ SimpleKalmanFilter velocityKF(1, 1, 0.01);
 /**
  * @brief Main function
  * 
- * @return int erorr code
+ * @return int error code
  */
 int main() {
     // stdio_init_all();
