@@ -1,10 +1,7 @@
-#include <algorithm>
 #include <stdio.h>
-#include "imu.hpp"
 #include "pico/multicore.h"
 #include "pico/platform.h"
 #include "pico/sem.h"
-#include "spi_flash.h"
 #include "boards/pico_w.h"
 #include "hardware/gpio.h"
 #include "hardware/i2c.h"
@@ -14,11 +11,11 @@
 #include "pico/cyw43_arch.h"
 #include <math.h>
 
-// #include "bno055.hpp"
-#include "AltEst/altitude.h"
 #include "pwm.hpp"
-#include "SimpleKalmanFilter.h"
+#include "imu.hpp"
 #include "altimeter.hpp"
+#include "kalman_filter.hpp"
+#include "spi_flash.h"
 
 #define MPL3115A2_ADDR 0x60
 
@@ -45,18 +42,16 @@ typedef enum {
 } state_t;
 
 PWM pwm;
-static AltitudeEstimator vKF = AltitudeEstimator(0.0005, // sigma Accel
-                                                 0.0005, // sigma Gyro
-                                                 0.018,   // sigma Baro
-                                                 0.5, // ca
-                                                 0.1);// accelThreshold
+kalman_filter *kf;
+VectorXf control(1);
+VectorXf measurement(1);
+VectorXf res(2);
 
 void pad_callback(uint gpio, uint32_t event_mask);
 int64_t boost_callback(alarm_id_t id, void* user_data);
 int64_t apogee_callback(alarm_id_t id, void* user_data);
 int64_t coast_callback(alarm_id_t id, void* user_data);
 void recovery_callback(uint gpio, uint32_t event_mask);
-void init_altimeter();
 float get_deploy_percent(float velocity, float altitude);
 
 bool timer_callback(repeating_timer_t *rt);
@@ -84,14 +79,10 @@ repeating_timer_t data_timer;
 
 float ground_altitude = 0.0f;
 
-SimpleKalmanFilter altitudeKF(2, 2, 0.01);
-
 altimeter altimeter(i2c_default, MPL3115A2_ADDR);
 imu imu(i2c_default, BNO055_ADDR, BNO055_ID, NDOF);
 
 int main() {
-    // stdio_init_all();
-
     cyw43_arch_init();
     i2c_init(i2c_default, MAX_SCL);
     gpio_set_function(PICO_DEFAULT_I2C_SDA_PIN, GPIO_FUNC_I2C);
@@ -118,6 +109,7 @@ int main() {
     altimeter.initialize(30.0f, INT1_PIN, &pad_callback);
 
     imu.initialize();
+    imu.linear_acceleration(linear_acceleration);
 
     pwm.init();
 
@@ -126,10 +118,13 @@ int main() {
     gpio_set_dir(MOSFET_PIN, GPIO_OUT);
 
     // Initialize Kalman Filter
-    float measurement = altimeter.get_altitude_converted();
-    altitudeKF.updateEstimate(measurement);
-
-    ground_altitude = altitude;
+    kf = new kalman_filter(2, 1, 1, 0.01);
+    VectorXf state_vec(2);
+    MatrixXf state_cov(2, 2);
+    state_vec << altimeter.get_altitude_converted(), linear_acceleration.z();
+    state_cov << 0.018, 0.0, 0.0, 0.0005;
+    kf->state_initialize(state_vec, state_cov);
+    ground_altitude = altimeter.get_altitude_converted();
 
     // sem_init(&sem, 1, 1);
 
@@ -233,23 +228,11 @@ int main() {
 bool timer_callback(repeating_timer_t *rt) {
     absolute_time_t last = get_absolute_time();
     // sem_acquire_blocking(&sem);
-    float measurement = altimeter.get_altitude_converted();
-    altitude = altitudeKF.updateEstimate(measurement);
-
     imu.linear_acceleration(linear_acceleration);
 
-    float acceldata[3];
-    float gyrodata[3];
-
-    acceldata[0] = linear_acceleration.x();
-    acceldata[1] = linear_acceleration.y();
-    acceldata[2] = linear_acceleration.z();
-    gyrodata[0] = 0;
-    gyrodata[1] = 0;
-    gyrodata[2] = 0;
-
-    vKF.estimate(acceldata, gyrodata, altitude, to_us_since_boot(last));
-    velocity = vKF.getVerticalVelocity();
+    control(0) = linear_acceleration.z();
+    measurement(0) = altimeter.get_altitude_converted();
+    res = kf->run(control, measurement, 0.01f);
 
     deployment_percent = (uint8_t)(std::min(std::max(30.0f, get_deploy_percent(velocity, (altitude - ground_altitude))), 100.0f));
 

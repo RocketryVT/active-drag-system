@@ -1,7 +1,5 @@
 #include "imu.hpp"
 
-/// @link [Pico BNO055 Example](https://learnembeddedsystems.co.uk/bno005-i2c-example-code)
-
 imu::imu(i2c_inst_t* inst, uint8_t addr, uint8_t id, imu_opmode_t mode) {
     this->inst = inst;
     this->addr = addr;

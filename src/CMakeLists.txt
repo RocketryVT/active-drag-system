@@ -2,12 +2,9 @@ add_executable(ads
                active_drag_system.cpp
                spi_flash.c
                imu.cpp
-               SimpleKalmanFilter.cpp
                pwm.cpp
                altimeter.cpp
-               AltEst/algebra.cpp
-               AltEst/altitude.cpp
-               AltEst/filters.cpp
+               kalman_filter.cpp
 )
 
 target_link_libraries(ads pico_stdlib pico_multicore pico_sync hardware_i2c hardware_spi hardware_pwm pico_cyw43_arch_none ${Eigen_LIBRARIES})

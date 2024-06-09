@@ -1,11 +1,9 @@
 #pragma once
 #include <Eigen/Dense>
-#include <iostream>
-#include <cmath>
 
 using namespace Eigen;
 
-class KalmanFilter {
+class kalman_filter {
 
     private:
 
@@ -25,20 +23,20 @@ class KalmanFilter {
         int p; // Control Vector Dimension
         int m; // Measurement Vector Dimension
 
-        double dt; // timestep
+        float dt; // timestep
 
         /**
          * @brief Initialize all necessary matrices.
          * 
          */
-        void matrixInit();
+        void matrix_initialize();
 
         /**
          * @brief Update any existing variable elements in your State Transition 
          * & Control Input matrices.
          * 
          */
-        void updateMatrices();
+        void matrix_update();
 
         /**
          * @brief Predict current State Vector & State Covariance 
@@ -47,7 +45,7 @@ class KalmanFilter {
          * @param control_vec The control input to be applied to the
          * previous State Vector
          */
-        void prediction(VectorXf control_vec);
+        void predict(VectorXf control_vec);
 
         /**
          * @brief Correct the State Vector & State Covariance predictions
@@ -59,7 +57,7 @@ class KalmanFilter {
 
     public:
 
-        KalmanFilter();
+        kalman_filter();
         
         /**
          * @brief Construct a new Kalman Filter object
@@ -70,7 +68,7 @@ class KalmanFilter {
          * @param measurement_dim Measurement Vector Dimension. i.e. dim(z)
          * @param dt timestep
          */
-        KalmanFilter(int state_dim, int control_dim, int measurement_dim, double dt);
+        kalman_filter(int state_dim, int control_dim, int measurement_dim, float dt);
 
 
         /**
@@ -82,7 +80,7 @@ class KalmanFilter {
          * 
          * @return Whether state initialization was successful
          */
-        bool setInitialState(VectorXf state_vec, MatrixXf state_cov);
+        bool state_initialize(VectorXf state_vec, MatrixXf state_cov);
 
         /**
          * @brief Perform Kalman Filter operation with given control input vector
@@ -94,5 +92,5 @@ class KalmanFilter {
          * 
          * @return Filtered state vector
          */
-        VectorXf run(VectorXf control, VectorXf measurement, double _dt);
+        VectorXf run(VectorXf control, VectorXf measurement, float _dt);
 };
