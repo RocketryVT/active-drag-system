@@ -195,5 +195,7 @@ class imu {
 
         void quaternion(Eigen::Vector4f& vec);
 
+        void quaternion_euler(Eigen::Vector3f& angles, Eigen::Vector4f& quat);
+
         void calibration_status(calibration_status_t* status);
 };

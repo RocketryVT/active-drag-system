@@ -71,6 +71,7 @@ volatile uint8_t deployment_percent = 0;
 
 Eigen::Vector3f linear_acceleration;
 Eigen::Vector4f quaternion;
+Eigen::Vector3f euler_angles;
 
 volatile calibration_status_t calib_status;
 
@@ -110,6 +111,8 @@ int main() {
 
     imu.initialize();
     imu.linear_acceleration(linear_acceleration);
+    imu.quaternion(quaternion);
+    imu.quaternion_euler(euler_angles, quaternion);
 
     pwm.init();
 
@@ -229,6 +232,8 @@ bool timer_callback(repeating_timer_t *rt) {
     absolute_time_t last = get_absolute_time();
     // sem_acquire_blocking(&sem);
     imu.linear_acceleration(linear_acceleration);
+    imu.quaternion(quaternion);
+    imu.quaternion_euler(euler_angles, quaternion);
 
     control(0) = linear_acceleration.z();
     measurement(0) = altimeter.get_altitude_converted();

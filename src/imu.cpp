@@ -103,6 +103,23 @@ void imu::quaternion(Eigen::Vector4f& vec) {
     vec(3) = ((float)z) / 16384.0;
 }
 
+void imu::quaternion_euler(Eigen::Vector3f& angles, Eigen::Vector4f& quat) {
+    // roll (x-axis rotation)
+    float sinr_cosp = 2 * (quat(0) * quat(1) + quat(2) * quat(3));
+    float cosr_cosp = 1 - 2 * (quat(1) * quat(1) + quat(2) * quat(2));
+    angles(0) = Eigen::numext::atan2(sinr_cosp, cosr_cosp);
+
+    // pitch (y-axis rotation)
+    float sinp = Eigen::numext::sqrt(1 + 2 * (quat(0) * quat(2) - quat(1) * quat(3)));
+    float cosp = Eigen::numext::sqrt(1 - 2 * (quat(0) * quat(2) - quat(1) * quat(3)));
+    angles(1) = 2 * Eigen::numext::atan2(sinp, cosp) - M_PI / 2;
+
+    // yaw (z-axis rotation)
+    float siny_cosp = 2 * (quat(0) * quat(3) + quat(1) * quat(2));
+    float cosy_cosp = 1 - 2 * (quat(2) * quat(2) + quat(3) * quat(3));
+    angles(2) = Eigen::numext::atan2(siny_cosp, cosy_cosp);
+}
+
 void imu::read_register(uint8_t reg, size_t len) {
     i2c_write_blocking(this->inst, this->addr, &reg, 1, true);
     i2c_read_blocking(this->inst, this->addr, this->buffer, len, false);
