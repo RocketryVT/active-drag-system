@@ -89,7 +89,15 @@ void imu::linear_acceleration(Eigen::Vector3f& vec) {
     vec(2) = ((float)z) / 100.0;
 }
 
-void imu::quaternion(Eigen::Vector4f& vec) {
+void imu::vertical_acceleration(Eigen::Vector3f& vert, Eigen::Vector3f& lin, Eigen::Quaternion<float>& quat) {
+    // vert(0) = lin(0) * rotation_matrix(0, 0) + lin(1) * rotation_matrix(0, 1) + lin(3) * rotation_matrix(0, 2);
+    // vert(1) = lin(0) * rotation_matrix(1, 0) + lin(1) * rotation_matrix(1, 1) + lin(3) * rotation_matrix(1, 2);
+    // vert(2) = lin(0) * rotation_matrix(2, 0) + lin(1) * rotation_matrix(2, 1) + lin(3) * rotation_matrix(2, 2);
+
+    vert = quat.toRotationMatrix().transpose() * lin;
+}
+
+void imu::quaternion(Eigen::Quaternion<float>& vec) {
     read_register(QUATERNION_W_LSB, 8);
     int16_t w, x, y, z;
     w = x = y = z = 0;
@@ -97,26 +105,30 @@ void imu::quaternion(Eigen::Vector4f& vec) {
     x = ((int16_t)this->buffer[2]) | (((int16_t)this->buffer[3]) << 8);
     y = ((int16_t)this->buffer[4]) | (((int16_t)this->buffer[5]) << 8);
     z = ((int16_t)this->buffer[6]) | (((int16_t)this->buffer[7]) << 8);
-    vec(0) = ((float)w) / 16384.0;
-    vec(1) = ((float)x) / 16384.0;
-    vec(2) = ((float)y) / 16384.0;
-    vec(3) = ((float)z) / 16384.0;
+    vec.w() = ((float)w) / 16384.0;
+    vec.x() = ((float)x) / 16384.0;
+    vec.y() = ((float)y) / 16384.0;
+    vec.z() = ((float)z) / 16384.0;
 }
 
-void imu::quaternion_euler(Eigen::Vector3f& angles, Eigen::Vector4f& quat) {
+void imu::quaternion_euler(Eigen::Vector3f& angles, Eigen::Quaternion<float>& quat) {
     // roll (x-axis rotation)
-    float sinr_cosp = 2 * (quat(0) * quat(1) + quat(2) * quat(3));
-    float cosr_cosp = 1 - 2 * (quat(1) * quat(1) + quat(2) * quat(2));
+    float sinr_cosp = 2 * (quat.w() * quat.x() + quat.y() * quat.z());
+    float cosr_cosp = 1 - 2 * (quat.x() * quat.x() + quat.y() * quat.y());
     angles(0) = Eigen::numext::atan2(sinr_cosp, cosr_cosp);
 
     // pitch (y-axis rotation)
-    float sinp = Eigen::numext::sqrt(1 + 2 * (quat(0) * quat(2) - quat(1) * quat(3)));
-    float cosp = Eigen::numext::sqrt(1 - 2 * (quat(0) * quat(2) - quat(1) * quat(3)));
-    angles(1) = 2 * Eigen::numext::atan2(sinp, cosp) - M_PI / 2;
+    // float sinp = Eigen::numext::sqrt(1 + 2 * (quat.w() * quat.y() - quat.x() * quat.z()));
+    // float cosp = Eigen::numext::sqrt(1 - 2 * (quat.w() * quat.y() - quat.x() * quat.z()));
+    // angles(1) = 2 * Eigen::numext::atan2(sinp, cosp) - M_PI / 2;
+
+    // pitch (y-axis rotation)
+    float sinp = 2 * (quat.w() * quat.y() - quat.x() * quat.z());
+    angles(1) = std::asin(std::max(-1.0f, std::min(1.0f, sinp))); // Clamp the value between -1 and 1 to avoid NaN due to floating point errors
 
     // yaw (z-axis rotation)
-    float siny_cosp = 2 * (quat(0) * quat(3) + quat(1) * quat(2));
-    float cosy_cosp = 1 - 2 * (quat(2) * quat(2) + quat(3) * quat(3));
+    float siny_cosp = 2 * (quat.w() * quat.z() + quat.x() * quat.y());
+    float cosy_cosp = 1 - 2 * (quat.y() * quat.y() + quat.z() * quat.z());
     angles(2) = Eigen::numext::atan2(siny_cosp, cosy_cosp);
 }
 
@@ -124,4 +136,3 @@ void imu::read_register(uint8_t reg, size_t len) {
     i2c_write_blocking(this->inst, this->addr, &reg, 1, true);
     i2c_read_blocking(this->inst, this->addr, this->buffer, len, false);
 }
-

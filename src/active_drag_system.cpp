@@ -70,7 +70,8 @@ volatile float threshold_velocity = 30.0f;
 volatile uint8_t deployment_percent = 0;
 
 Eigen::Vector3f linear_acceleration;
-Eigen::Vector4f quaternion;
+Eigen::Quaternion<float> quaternion;
+Eigen::Vector3f vertical_acceleration;
 Eigen::Vector3f euler_angles;
 
 volatile calibration_status_t calib_status;
@@ -113,6 +114,7 @@ int main() {
     imu.linear_acceleration(linear_acceleration);
     imu.quaternion(quaternion);
     imu.quaternion_euler(euler_angles, quaternion);
+    imu.vertical_acceleration(vertical_acceleration, linear_acceleration, quaternion);
 
     pwm.init();
 
@@ -120,8 +122,13 @@ int main() {
     gpio_init(MOSFET_PIN);
     gpio_set_dir(MOSFET_PIN, GPIO_OUT);
 
-    // Initialize Kalman Filter
-    kf = new kalman_filter(2, 1, 1, 0.01);
+    // Instantiate a new Kalman Filter with the following parameters:
+    kf = new kalman_filter(
+        2,    // State dimension (number of state variables) [altidute and velocity]
+        1,    // Control dimension (number of control variables)
+        1,    // Measurement dimension (number of measurement variables)
+        LOOP_PERIOD  // Time step (delta time) [at 100Hz it is 0.01s]
+    );
     VectorXf state_vec(2);
     MatrixXf state_cov(2, 2);
     state_vec << altimeter.get_altitude_converted(), linear_acceleration.z();
@@ -234,12 +241,15 @@ bool timer_callback(repeating_timer_t *rt) {
     imu.linear_acceleration(linear_acceleration);
     imu.quaternion(quaternion);
     imu.quaternion_euler(euler_angles, quaternion);
+    imu.vertical_acceleration(vertical_acceleration, linear_acceleration, quaternion);
 
     control(0) = linear_acceleration.z();
     measurement(0) = altimeter.get_altitude_converted();
     res = kf->run(control, measurement, 0.01f);
 
     deployment_percent = (uint8_t)(std::min(std::max(30.0f, get_deploy_percent(velocity, (altitude - ground_altitude))), 100.0f));
+
+    std::printf("Vertical Acceleration: %f\n", vertical_acceleration.z());
 
     switch(state) {
         case PAD:

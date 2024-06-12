@@ -4,6 +4,7 @@
 #include "hardware/i2c.h"
 
 #include <Eigen/Dense>
+#include <Eigen/Geometry>
 
 
 #define BNO055_NUM_OFFSET_REGISTERS 22
@@ -182,20 +183,57 @@ class imu {
 
         uint8_t buffer[10];
 
+        /**
+         * @brief Write data starting from the given register
+         * 
+         * @param reg The register to start reading from
+         * @param len The number of registers to read
+         */
         void read_register(uint8_t reg, size_t len);
 
     public:
         imu(i2c_inst_t* inst, uint8_t addr, uint8_t id, imu_opmode_t mode);
 
+        /**
+         * @brief Initialize the IMU
+         * 
+         */
         void initialize();
 
+        /**
+         * @brief Reset the IMU
+         * 
+         */
         void reset();
 
+        /**
+         * @brief Stores the current linear acceleration in the given vector
+         * 
+         * @param vec The vector to store the linear acceleration in
+         */
         void linear_acceleration(Eigen::Vector3f& vec);
 
-        void quaternion(Eigen::Vector4f& vec);
+        void vertical_acceleration(Eigen::Vector3f& vert, Eigen::Vector3f& lin, Eigen::Quaternion<float>& quat);
 
-        void quaternion_euler(Eigen::Vector3f& angles, Eigen::Vector4f& quat);
+        /**
+         * @brief Stores the current quaternion in the given vector
+         * 
+         * @param vec The vector to store the quaternion in
+         */
+        void quaternion(Eigen::Quaternion<float>& vec);
 
+        /**
+         * @brief Stores the current euler angles in the given vector
+         * 
+         * @param angles The vector to store the euler angles in
+         * @param quat The quaternion to convert to euler angles
+         */
+        void quaternion_euler(Eigen::Vector3f& angles, Eigen::Quaternion<float>& quat);
+
+        /**
+         * @brief Get the calibration status of the IMU
+         * 
+         * @param status The calibration status to store the values in
+         */
         void calibration_status(calibration_status_t* status);
 };
