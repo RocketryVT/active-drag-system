@@ -7,7 +7,7 @@ add_executable(ads
                kalman_filter.cpp
 )
 
-target_link_libraries(ads pico_stdlib pico_multicore pico_sync hardware_i2c hardware_spi hardware_pwm pico_cyw43_arch_none ${Eigen_LIBRARIES})
+target_link_libraries(ads pico_stdlib pico_multicore pico_sync hardware_i2c hardware_spi hardware_pwm hardware_adc pico_cyw43_arch_none ${Eigen_LIBRARIES})
 target_include_directories(ads PUBLIC ../include)
 
 pico_enable_stdio_usb(ads 1)

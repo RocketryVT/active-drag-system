@@ -181,8 +181,10 @@ class imu {
         imu_opmode_t mode;
 
         uint8_t buffer[10];
+        uint8_t accel_buffer[6];
+        uint8_t quat_buffer[8];
 
-        void read_register(uint8_t reg, size_t len);
+        void read_register(uint8_t reg, size_t len, uint8_t* buffer);
 
     public:
         imu(i2c_inst_t* inst, uint8_t addr, uint8_t id, imu_opmode_t mode);
@@ -198,4 +200,8 @@ class imu {
         void quaternion_euler(Eigen::Vector3f& angles, Eigen::Vector4f& quat);
 
         void calibration_status(calibration_status_t* status);
+
+        uint32_t expose_acceleration_buffer(uint8_t** buffer);
+
+        uint32_t expose_quaternion_buffer(uint8_t** buffer);
 };

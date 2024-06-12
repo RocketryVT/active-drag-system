@@ -3,6 +3,7 @@
 #include "pico/stdlib.h"
 #include "hardware/i2c.h"
 #include "hardware/gpio.h"
+#include <cstdint>
 
 class altimeter {
     private:
@@ -23,6 +24,7 @@ class altimeter {
         float get_altitude_converted();
 
         void get_altitude_raw(uint8_t* buffer);
-};
 
+        uint32_t expose_buffer(uint8_t** buffer);
+};
 

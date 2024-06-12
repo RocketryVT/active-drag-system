@@ -144,3 +144,8 @@ void altimeter::get_altitude_raw(uint8_t* buffer) {
     i2c_read_blocking(this->inst, this->addr, buffer, 3, false);
 }
 
+uint32_t altimeter::expose_buffer(uint8_t** buffer) {
+    *buffer = this->buffer;
+    return sizeof(this->buffer);
+}
+

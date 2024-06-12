@@ -35,7 +35,7 @@ int main() {
     }
 
     printf("\nRead Data:\n");
-    printf("time (us) | state | dep pcnt | alt (m) | vel (m/s) | quat_w | quat_x | quat_y | quat_z | lin_ax | lin_ay | lin_az\n");
+    printf("time,state,board_temp,deploy_percent,altitude,velocity,lin_ax,lin_ay,lin_az,quat_w,quat_x,quat_y,quat_z\n");
     for (uint32_t i = 0; i < base_addr; i += PACKET_SIZE) {
         flash_read(spi_default, PICO_DEFAULT_SPI_CSN_PIN, i, entry, PACKET_SIZE);
         uint64_t now_us = (((uint64_t)entry[0] << 56) | ((uint64_t)entry[1] << 48) | \
@@ -43,29 +43,36 @@ int main() {
                           ((uint64_t)entry[4] << 24)  | ((uint64_t)entry[5] << 16) | \
                           ((uint64_t)entry[6] << 8)   | ((uint64_t)entry[7]));
 
-        uint8_t state = entry[8];
-        uint8_t deploy_percent = entry[9];
+        uint8_t state = entry[8] >> 4;
+        uint16_t temperature_data = ((uint16_t)(entry[8] & 0x0F) << 8) | ((uint16_t)entry[9]);
+        const float conversionFactor = 3.3f / (1 << 12);
+        float tempC = 27.0f - (((float)(temperature_data) * conversionFactor) - 0.706f) / 0.001721f;
 
-        uint32_t alt_bits = (entry[10] << 24) | (entry[11] << 16) | (entry[12] << 8) | (entry[13]);
+        uint8_t deploy_percent = entry[10];
+
+        float altitude = (float) ((int16_t) ((entry[11] << 8) | entry[12])) + (float) (entry[13] >> 4) * 0.0625;
         uint32_t vel_bits = (entry[14] << 24) | (entry[15] << 16) | (entry[16] << 8) | (entry[17]);
-        float altitude = *(float *)(&alt_bits);
         float velocity = *(float *)(&vel_bits);
 
-        int16_t w = ((int16_t)entry[18]) | (((int16_t)entry[19]) << 8);
-        int16_t x = ((int16_t)entry[20]) | (((int16_t)entry[21]) << 8);
-        int16_t y = ((int16_t)entry[22]) | (((int16_t)entry[23]) << 8);
-        int16_t z = ((int16_t)entry[24]) | (((int16_t)entry[25]) << 8);
-        float qw = ((float)w) / 16384.0; // 2^14 LSB
+        int16_t ax = ((int16_t)entry[18]) | (((int16_t)entry[19]) << 8);
+        int16_t ay = ((int16_t)entry[20]) | (((int16_t)entry[21]) << 8);
+        int16_t az = ((int16_t)entry[22]) | (((int16_t)entry[23]) << 8);
+        float lax = ((float)ax) / 100.0;
+        float lay = ((float)ay) / 100.0;
+        float laz = ((float)az) / 100.0;
+
+        int16_t w, x, y, z;
+        w = x = y = z = 0;
+        w = ((int16_t)entry[24]) | (((int16_t)entry[25]) << 8);
+        x = ((int16_t)entry[26]) | (((int16_t)entry[27]) << 8);
+        y = ((int16_t)entry[28]) | (((int16_t)entry[29]) << 8);
+        z = ((int16_t)entry[30]) | (((int16_t)entry[31]) << 8);
+        float qw = ((float)w) / 16384.0;
         float qx = ((float)x) / 16384.0;
         float qy = ((float)y) / 16384.0;
         float qz = ((float)z) / 16384.0;
-        int16_t ax = ((int16_t)entry[26]) | (((int16_t)entry[27]) << 8);
-        int16_t ay = ((int16_t)entry[28]) | (((int16_t)entry[29]) << 8);
-        int16_t az = ((int16_t)entry[30]) | (((int16_t)entry[31]) << 8);
-        float lax = ((float)x) / 100.0;
-        float lay = ((float)y) / 100.0;
-        float laz = ((float)z) / 100.0;
-        printf("%"PRIu64" | %c | %"PRIu8" | %4.2f | %4.2f | %4.2f | %4.2f| %4.2f | %4.2f | %4.2f | %4.2f |%4.2f\n", \
-                now_us, state, deploy_percent, altitude, velocity, qw, qx, qy, qz, lax, lay, laz);
+
+        printf("%"PRIu64",%"PRIu8",%04.2f,%"PRIu8",%04.2f,%04.2f,%04.2f,%04.2f,%04.2f,%04.2f,%04.2f,%04.2f,%04.2f\r\n", \
+                now_us, state, tempC, deploy_percent, altitude, velocity, lax, lay, laz, qw, qx, qy, qz);
     }
 }

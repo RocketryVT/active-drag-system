@@ -70,7 +70,7 @@ void imu::initialize() {
 }
 
 void imu::calibration_status(calibration_status_t* status) {
-    read_register(CALIBRATION_STATUS, 1);
+    read_register(CALIBRATION_STATUS, 1, this->buffer);
     status->mag = ((this->buffer[0] & 0b00000011) >> 0);
     status->accel = ((this->buffer[0] & 0b00001100) >> 2);
     status->gyro = ((this->buffer[0] & 0b00110000) >> 4);
@@ -78,25 +78,25 @@ void imu::calibration_status(calibration_status_t* status) {
 }
 
 void imu::linear_acceleration(Eigen::Vector3f& vec) {
-    read_register(LINEAR_ACCELERATION_X_LSB, 6);
+    read_register(LINEAR_ACCELERATION_X_LSB, 6, this->accel_buffer);
     int16_t x, y, z;
     x = y = z = 0;
-    x = ((int16_t)this->buffer[0]) | (((int16_t)this->buffer[1]) << 8);
-    y = ((int16_t)this->buffer[2]) | (((int16_t)this->buffer[3]) << 8);
-    z = ((int16_t)this->buffer[4]) | (((int16_t)this->buffer[5]) << 8);
+    x = ((int16_t)this->accel_buffer[0]) | (((int16_t)this->accel_buffer[1]) << 8);
+    y = ((int16_t)this->accel_buffer[2]) | (((int16_t)this->accel_buffer[3]) << 8);
+    z = ((int16_t)this->accel_buffer[4]) | (((int16_t)this->accel_buffer[5]) << 8);
     vec(0) = ((float)x) / 100.0;
     vec(1) = ((float)y) / 100.0;
     vec(2) = ((float)z) / 100.0;
 }
 
 void imu::quaternion(Eigen::Vector4f& vec) {
-    read_register(QUATERNION_W_LSB, 8);
+    read_register(QUATERNION_W_LSB, 8, this->quat_buffer);
     int16_t w, x, y, z;
     w = x = y = z = 0;
-    w = ((int16_t)this->buffer[0]) | (((int16_t)this->buffer[1]) << 8);
-    x = ((int16_t)this->buffer[2]) | (((int16_t)this->buffer[3]) << 8);
-    y = ((int16_t)this->buffer[4]) | (((int16_t)this->buffer[5]) << 8);
-    z = ((int16_t)this->buffer[6]) | (((int16_t)this->buffer[7]) << 8);
+    w = ((int16_t)this->quat_buffer[0]) | (((int16_t)this->quat_buffer[1]) << 8);
+    x = ((int16_t)this->quat_buffer[2]) | (((int16_t)this->quat_buffer[3]) << 8);
+    y = ((int16_t)this->quat_buffer[4]) | (((int16_t)this->quat_buffer[5]) << 8);
+    z = ((int16_t)this->quat_buffer[6]) | (((int16_t)this->quat_buffer[7]) << 8);
     vec(0) = ((float)w) / 16384.0;
     vec(1) = ((float)x) / 16384.0;
     vec(2) = ((float)y) / 16384.0;
@@ -120,8 +120,18 @@ void imu::quaternion_euler(Eigen::Vector3f& angles, Eigen::Vector4f& quat) {
     angles(2) = Eigen::numext::atan2(siny_cosp, cosy_cosp);
 }
 
-void imu::read_register(uint8_t reg, size_t len) {
+uint32_t imu::expose_acceleration_buffer(uint8_t** buffer) {
+    *buffer = this->accel_buffer;
+    return sizeof(this->accel_buffer);
+}
+
+uint32_t imu::expose_quaternion_buffer(uint8_t** buffer) {
+    *buffer = this->quat_buffer;
+    return sizeof(this->quat_buffer);
+}
+
+void imu::read_register(uint8_t reg, size_t len, uint8_t* buffer) {
     i2c_write_blocking(this->inst, this->addr, &reg, 1, true);
-    i2c_read_blocking(this->inst, this->addr, this->buffer, len, false);
+    i2c_read_blocking(this->inst, this->addr, buffer, len, false);
 }
 
