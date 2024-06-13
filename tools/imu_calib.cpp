@@ -20,6 +20,7 @@
 #define ACCEL_OFFSET_X_LSB_ADDR 0x55
 #define BNO055_LINEAR_ACCEL_DATA_X_LSB_ADDR 0x28
 #define BNO055_QUATERNION_DATA_W_LSB_ADDR 0x20
+#define UNIT_SELECTION 0x3B
 
 void get_calibration(uint8_t *sys, uint8_t *gyro, uint8_t *accel, uint8_t *mag);
 
@@ -69,6 +70,12 @@ int main() {
     buf[1] = 0x00; // RESET
     i2c_write_blocking(i2c_default, BNO055_ADDRESS, buf, 2, false);
     sleep_ms(30);
+    
+    // Set units to m/s^2
+    buf[0] = UNIT_SELECTION;
+    buf[1] = 0x00; // Windows, Celsius, Degrees, DPS, m/s^2
+    i2c_write_blocking(i2c_default, BNO055_ADDRESS, buf, 2, false);
+    sleep_ms(50);
 
     buf[0] = BNO055_OPR_MODE_ADDR;
     buf[1] = BNO055_OPR_MODE_NDOF;
@@ -128,17 +135,16 @@ int main() {
 
     buf[0] = ACCEL_OFFSET_X_LSB_ADDR;
     i2c_write_blocking(i2c_default, BNO055_ADDRESS, buf, 1, false);
-    i2c_read_blocking(i2c_default, BNO055_ADDRESS, sensor_offsets, 22, false);
-
-    int16_t accel_offset_x = ((sensor_offsets[1] << 8) | (sensor_offsets[0]));
-    int16_t accel_offset_y = ((sensor_offsets[3] << 8) | (sensor_offsets[2]));
-    int16_t accel_offset_z = ((sensor_offsets[5] << 8) | (sensor_offsets[4]));
-    printf("Acceleration Offsets: %" PRIi16 ", %" PRIi16 ", %" PRIi16 "\n", accel_offset_x, accel_offset_y, accel_offset_z);
+    i2c_read_blocking(i2c_default, BNO055_ADDRESS, sensor_offsets, 18, false);
+    for (uint8_t i = 0; i < 18; i++) {
+        printf("sensor_offsets[%" PRIu8 "] = 0x%" PRIx8 ";\r\n", i + 1, sensor_offsets[i]);
+    }
+    sleep_ms(5000);
 
     buf[0] = BNO055_OPR_MODE_ADDR;
     buf[1] = BNO055_OPR_MODE_NDOF;
     i2c_write_blocking(i2c_default, BNO055_ADDRESS, buf, 2, false);
-    sleep_ms(30);
+    sleep_ms(5000);
 
     getchar();
 
