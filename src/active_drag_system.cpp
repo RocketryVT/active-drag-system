@@ -1,4 +1,3 @@
-#include <stdio.h>
 #include "cyw43_configport.h"
 #include "pico/multicore.h"
 #include "pico/platform.h"
@@ -104,8 +103,6 @@ uint8_t entry_buffer[PACKET_SIZE];
 uint8_t *pad_buffer;
 
 int main() {
-    stdio_init_all();
-
     adc_init();
     adc_set_temp_sensor_enabled(true);
 
@@ -393,7 +390,6 @@ void populate_entry() {
 bool logging_buffer_callback(repeating_timer_t *rt) {
     sem_acquire_blocking(&sem);
     populate_entry();
-    printf("%" PRIx8 "\t%" PRIx8 "\t%" PRIx8 "\t%" PRIx8 "\r", altimeter_buffer[0], altimeter_buffer[1], altimeter_buffer[2], altimeter_buffer[3]);
     sem_release(&sem);
     for (uint32_t i = 0; i < PACKET_SIZE; i++) {
         pad_buffer[i + pad_buffer_offset] = entry_buffer[i];
@@ -403,7 +399,6 @@ bool logging_buffer_callback(repeating_timer_t *rt) {
 
     if (state != PAD) {
         uint32_t idx = ((pad_buffer_offset + PACKET_SIZE) % PAD_BUFFER_SIZE);
-        printf("\nDraining buffer!\r\n");
         sem_acquire_blocking(&sem);
         do {
             write_entry(pad_buffer + idx);

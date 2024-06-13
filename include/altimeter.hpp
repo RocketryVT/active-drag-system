@@ -7,6 +7,7 @@
 
 class altimeter {
     private:
+        uint8_t altitude_buffer[4];
         uint8_t buffer[4];
         uint8_t addr;
         i2c_inst_t* inst;

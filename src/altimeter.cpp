@@ -30,8 +30,6 @@ void altimeter::initialize(float threshold_altitude, uint8_t interrupt_pin, gpio
 
     threshold_altitude += altitude; // 30 meters above ground
 
-    // printf("threshold_altitude: %4.2f", threshold_altitude);
-
     // Select control register 3 (0x28)
     // Set bot interrupt pins to active low and enable internal pullups
     this->buffer[0] = 0x28;
@@ -42,14 +40,12 @@ void altimeter::initialize(float threshold_altitude, uint8_t interrupt_pin, gpio
     // Set altitude target to 30 meters above ground altitude
     this->buffer[0] = 0x16;
     this->buffer[1] = (uint8_t) (((int16_t)(threshold_altitude)) >> 8);
-    // printf("threshold_alt upper half: %X\n", this->buffer[1]);
     i2c_write_blocking(this->inst, this->addr, this->buffer, 2, true);
 
     // Select pressure target LSB register(0x17)
     // Set altitude target to 30 meters above ground altitude
     this->buffer[0] = 0x17;
     this->buffer[1] = (uint8_t) (((int16_t)(threshold_altitude)));
-    // printf("threshold_alt lower half: %X\n", this->buffer[1]);
     i2c_write_blocking(this->inst, this->addr, this->buffer, 2, true);
 
     // Select interrupt enable register (0x29)
@@ -87,14 +83,12 @@ void altimeter::set_threshold_altitude(float threshold_altitude, uint8_t interru
     // Set altitude target to 30 meters above ground altitude
     this->buffer[0] = 0x16;
     this->buffer[1] = (uint8_t) (((int16_t)(threshold_altitude)) >> 8);
-    // printf("threshold_alt upper half: %X\n", this->buffer[1]);
     i2c_write_blocking(this->inst, this->addr, this->buffer, 2, true);
 
     // Select pressure target LSB register(0x17)
-    // Set altitude target to 30 meters above ground altitude
+    // Set altitude target to provided threshold altitude
     this->buffer[0] = 0x17;
     this->buffer[1] = (uint8_t) (((int16_t)(threshold_altitude)));
-    // printf("threshold_alt lower half: %X\n", this->buffer[1]);
     i2c_write_blocking(this->inst, this->addr, this->buffer, 2, true);
 
     // Select interrupt enable register (0x29)
@@ -132,9 +126,9 @@ void altimeter::unset_threshold_altitude(uint8_t interrupt_pin) {
 float altimeter::get_altitude_converted() {
     uint8_t reg = 0x01;
     i2c_write_blocking(this->inst, this->addr, &reg, 1, true);
-    i2c_read_blocking(this->inst, this->addr, this->buffer, 4, false);
+    i2c_read_blocking(this->inst, this->addr, this->altitude_buffer, 4, false);
     // Exactly how MPL3115A2 datasheet says to retrieve altitude
-    float altitude = (float) ((int16_t) ((this->buffer[0] << 8) | this->buffer[1])) + (float) (this->buffer[2] >> 4) * 0.0625;
+    float altitude = (float) ((int16_t) ((this->altitude_buffer[0] << 8) | this->altitude_buffer[1])) + (float) (this->altitude_buffer[2] >> 4) * 0.0625;
     return altitude;
 }
 
@@ -145,7 +139,7 @@ void altimeter::get_altitude_raw(uint8_t* buffer) {
 }
 
 uint32_t altimeter::expose_buffer(uint8_t** buffer) {
-    *buffer = this->buffer;
-    return sizeof(this->buffer);
+    *buffer = this->altitude_buffer;
+    return sizeof(this->altitude_buffer);
 }
 
