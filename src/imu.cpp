@@ -59,8 +59,31 @@ void imu::initialize() {
     this->buffer[0] = UNIT_SELECTION;
     this->buffer[1] = 0x00; // Windows, Celsius, Degrees, DPS, m/s^2
     i2c_write_blocking(this->inst, this->addr, this->buffer, 2, true);
-    sleep_ms(50);
-
+    sleep_ms(200);
+    
+    uint8_t sensor_offsets[19];
+    sensor_offsets[0] = ACCELERATION_OFFSET_X_LSB;
+    sensor_offsets[1] = 0x00;
+    sensor_offsets[2] = 0x00;
+    sensor_offsets[3] = 0x00;
+    sensor_offsets[4] = 0x00;
+    sensor_offsets[5] = 0x00;
+    sensor_offsets[6] = 0x00;
+    sensor_offsets[7] = 0x00;
+    sensor_offsets[8] = 0x00;
+    sensor_offsets[9] = 0x00;
+    sensor_offsets[10] = 0x00;
+    sensor_offsets[11] = 0x00;
+    sensor_offsets[12] = 0x00;
+    sensor_offsets[13] = 0x00;
+    sensor_offsets[14] = 0x00;
+    sensor_offsets[15] = 0x00; 
+    sensor_offsets[16] = 0x00;
+    sensor_offsets[17] = 0x00;
+    sensor_offsets[18] = 0x00;
+    i2c_write_blocking(this->inst, this->addr, sensor_offsets, 19, true);
+    sleep_ms(200);
+    
     // The default operation mode after power-on is CONFIG
     // Set to desired mode
     this->buffer[0] = OPERATION_MODE;
