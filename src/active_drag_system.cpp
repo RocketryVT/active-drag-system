@@ -178,7 +178,6 @@ bool timer_callback(repeating_timer_t *rt) {
     sem_acquire_blocking(&sem);
     imu.linear_acceleration(linear_acceleration);
     imu.quaternion(quaternion);
-    imu.quaternion_euler(euler_angles, quaternion);
 
     control(0) = linear_acceleration.z();
     measurement(0) = altimeter.get_altitude_converted();
