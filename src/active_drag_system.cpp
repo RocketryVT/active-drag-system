@@ -1,37 +1,45 @@
-#include <algorithm>
-#include <stdio.h>
+#include "cyw43_configport.h"
 #include "pico/multicore.h"
 #include "pico/platform.h"
 #include "pico/sem.h"
-#include "spi_flash.h"
 #include "boards/pico_w.h"
 #include "hardware/gpio.h"
 #include "hardware/i2c.h"
+#include "hardware/adc.h"
 #include "pico/stdlib.h"
 #include "pico/time.h"
 #include "pico/types.h"
 #include "pico/cyw43_arch.h"
+#include <inttypes.h>
 #include <math.h>
 
-#include "bno055.hpp"
-#include "AltEst/altitude.h"
 #include "pwm.hpp"
-#include "SimpleKalmanFilter.h"
+#include "imu.hpp"
+#include "altimeter.hpp"
+#include "kalman_filter.hpp"
+#include "spi_flash.h"
 
-#define ALT_ADDR 0x60
+#define MPL3115A2_ADDR 0x60
+
+#define BNO055_ADDR 0x28
+#define BNO055_ID 0xA0
+
 #define MAX_SCL 400000
 #define DATA_RATE_HZ 100
 #define LOOP_PERIOD (1.0f / DATA_RATE_HZ)
 #define INT1_PIN 6 // INT1 PIN on MPL3115A2 connected to GPIO PIN 9 (GP6)
 #define MOSFET_PIN 26 // MOSFET PIN connected to GPIO PIN 31 (GP26)
 
-#define GRAVITY -9.81
-#define LOG_RATE_HZ 4
+#define LOG_RATE_HZ 8
+#define HEART_RATE_HZ 5
 
 #define MOTOR_BURN_TIME 3900 // Burn time in milliseconds for M2500T
 
+#define PAD_SECONDS 8
+#define PAD_BUFFER_SIZE (PACKET_SIZE * LOG_RATE_HZ * PAD_SECONDS)
+
 typedef enum {
-    PAD,
+    PAD = 0,
     BOOST,
     COAST,
     APOGEE,
@@ -39,76 +47,67 @@ typedef enum {
     END
 } state_t;
 
-BNO055 bno055;
 PWM pwm;
-static AltitudeEstimator vKF = AltitudeEstimator(0.0005, // sigma Accel
-                                                      0.0005, // sigma Gyro
-                                                      0.018,   // sigma Baro
-                                                      0.5, // ca
-                                                      0.1);// accelThreshold
+kalman_filter *kf;
+VectorXf control(1);
+VectorXf measurement(1);
+VectorXf res(2);
 
 void pad_callback(uint gpio, uint32_t event_mask);
 int64_t boost_callback(alarm_id_t id, void* user_data);
 int64_t apogee_callback(alarm_id_t id, void* user_data);
 int64_t coast_callback(alarm_id_t id, void* user_data);
 void recovery_callback(uint gpio, uint32_t event_mask);
-void init_altimeter();
 float get_deploy_percent(float velocity, float altitude);
 
 bool timer_callback(repeating_timer_t *rt);
-bool test_timer_callback(repeating_timer_t *rt);
 
-float get_altitude();
-float get_velocity();
-
-void snapshot();
-bool logging_callback(repeating_timer_t *rt);
+void populate_entry();
+bool logging_buffer_callback(repeating_timer_t *rt);
+bool logging_flash_callback(repeating_timer_t *rt);
+bool heartbeat_callback(repeating_timer_t *rt);
 void logging_core();
 
 semaphore_t sem;
 
 volatile float altitude = 0.0f;
-volatile float prev_altitude = 0.0f;
 volatile float velocity = 0.0f;
 volatile state_t state = PAD;
 volatile float threshold_altitude = 30.0f;
 volatile float threshold_velocity = 30.0f;
 volatile uint8_t deployment_percent = 0;
+volatile uint8_t led_counter;
+volatile uint32_t pad_buffer_offset = 0;
 
-volatile vector3f linear_acceleration;
-volatile vector3f acceleration;
-volatile quarternion abs_quaternion;
-volatile vector3f velocity_vector;
+Eigen::Vector3f linear_acceleration;
+Eigen::Vector4f quaternion;
+Eigen::Vector3f euler_angles;
 
-volatile vector3f euler_angles;
-volatile vector3f abs_lin_accel;
-volatile vector3f prev_abs_lin_accel;
-volatile vector3f rot_y_vec;
-volatile vector3f vel_at_angle;
-
-volatile vector3f accel_gravity;
-
-volatile CALIB_STATUS calib_status;
-uint8_t accel[6];
-uint8_t quat[8];
+volatile calibration_status_t calib_status;
 
 repeating_timer_t data_timer;
 repeating_timer_t log_timer;
+repeating_timer_t heartbeat_timer;
 
 float ground_altitude = 0.0f;
 
-SimpleKalmanFilter altitudeKF(2, 2, 0.01);
-SimpleKalmanFilter velocityKF(1, 1, 0.01);
+altimeter altimeter(i2c_default, MPL3115A2_ADDR);
+imu imu(i2c_default, BNO055_ADDR, BNO055_ID, NDOF);
 
-/**
- * @brief Main function
- * 
- * @return int error code
- */
+uint8_t *altimeter_buffer;
+uint8_t *acceleration_buffer;
+uint8_t *quaternion_buffer;
+
+uint8_t entry_buffer[PACKET_SIZE];
+
+uint8_t *pad_buffer;
+
 int main() {
-    // stdio_init_all();
+    adc_init();
+    adc_set_temp_sensor_enabled(true);
 
     cyw43_arch_init();
+
     i2c_init(i2c_default, MAX_SCL);
     gpio_set_function(PICO_DEFAULT_I2C_SDA_PIN, GPIO_FUNC_I2C);
     gpio_set_function(PICO_DEFAULT_I2C_SCL_PIN, GPIO_FUNC_I2C);
@@ -131,34 +130,39 @@ int main() {
     
     alarm_pool_init_default();
 
+    altimeter.initialize(30.0f, INT1_PIN, &pad_callback);
 
-    // Initialize altimeter
-    init_altimeter();
+    imu.initialize();
+    imu.linear_acceleration(linear_acceleration);
+    imu.quaternion(quaternion);
+    imu.quaternion_euler(euler_angles, quaternion);
 
-    // Initialize BNO055
-    bno055.init();
-
-    // Initialize PWM
     pwm.init();
 
     // Initialize MOSFET
     gpio_init(MOSFET_PIN);
     gpio_set_dir(MOSFET_PIN, GPIO_OUT);
 
-    // Initialize Kalman Filter
-    float measurement = get_altitude();
-    float v_measurement = get_velocity();
-    altitudeKF.updateEstimate(measurement);
-    velocityKF.updateEstimate(measurement);
+    cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 1);
 
-    ground_altitude = altitude;
+    pad_buffer = (uint8_t*)malloc(PAD_BUFFER_SIZE);
+
+    // Initialize Kalman Filter
+    kf = new kalman_filter(2, 1, 1, 0.01);
+    VectorXf state_vec(2);
+    MatrixXf state_cov(2, 2);
+    state_vec << altimeter.get_altitude_converted(), linear_acceleration.z();
+    state_cov << 0.018, 0.0, 0.0, 0.0005;
+    kf->state_initialize(state_vec, state_cov);
+    ground_altitude = altimeter.get_altitude_converted();
+
+    altimeter.expose_buffer(&altimeter_buffer);
+    imu.expose_acceleration_buffer(&acceleration_buffer);
+    imu.expose_quaternion_buffer(&quaternion_buffer);
 
     sem_init(&sem, 1, 1);
 
-    if (!add_repeating_timer_us(-1000000 / DATA_RATE_HZ,  &timer_callback, NULL, &data_timer)) {
-        // printf("Failed to add timer!\n");
-        return -1;
-    }
+    add_repeating_timer_us(-1000000 / DATA_RATE_HZ,  &timer_callback, NULL, &data_timer);
 
     multicore_launch_core1(logging_core);
 
@@ -167,218 +171,22 @@ int main() {
     }
 }
 
-void logging_core() {
-    add_repeating_timer_us(-1000000 / LOG_RATE_HZ,  &logging_callback, NULL, &log_timer);
-
-    while (1) {
-        tight_loop_contents();
-    }
-}
-
-/**
- * @brief Initializes the altimeter
- * 
- * @param altitude passes the altitude variable to the function
- * @param threshold_altitude passes the threshold altitude variable to the function
- */
-void init_altimeter() {
-
-    uint8_t config[2] = {0};
-
-    // Select control register(0x26)
-    // Active mode, OSR = 16, altimeter mode(0xB8)
-    config[0] = 0x26;
-    config[1] = 0x89;
-    i2c_write_blocking(i2c_default, ALT_ADDR, config, 2, true);
-
-    // Select data configuration register(0x13)
-    // Data ready event enabled for altitude, pressure, temperature(0x07)
-    // config[0] = 0x13;
-    // config[1] = 0x07;
-    // i2c_write_blocking(i2c_default, ALT_ADDR, config, 2, true);
-
-    // Below configures the interrupt for the first transition from PAD to BOOST
-    // Initial Reading
-
-    sleep_ms(1000);
-
-    while (altitude == 0.0f) {
-        altitude = get_altitude();
-    }
-
-    threshold_altitude += altitude; // 30 meters above ground
-
-    // printf("threshold_altitude: %4.2f", threshold_altitude);
-
-    // Select control register 3 (0x28)
-    // Set bot interrupt pins to active low and enable internal pullups
-    config[0] = 0x28;
-    config[1] = 0x01;
-    i2c_write_blocking(i2c_default, ALT_ADDR, config, 2, true);
-
-    // Select pressure target MSB register(0x16)
-    // Set altitude target to 30 meters above ground altitude
-    config[0] = 0x16;
-    config[1] = (uint8_t) (((int16_t)(threshold_altitude)) >> 8);
-    // printf("threshold_alt upper half: %X\n", config[1]);
-    i2c_write_blocking(i2c_default, ALT_ADDR, config, 2, true);
-
-    // Select pressure target LSB register(0x17)
-    // Set altitude target to 30 meters above ground altitude
-    config[0] = 0x17;
-    config[1] = (uint8_t) (((int16_t)(threshold_altitude)));
-    // printf("threshold_alt lower half: %X\n", config[1]);
-    i2c_write_blocking(i2c_default, ALT_ADDR, config, 2, true);
-
-    // Select interrupt enable register (0x29)
-    // Set interrupt enabled for altitude threshold(0x08)
-    config[0] = 0x29;
-    config[1] = 0x08;
-    i2c_write_blocking(i2c_default, ALT_ADDR, config, 2, true);
-
-    // Select interrupt configuration register (0x2A)
-    // Set interrupt enabled for altitude threshold to route to INT1 pin(0x08)
-    config[0] = 0x2A;
-    config[1] = 0x08;
-    i2c_write_blocking(i2c_default, ALT_ADDR, config, 2, true);
-
-    gpio_set_irq_enabled_with_callback(INT1_PIN, GPIO_IRQ_LEVEL_LOW, true, &pad_callback);
-    // End of configuration of interrupt for first transition from PAD to BOOST
-}
-
-void snapshot() {
-    if (state != END) {
-        uint8_t entry[PACKET_SIZE];
-        absolute_time_t now = get_absolute_time();
-        uint64_t now_us = to_us_since_boot(now);
-        uint32_t alt_bits = *((uint32_t *)&altitude);
-        uint32_t vel_bits = *((uint32_t *)&velocity);
-        uint32_t acc_bits = *((uint32_t *)&abs_lin_accel.z);
-        entry[0] = now_us >> 56;
-        entry[1] = now_us >> 48;
-        entry[2] = now_us >> 40;
-        entry[3] = now_us >> 32;
-        entry[4] = now_us >> 24;
-        entry[5] = now_us >> 16;
-        entry[6] = now_us >> 8;
-        entry[7] = now_us;
-
-        switch (state) {
-            case PAD:
-                entry[8] = 'P';
-                break;
-            case BOOST:
-                entry[8] = 'B';
-                break;
-            case COAST:
-                entry[8] = 'C';
-                break;
-            case APOGEE:
-                entry[8] = 'A';
-                break;
-            case RECOVERY:
-                entry[8] = 'R';
-                break;
-            case END:
-                entry[8] = 'E';
-                break;
-        }
-
-        entry[9] = deployment_percent;
-        entry[10] = alt_bits >> 24;
-        entry[11] = alt_bits >> 16;
-        entry[12] = alt_bits >> 8;
-        entry[13] = alt_bits;
-        entry[14] = vel_bits >> 24;
-        entry[15] = vel_bits >> 16;
-        entry[16] = vel_bits >> 8;
-        entry[17] = vel_bits;
-
-        entry[18] = quat[0];
-        entry[19] = quat[1];
-        entry[20] = quat[2];
-        entry[21] = quat[3];
-        entry[22] = quat[4];
-        entry[23] = quat[5];
-        entry[24] = quat[6];
-        entry[25] = quat[7];
-
-        entry[26] = acc_bits >> 24;
-        entry[27] = acc_bits >> 16;
-        entry[28] = acc_bits >> 8;
-        entry[29] = acc_bits;
-        entry[30] = accel[4];
-        entry[31] = accel[5];
-        write_entry(entry);
-    }
-}
-
-bool logging_callback(repeating_timer_t *rt) {
-    static bool LED_STATUS = 0;
-    sem_acquire_blocking(&sem);
-    LED_STATUS = !LED_STATUS;
-    cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, LED_STATUS);
-    snapshot();
-    sem_release(&sem);
-    return true;
-}
+// PRIMARY THREAD RELATED FUNCTIONS AND CALLBACKS
+//===============================================================================
 
 bool timer_callback(repeating_timer_t *rt) {
-    absolute_time_t last = get_absolute_time();
     sem_acquire_blocking(&sem);
-    float measurement = get_altitude();
-    altitude = altitudeKF.updateEstimate(measurement);
-    // float in_velocity = (altitude - prev_altitude) * DATA_RATE_HZ;
-    // velocity = velocityKF.updateEstimate(in_velocity);
-    float acceldata[3];
-    float gyrodata[3];
+    imu.linear_acceleration(linear_acceleration);
+    imu.quaternion(quaternion);
+
+    control(0) = linear_acceleration.z();
+    measurement(0) = altimeter.get_altitude_converted();
+    res = kf->run(control, measurement, 0.01f);
+    altitude = res(0);
+    velocity = res(1);
 
 
-    // printf("Velocity_Delta: %4.2f\tVelocity_Prev: %4.2f\n", velocity, ((altitude - prev_altitude) * DATA_RATE_HZ));
-
-    bno055.read_lin_accel();
-    // printf("Linear Acceleration:\n" "x: %f\n" "y: %f\n" "z: %f\n",
-    //  linear_acceleration.x, linear_acceleration.y, linear_acceleration.z);
-
-    bno055.read_abs_quaternion();
-    // printf("Absolute Quaternion:\n" "w: %f\n" "x: %f\n" "y: %f\n" "z: %f\n",
-    //  abs_quaternion.w, abs_quaternion.x, abs_quaternion.y, abs_quaternion.z);
-
-    bno055.read_euler_angles();
-    // printf("Euler Angles:\n" "Roll: %f\n" "Pitch: %f\n" "Yaw: %f\n",
-    //  euler_angles.x, euler_angles.y, euler_angles.z);
-
-    // Linear Acceleration and Absolute Quaternion are used to calculate Absolute Linear Acceleration
-    // They must be read before calling this function
-    bno055.calculate_abs_linear_acceleration();
-    // printf("Absolute Linear Acceleration:\n" "x: %f\n" "y: %f\n" "z: %f\n",
-    // abs_lin_accel.x, abs_lin_accel.y, abs_lin_accel.z);
-    
-    acceldata[0] = abs_lin_accel.x;
-    acceldata[1] = abs_lin_accel.y;
-    acceldata[2] = abs_lin_accel.z - 0.4f;
-    gyrodata[0] = 0;
-    gyrodata[1] = 0;
-    gyrodata[2] = 0;
-
-    vKF.estimate(acceldata, gyrodata, altitude, to_us_since_boot(last));
-    velocity = vKF.getVerticalVelocity();
-    // printf("Measurement: %4.2f, Altitude: %4.2f, Velocity: %4.2f\n", measurement, altitude, velocity);
-    // This is wrong but i'm going home.
-    // velocity_vector.x = (prev_abs_lin_accel.x - abs_lin_accel.x) / 0.01f);
-    // velocity_vector.y = (prev_abs_lin_accel.y - abs_lin_accel.y) / 0.01f);
-    // velocity_vector.z = (prev_abs_lin_accel.z - abs_lin_accel.z) / 0.01f);
-    // printf("Velocity Vector:\n" "x: %f\n" "y: %f\n" "z: %f\n",
-    // velocity_vector.x, velocity_vector.y, velocity_vector.z);
-
-    prev_abs_lin_accel.x = abs_lin_accel.x;
-    prev_abs_lin_accel.y = abs_lin_accel.y;
-    prev_abs_lin_accel.z = abs_lin_accel.z;
-
-    bno055.accel_to_gravity();
-    float agl = altitude - ground_altitude;
-
-    deployment_percent = (uint8_t)(std::min(std::max(30.0f, get_deploy_percent(velocity, agl)), 100.0f));
+    deployment_percent = (uint8_t)(std::min(std::max(30.0f, get_deploy_percent(velocity, (altitude - ground_altitude))), 100.0f));
 
     switch(state) {
         case PAD:
@@ -411,67 +219,9 @@ bool timer_callback(repeating_timer_t *rt) {
             deployment_percent = 0;
             break;
     }
-    prev_altitude = altitude;
     sem_release(&sem);
     return true;
 }
-
-/**
- * @brief Test function for timer callback outputs data in ROS2 format
- * 
- * @param rt 
- * @return true
- * @return false 
- */
-// bool test_timer_callback(repeating_timer_t *rt) {
-//     static float prev_altitude = altitude;
-//     absolute_time_t last = get_absolute_time();
-//     altitude = get_altitude();
-//     velocity = ((altitude - prev_altitude) / 0.01f);
-//     prev_altitude = altitude;
-// 
-//     bno055.read_lin_accel();
-//     bno055.read_abs_quaternion();
-// 
-//     absolute_time_t now = get_absolute_time();
-//     int64_t time_delta = absolute_time_diff_us(last, now);
-// 
-//     std::cout << altitude << " " << abs_quaternion.w << " "
-//           << abs_quaternion.x << " "
-//           << abs_quaternion.y << " "
-//           << abs_quaternion.z << " "
-//           << linear_acceleration.x << " "
-//           << linear_acceleration.y << " "
-//           << linear_acceleration.z << std::endl;
-// 
-//     /* switch (state) {
-//         case PAD:
-//             printf("P\n");
-//             break;
-//         case BOOST:
-//             printf("B\n");
-//             break;
-//         case COAST:
-//             printf("C\n");
-//             break;
-//         case APOGEE:
-//             printf("A\n");
-//             break;
-//         case RECOVERY:
-//             printf("R\n");
-//             break;
-//         case END:
-//             printf("E\n");
-//             break;
-//     }*/
-// 
-//     // absolute_time_t now = get_absolute_time();
-//     // int64_t time_delta = absolute_time_diff_us(last, now);
-//     // printf("Time Delta: %" PRIi64"\n", time_delta);
-//     // std::flush(std::cout);
-//     prev_altitude = altitude;
-//     return true;
-// }
 
 /**
  * @brief Call back function for when rocket is on the pad
@@ -485,29 +235,12 @@ bool timer_callback(repeating_timer_t *rt) {
  * @link https://www.raspberrypi.com/documentation/pico-sdk/hardware/gpio.html#ga6347e27da3ab34f1ea65b5ae16ab724f
  */
 void pad_callback(uint gpio, uint32_t event_mask) {
-
-    /// @link https://www.raspberrypi.com/documentation/pico-sdk/hardware.html#ga6165f07f4b619dd08ea6dc97d069e78a
-    /// Each pin only supports one call back, so by calling this we overwrite the previous one
-    gpio_set_irq_enabled_with_callback(INT1_PIN, GPIO_IRQ_LEVEL_LOW, false, &pad_callback);
-    uint8_t config[2] = {0};
-    // Select interrupt enable register (0x29)
-    // Set interrupt enabled for altitude threshold(0x08)
-    config[0] = 0x29;
-    config[1] = 0x00;
-    i2c_write_blocking(i2c_default, ALT_ADDR, config, 2, true);
-
-    // Select interrupt configuration register (0x2A)
-    // Set interrupt enabled for altitude threshold to route to INT1 pin(0x08)
-    config[0] = 0x2A;
-    config[1] = 0x00;
-    i2c_write_blocking(i2c_default, ALT_ADDR, config, 2, true);
-
     sem_acquire_blocking(&sem);
+    altimeter.unset_threshold_altitude(INT1_PIN);
     state = BOOST;
-    // start motor burn timer with this function as callback
-    add_alarm_in_ms(MOTOR_BURN_TIME, &boost_callback, NULL, false);
-    snapshot();
     sem_release(&sem);
+    // start motor burn timer with boost transition function as callback
+    add_alarm_in_ms(MOTOR_BURN_TIME, &boost_callback, NULL, false);
 }
 
 int64_t boost_callback(alarm_id_t id, void* user_data) {
@@ -516,7 +249,8 @@ int64_t boost_callback(alarm_id_t id, void* user_data) {
     // transition to APOGEE
     sem_acquire_blocking(&sem);
     state = COAST;
-    snapshot();
+    populate_entry();
+    write_entry(entry_buffer);
     sem_release(&sem);
     add_alarm_in_ms(1000, &coast_callback, NULL, false);
     return 0;
@@ -527,7 +261,8 @@ int64_t coast_callback(alarm_id_t id, void* user_data) {
     if (velocity <= 0.0f) {
         sem_acquire_blocking(&sem);
         state = APOGEE;
-        snapshot();
+        populate_entry();
+        write_entry(entry_buffer);
         sem_release(&sem);
         add_alarm_in_ms(1, &apogee_callback, NULL, false);
     } else {
@@ -537,43 +272,14 @@ int64_t coast_callback(alarm_id_t id, void* user_data) {
 }
 
 int64_t apogee_callback(alarm_id_t id, void* user_data) {
+    state = RECOVERY;
     // Set altimeter interrupt to occur for when rocket touches back to the ground
-
-    uint8_t config[2] = {0};
-    // Select pressure target MSB register(0x16)
-    // Set altitude target to 10 meters above ground altitude
-    float recov_altitude = ground_altitude + 10.0f;
-    // Select pressure target MSB register(0x16)
-    // Set altitude target to 30 meters above ground altitude
-    config[0] = 0x16;
-    config[1] = (uint8_t) (((int16_t)(recov_altitude)) >> 8);
-    // printf("threshold_alt upper half: %X\n", config[1]);
-    i2c_write_blocking(i2c_default, ALT_ADDR, config, 2, true);
-
-    // Select pressure target LSB register(0x17)
-    // Set altitude target to 30 meters above ground altitude
-    config[0] = 0x17;
-    config[1] = (uint8_t) (((int16_t)(recov_altitude)));
-    // printf("threshold_alt lower half: %X\n", config[1]);
-    i2c_write_blocking(i2c_default, ALT_ADDR, config, 2, true);
-
-    // Select interrupt enable register (0x29)
-    // Set interrupt enabled for altitude threshold(0x08)
-    config[0] = 0x29;
-    config[1] = 0x08;
-    i2c_write_blocking(i2c_default, ALT_ADDR, config, 2, true);
-
-    // Select interrupt configuration register (0x2A)
-    // Set interrupt enabled for altitude threshold to route to INT1 pin(0x08)
-    config[0] = 0x2A;
-    config[1] = 0x08;
-    i2c_write_blocking(i2c_default, ALT_ADDR, config, 2, true);
+    altimeter.set_threshold_altitude((ground_altitude + 10.0f), INT1_PIN, &recovery_callback);
 
     sem_acquire_blocking(&sem);
-    state = RECOVERY;
-    snapshot();
+    populate_entry();
+    write_entry(entry_buffer);
     sem_release(&sem);
-    gpio_set_irq_enabled_with_callback(INT1_PIN, GPIO_IRQ_LEVEL_LOW, true, &recovery_callback);
     return 0;
 }
 
@@ -581,20 +287,9 @@ void recovery_callback(uint gpio, uint32_t event_mask) {
     // Essentially just a signal to stop logging data
     sem_acquire_blocking(&sem);
     state = END;
-    snapshot();
+    populate_entry();
+    write_entry(entry_buffer);
     sem_acquire_blocking(&sem);
-}
-
-float get_altitude() {
-    uint8_t reg = 0x01;
-    uint8_t data[5];
-    i2c_write_blocking(i2c_default, ALT_ADDR, &reg, 1, true);
-    i2c_read_blocking(i2c_default, ALT_ADDR, data, 5, false);
-    // Exactly how MPL3115A2 datasheet says to retrieve altitude
-    float altitude = (float) ((int16_t) ((data[0] << 8) | data[1])) + (float) (data[2] >> 4) * 0.0625;
-    // uint32_t temp_alt = (data[1] << 24) | (data[2] << 16) | (data[3] << 8);
-    // float altitude = temp_alt / 65536.0f;
-    return altitude;
 }
 
 /**
@@ -637,13 +332,105 @@ float get_deploy_percent(float velocity, float altitude) {
 
 }
 
-float get_velocity() {
-    uint8_t reg = 0x07;
-    uint8_t data[5];
-    i2c_write_blocking(i2c_default, ALT_ADDR, &reg, 1, true);
-    i2c_read_blocking(i2c_default, ALT_ADDR, data, 5, false);
-    float delta = (float) ((int16_t) ((data[0] << 8) | data[1])) + (float) (data[2] >> 4) * 0.0625;
-    float vel = delta * DATA_RATE_HZ;
-    return vel;
+// LOGGING THREAD RELATED FUNCTIONS AND CALLBACKS
+//===============================================================================
+
+void logging_core() {
+    add_repeating_timer_us(-1000000 / LOG_RATE_HZ,  &logging_buffer_callback, NULL, &log_timer);
+    add_repeating_timer_us(-1000000 / HEART_RATE_HZ,  &heartbeat_callback, NULL, &heartbeat_timer);
+
+    while (1) {
+        tight_loop_contents();
+    }
+}
+
+void populate_entry() {
+    absolute_time_t now = get_absolute_time();
+    uint64_t now_us = to_us_since_boot(now);
+    uint32_t vel_bits = *((uint32_t *)&velocity);
+    entry_buffer[0] = now_us >> 56;
+    entry_buffer[1] = now_us >> 48;
+    entry_buffer[2] = now_us >> 40;
+    entry_buffer[3] = now_us >> 32;
+    entry_buffer[4] = now_us >> 24;
+    entry_buffer[5] = now_us >> 16;
+    entry_buffer[6] = now_us >> 8;
+    entry_buffer[7] = now_us;
+
+    adc_select_input(4);
+    uint16_t temperature = adc_read();
+    entry_buffer[8] = ((*(uint8_t *)(&state)) << 4) | (temperature >> 8);
+    entry_buffer[9] = temperature;
+
+    entry_buffer[10] = deployment_percent;
+    entry_buffer[11] = altimeter_buffer[0];
+    entry_buffer[12] = altimeter_buffer[1];
+    entry_buffer[13] = altimeter_buffer[2];
+    entry_buffer[14] = vel_bits >> 24;
+    entry_buffer[15] = vel_bits >> 16;
+    entry_buffer[16] = vel_bits >> 8;
+    entry_buffer[17] = vel_bits;
+    entry_buffer[18] = acceleration_buffer[0];
+    entry_buffer[19] = acceleration_buffer[1];
+    entry_buffer[20] = acceleration_buffer[2];
+    entry_buffer[21] = acceleration_buffer[3];
+    entry_buffer[22] = acceleration_buffer[4];
+    entry_buffer[23] = acceleration_buffer[5];
+    entry_buffer[24] = quaternion_buffer[0];
+    entry_buffer[25] = quaternion_buffer[1];
+    entry_buffer[26] = quaternion_buffer[2];
+    entry_buffer[27] = quaternion_buffer[3];
+    entry_buffer[28] = quaternion_buffer[4];
+    entry_buffer[29] = quaternion_buffer[5];
+    entry_buffer[30] = quaternion_buffer[6];
+    entry_buffer[31] = quaternion_buffer[7];
+}
+
+bool logging_buffer_callback(repeating_timer_t *rt) {
+    sem_acquire_blocking(&sem);
+    populate_entry();
+    sem_release(&sem);
+    for (uint32_t i = 0; i < PACKET_SIZE; i++) {
+        pad_buffer[i + pad_buffer_offset] = entry_buffer[i];
+    }
+    pad_buffer_offset += PACKET_SIZE;
+    pad_buffer_offset %= PAD_BUFFER_SIZE;
+
+    if (state != PAD) {
+        uint32_t idx = ((pad_buffer_offset + PACKET_SIZE) % PAD_BUFFER_SIZE);
+        sem_acquire_blocking(&sem);
+        do {
+            write_entry(pad_buffer + idx);
+            idx += PACKET_SIZE;
+            idx %= PAD_BUFFER_SIZE;
+        } while (idx != pad_buffer_offset);
+        sem_release(&sem);
+        cancel_repeating_timer(&log_timer);
+        free(pad_buffer);
+        add_repeating_timer_us(-1000000 / LOG_RATE_HZ,  &logging_flash_callback, NULL, &log_timer);
+    }
+    return true;
+}
+
+bool logging_flash_callback(repeating_timer_t *rt) {
+    sem_acquire_blocking(&sem);
+    populate_entry();
+    write_entry(entry_buffer);
+    sem_release(&sem);
+    if (state == END) {
+        cancel_repeating_timer(&log_timer);
+    }
+    return true;
+}
+
+bool heartbeat_callback(repeating_timer_t *rt) {
+    const bool sequence[] = {true, false, true, false, false};
+    const uint8_t sequence_length = 5;
+
+    bool led_status = sequence[led_counter];
+    cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, led_status);
+    led_counter++;
+    led_counter %= sequence_length;
+    return true;
 }
 
