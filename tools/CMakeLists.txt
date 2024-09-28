@@ -17,6 +17,10 @@ if (COMPILE_TOOLS)
                    imu_calib.cpp
     )
 
+    add_executable(servo_controller
+                   servo_controller.cpp
+    )
+
     # pull in common dependencies
     target_link_libraries(read_flash pico_stdlib hardware_spi)
     target_include_directories(read_flash PUBLIC ../include)
@@ -28,6 +32,8 @@ if (COMPILE_TOOLS)
 
     target_link_libraries(imu_calib pico_stdlib hardware_i2c hardware_gpio)
     target_include_directories(imu_calib PUBLIC ../include)
+
+    target_link_libraries(servo_controller pico_stdlib hardware_pwm hardware_i2c)
 
     pico_enable_stdio_usb(read_flash 1)
     pico_enable_stdio_uart(read_flash 0)
@@ -41,10 +47,14 @@ if (COMPILE_TOOLS)
     pico_enable_stdio_usb(imu_calib 1)
     pico_enable_stdio_uart(imu_calib 0)
 
+    pico_enable_stdio_usb(servo_controller 1)
+    pico_enable_stdio_uart(servo_controller 0)
+
     # create map/bin/hex file etc.
     pico_add_extra_outputs(read_flash)
     pico_add_extra_outputs(servo_test)
     pico_add_extra_outputs(alt_test)
     pico_add_extra_outputs(imu_calib)
+    pico_add_extra_outputs(servo_controller)
 endif()
 
