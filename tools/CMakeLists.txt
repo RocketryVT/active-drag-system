@@ -33,7 +33,7 @@ if (COMPILE_TOOLS)
     target_link_libraries(imu_calib pico_stdlib hardware_i2c hardware_gpio)
     target_include_directories(imu_calib PUBLIC ../include)
 
-    target_link_libraries(servo_controller pico_stdlib hardware_pwm hardware_i2c)
+    target_link_libraries(servo_controller pico_stdlib hardware_gpio)
 
     pico_enable_stdio_usb(read_flash 1)
     pico_enable_stdio_uart(read_flash 0)
