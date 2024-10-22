@@ -17,6 +17,10 @@ if (COMPILE_TOOLS)
                    imu_calib.cpp
     )
 
+	add_executable(clock_gen_test
+					clock_gen_test.cpp
+	)
+
     # pull in common dependencies
     target_link_libraries(read_flash pico_stdlib hardware_spi)
     target_include_directories(read_flash PUBLIC ../include)
@@ -28,7 +32,9 @@ if (COMPILE_TOOLS)
 
     target_link_libraries(imu_calib pico_stdlib hardware_i2c hardware_gpio)
     target_include_directories(imu_calib PUBLIC ../include)
-
+	
+	target_link_libraries(clock_gen_test pico_stdlib hardware_clocks hardware_gpio)
+	
     pico_enable_stdio_usb(read_flash 1)
     pico_enable_stdio_uart(read_flash 0)
 
@@ -46,5 +52,6 @@ if (COMPILE_TOOLS)
     pico_add_extra_outputs(servo_test)
     pico_add_extra_outputs(alt_test)
     pico_add_extra_outputs(imu_calib)
+	pico_add_extra_outputs(clock_gen_test)
 endif()
 
