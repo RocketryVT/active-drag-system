@@ -8,6 +8,7 @@ include_directories(include/eigen)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_C_COMPILER arm-none-eabi-gcc)
 set(CMAKE_CXX_COMPILER arm-none-eabi-g++)
+set(CMAKE_TRY_COMPILE_TARGET_TYPE "STATIC_LIBRARY")
 
 project(active-drag-system C CXX ASM)
 set(CMAKE_C_STANDARD 11)
