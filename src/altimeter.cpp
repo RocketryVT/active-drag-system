@@ -80,7 +80,7 @@ void altimeter::requestPressureConversion() {
 }	
 
 //Check conversion status of ADC register, calculate altitude and request a new conversion if data freshly available
-bool isFreshAltAvailable() {
+bool altimeter::isFreshAltAvailable() {
 	//Assume that pressure conversion is underway, shouldn't ever fetch temperature based on driver implementation
 	uint32_t readValue = getADC();
 	if (readValue == 0) {
@@ -96,7 +96,7 @@ bool isFreshAltAvailable() {
 }
 
 //Take D1 value in memory and use it to compute altitude and pressure, then store them
-void calculateAltitude() {
+void altimeter::calculateAltitude() {
 	//Calculate constants used for pressure computation
 	off = (c2 << 16) + ((c4 * dT) >> 7);	//Update pressure offset from temperature
 	sens = (c1 << 15) + ((c3 * dT) >> 8);	//Update pressure sensitivity from temperature
@@ -117,7 +117,7 @@ void calculateAltitude() {
 }
 
 //Take D2 value in memory and use it to compute temperature value, then store it
-void calculateTemperature() {
+void altimeter::calculateTemperature() {
 	//Calculate the temperature using formula from datasheet
 	dt = d2 - (c5 << 8);			//Update dT
 	dTem = (2000 + dT * c6) >> 23;	//Use dT to calculate int temp
@@ -144,7 +144,7 @@ uint32_t altimeter::getADC() {
 	return readBuffer[3] << 24 | readBuffer[2] << 16 | readBuffer[1] << 8 | readBuffer[0];
 }
 //Request temperature and block thread until it is complete, and update temperature compensation flag
-void forceUpdateTemperature() {
+void altimeter::forceUpdateTemperature() {
 	uint8_t command;
 
 	//Write a temperature conversion request
