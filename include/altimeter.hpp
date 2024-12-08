@@ -78,7 +78,7 @@ class altimeter {
 	public: 
 		altimeter(i2c_inst_t* inst);
 
-		void initialize();
+		bool initialize();
 		
 		float getTemperature();
 		float getPressure();

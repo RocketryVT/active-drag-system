@@ -34,7 +34,6 @@ int main() {
     while (1) {
         sleep_ms(1000);
         altitude = get_altitude();
-        printf("FUCK YOU FUCK YOU FUCK YOU FUCK YOU FUCK THIS STUPID ASS PROCESSOR AND BUILD SYSTEM AND EVERYTHING ABOUT IT");
 		printf("Altitude: %4.2f\n", altitude);
     }
 }
