@@ -8253,6 +8253,15 @@
 				)
 			)
 		)
+		(property "Digikey Part Number" "1276-1857-1-ND"
+			(at 71.12 160.02 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "36e4b8cc-4822-488b-85a2-22a9e31ee856")
 		)
@@ -8336,6 +8345,15 @@
 				(font
 					(size 1.27 1.27)
 				)
+			)
+		)
+		(property "Digikey Part Number" "A102226CT-ND"
+			(at 40.64 152.4 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
 			)
 		)
 		(pin "2"
@@ -8497,6 +8515,15 @@
 				)
 			)
 		)
+		(property "Digikey Part Number" "1276-2955-1-ND"
+			(at 185.42 57.15 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "82c8884a-d18b-4b53-bc10-854e654f1642")
 		)
@@ -8588,6 +8615,15 @@
 				(font
 					(size 0.635 0.635)
 				)
+			)
+		)
+		(property "Digikey Part Number" "1276-1857-1-ND"
+			(at 86.36 114.3 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
 			)
 		)
 		(pin "1"
@@ -8845,6 +8881,15 @@
 				)
 			)
 		)
+		(property "Digikey Part Number" "1276-1857-1-ND"
+			(at 138.43 170.18 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "259b99ad-73a6-4636-b1d6-644e655c0dec")
 		)
@@ -9002,6 +9047,15 @@
 				(font
 					(size 0.635 0.635)
 				)
+			)
+		)
+		(property "Digikey Part Number" "1276-2955-1-ND"
+			(at 82.55 160.02 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
 			)
 		)
 		(pin "1"
@@ -9220,6 +9274,15 @@
 				)
 			)
 		)
+		(property "Digikey Part Number" "P27.0HCT-ND"
+			(at 154.94 33.02 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "2"
 			(uuid "ef49da57-7986-4446-96f2-6cc9a383b362")
 		)
@@ -9313,6 +9376,15 @@
 				)
 			)
 		)
+		(property "Digikey Part Number" "1276-1857-1-ND"
+			(at 113.03 54.61 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "07e149f2-cb96-4cd7-89ae-f20795d13485")
 		)
@@ -9396,6 +9468,15 @@
 				(font
 					(size 1.27 1.27)
 				)
+			)
+		)
+		(property "Digikey Part Number" "P27.0HCT-ND"
+			(at 144.78 33.02 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
 			)
 		)
 		(pin "2"
@@ -9550,6 +9631,15 @@
 				)
 			)
 		)
+		(property "Digikey Part Number" "P1.0DCT-ND"
+			(at 185.42 40.64 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "2"
 			(uuid "453dd1ae-bfd3-4ccb-864d-906e7a673131")
 		)
@@ -9633,6 +9723,15 @@
 				(font
 					(size 1.27 1.27)
 				)
+			)
+		)
+		(property "Digikey Part Number" "A102226CT-ND"
+			(at 255.27 128.27 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
 			)
 		)
 		(pin "2"
@@ -10057,6 +10156,15 @@
 				(font
 					(size 0.635 0.635)
 				)
+			)
+		)
+		(property "Digikey Part Number" "1276-1857-1-ND"
+			(at 203.2 115.57 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
 			)
 		)
 		(pin "1"
@@ -10501,6 +10609,15 @@
 				)
 			)
 		)
+		(property "Digikey Part Number" "1276-1296-1-ND"
+			(at 219.71 151.13 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "094f6034-c027-4f5f-a606-b345d27d9acc")
 		)
@@ -10726,6 +10843,15 @@
 				)
 			)
 		)
+		(property "Digikey Part Number" "1276-1857-1-ND"
+			(at 151.13 170.18 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "765afeb8-e0f2-44bf-9139-0c663911d425")
 		)
@@ -10819,6 +10945,15 @@
 				)
 			)
 		)
+		(property "Digikey Part Number" "1276-1857-1-ND"
+			(at 101.6 54.61 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "17f3609d-107c-47fa-a513-925b65f7d1d8")
 		)
@@ -10910,6 +11045,15 @@
 				(font
 					(size 0.635 0.635)
 				)
+			)
+		)
+		(property "Digikey Part Number" "1276-1857-1-ND"
+			(at 203.2 93.98 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
 			)
 		)
 		(pin "1"
@@ -11137,6 +11281,15 @@
 				)
 			)
 		)
+		(property "Digikey Part Number" "1276-2955-1-ND"
+			(at 162.56 57.15 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "251d2f5d-26c0-4081-91f1-36b8f5274af3")
 		)
@@ -11362,6 +11515,15 @@
 				)
 			)
 		)
+		(property "Digikey Part Number" "1276-2955-1-ND"
+			(at 172.72 57.15 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "1d949712-98ea-4898-9805-47129e3eab45")
 		)
@@ -11445,6 +11607,15 @@
 				(font
 					(size 1.27 1.27)
 				)
+			)
+		)
+		(property "Digikey Part Number" "A102203CT-ND"
+			(at 36.83 38.1 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
 			)
 		)
 		(pin "2"
@@ -11782,6 +11953,15 @@
 				)
 			)
 		)
+		(property "Digikey Part Number" "1276-1857-1-ND"
+			(at 86.36 90.17 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "df565bfd-dde8-4a65-979e-b022807aff77")
 		)
@@ -11873,6 +12053,15 @@
 				(font
 					(size 0.635 0.635)
 				)
+			)
+		)
+		(property "Digikey Part Number" "1276-1296-1-ND"
+			(at 255.27 151.13 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
 			)
 		)
 		(pin "1"
@@ -12026,6 +12215,15 @@
 				)
 			)
 		)
+		(property "Digikey Part Number" "P200CCT-ND"
+			(at 185.42 27.94 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "2"
 			(uuid "8f20d32f-03ef-4b57-9018-303ffc409cd1")
 		)
@@ -12109,6 +12307,15 @@
 				(font
 					(size 1.27 1.27)
 				)
+			)
+		)
+		(property "Digikey Part Number" "A102203CT-ND"
+			(at 26.67 38.1 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
 			)
 		)
 		(pin "2"
