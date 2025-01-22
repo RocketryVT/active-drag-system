@@ -4,7 +4,7 @@
 #include "hardware/i2c.h"
 #include "hardware/gpio.h"
 
-#define I2C_ADDR 0x1D
+#define HIGH_I2C_ADDR 0x1D
 
 //Hard definitions will be refactored as tables for full driver
 #define c_READ_DEVID 0x00
