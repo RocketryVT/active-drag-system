@@ -56,7 +56,7 @@ class altimeter {
 		// Used for decoupling conversion request commands from control loop
 		uint32_t d1;	//Digital Pressure Value
 		uint32_t d2;	//Digital Temperature Value
-		int32_t dt;		//Difference from actual and reference temperature (c5)
+		int32_t dT;		//Difference from actual and reference temperature (c5)
 		int32_t dTem;	//Digital temperature
 		int64_t off;	//Temperature offset for pressure
 		int64_t sens;	//Sensitivity at temperature
@@ -78,8 +78,9 @@ class altimeter {
 	public: 
 		altimeter(i2c_inst_t* inst);
 
-		bool initialize();
-		
+		void initialize();
+		bool validate();
+
 		float getTemperature();
 		float getPressure();
 		float getAltitude();
