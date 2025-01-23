@@ -1,4 +1,4 @@
-#include "mid.hpp"
+#include "mid_imu.hpp"
 
 //Default constructor, pass I2C instance
 mid_imu::mid_imu(i2c_inst_t* inst) {

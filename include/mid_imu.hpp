@@ -3,6 +3,7 @@
 #include "pico/stdlib.h"
 #include "hardware/i2c.h"
 #include "hardware/gpio.h"
+#include "hardware/clocks.h"
 
 #define MID_I2C_ADDR 0xD0
 

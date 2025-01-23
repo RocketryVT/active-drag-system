@@ -1,17 +1,18 @@
 #include "altimeter.hpp"
+#include <cmath>
 
 //Default constructor, pass I2C instance
 altimeter::altimeter(i2c_inst_t* inst) {
 	this->inst = inst;
 }
 
-bool altimeter::initialize() {
+void altimeter::initialize() {
 	//There are literally only 5 commands for this sensor, no write commands beyond the register are needed
 	uint8_t command;
 
 	// Send reset command to sensor
 	command = BARO_RESET;
-	i2c_write_blocking(this->inst, I2C_ADDR, &command, 1, true);	
+	i2c_write_blocking(this->inst, BARO_I2C_ADDR, &command, 1, false);	
 	
 	//Read PROM values into memory - 8x16bit registers
 	command = BARO_PROM_READ_START;
@@ -20,17 +21,17 @@ bool altimeter::initialize() {
 	i2c_read_blocking(this->inst, BARO_I2C_ADDR, &command, 16, false);
 	
 	//Check factory ID to verify that values made it through successfully
-	uint16_t promBuffer[0] | promBuffer[1];
+	uint16_t factoryID = (uint16_t)promBuffer[0] << 8 | promBuffer[1];
 	//TODO: The datasheet doesn't actually say what the "factory data" is,
 	// we'll have to confirm it experimentally for this status check
 
 	//Load calibration constants into memory for conversions
-	c1 = this->promBuffer[2] << 8 | this->promBuffer[3];
-	c2 = this->promBuffer[4] << 8 | this->promBuffer[5];
-	c3 = this->promBuffer[6] << 8 | this->promBuffer[7];
-	c4 = this->promBuffer[8] << 8 | this->promBuffer[9];
-	c5 = this->promBuffer[10] << 8 | this->promBuffer[11];
-	c6 = this->promBuffer[12] << 8 | this->promBuffer[13];	
+	c1 = promBuffer[2] << 8 | promBuffer[3];
+	c2 = promBuffer[4] << 8 | promBuffer[5];
+	c3 = promBuffer[6] << 8 | promBuffer[7];
+	c4 = promBuffer[8] << 8 | promBuffer[9];
+	c5 = promBuffer[10] << 8 | promBuffer[11];
+	c6 = promBuffer[12] << 8 | promBuffer[13];	
 
 	//TODO: Load CRC, need to figure out how this works
 	
@@ -48,8 +49,8 @@ bool altimeter::validate() {
 	// Read factory data and confirm its validity
 	uint8_t command = BARO_PROM_READ_START;
 	uint8_t readBuffer[2];
-	i2c_write_blocking(this->inst, I2C_ADDR, &command, 1, true);
-	i2c_read_blocking(this->inst, I2C_ADDR, readBuffer, 2, false);
+	i2c_write_blocking(this->inst, BARO_I2C_ADDR, &command, 1, true);
+	i2c_read_blocking(this->inst, BARO_I2C_ADDR, readBuffer, 2, false);
 
 	//TODO: See initialize(), "Factory Data" is not on datasheet
 	return true;
@@ -103,8 +104,8 @@ void altimeter::calculateAltitude() {
 
 	//Add offsets to the above if low temperature compensation is enabled
 	if (compensatingTemperature) {
-		off -= (5 * std::pow(dTem - 2000, 2)) >> 1;
-		sens -= (5 * std::pow(dTem - 2000, 2)) >> 2;
+		off -= ((int64_t)(5 * std::pow(dTem - 2000, 2)) >> 1);
+		sens -= ((int64_t)(5 * std::pow(dTem - 2000, 2)) >> 2);
 	}
 
 	//Calculate pressure using the freshly calculated temperature offsets and stored d1
@@ -119,7 +120,7 @@ void altimeter::calculateAltitude() {
 //Take D2 value in memory and use it to compute temperature value, then store it
 void altimeter::calculateTemperature() {
 	//Calculate the temperature using formula from datasheet
-	dt = d2 - (c5 << 8);			//Update dT
+	dT = d2 - (c5 << 8);			//Update dT
 	dTem = (2000 + dT * c6) >> 23;	//Use dT to calculate int temp
 
 	//Use digital temp value to set flag for whether temperature compensation is needed
@@ -129,7 +130,7 @@ void altimeter::calculateTemperature() {
 	if (compensatingTemperature) dTem -= (dT >> 31);
 	
 	//Convert the integer temperature to float temperature, and update class variable
-	temperature = (float)temp / 100.0f;		//Integer temp has 2-decimal precision as LSD and LSD+1
+	temperature = (float)dTem / 100.0f;		//Integer temp has 2-decimal precision as LSD and LSD+1
 }
 
 //Request and return raw ADC value, if output is 0 data is not ready/requested
@@ -137,8 +138,8 @@ uint32_t altimeter::getADC() {
 	//Run ADC read command
 	uint8_t command = BARO_ADC_READ;
 	uint8_t readBuffer[4];						//32-bit digital output value
-	i2c_write_blocking(this->i2c, BARO_I2C_ADDR, &command, 1, true);
-	i2c_read_blocking(this->i2c, BARO_I2C_ADDR, readBuffer, 4, false);	
+	i2c_write_blocking(this->inst, BARO_I2C_ADDR, &command, 1, true);
+	i2c_read_blocking(this->inst, BARO_I2C_ADDR, readBuffer, 4, false);	
 	
 	//Return combined 32 bit value
 	return readBuffer[3] << 24 | readBuffer[2] << 16 | readBuffer[1] << 8 | readBuffer[0];
@@ -148,7 +149,7 @@ void altimeter::forceUpdateTemperature() {
 	uint8_t command;
 
 	//Write a temperature conversion request
-	command = BARO_COVERT_TEMP_4096;	//Largest OSR
+	command = BARO_CONVERT_TEMP_4096;	//Largest OSR
 	uint8_t readBuffer[4];				//32-bit temperature value
 	i2c_write_blocking(this->inst, BARO_I2C_ADDR, &command, 1, true);
 	i2c_read_blocking(this->inst, BARO_I2C_ADDR, &command, 4, false);
@@ -167,6 +168,4 @@ void altimeter::forceUpdateTemperature() {
 	//TODO: As this is intended to be run only occasionally, maybe add some simple in-driver filtering?
 	// Alternative is periodically running a temperature refresh as well, needs testing for drift w/low temp
 }
-
-
 
