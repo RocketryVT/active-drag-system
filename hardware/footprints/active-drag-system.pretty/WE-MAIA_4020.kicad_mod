@@ -1,0 +1,261 @@
+(footprint "WE-MAIA_4020"
+	(version 20240108)
+	(generator "pcbnew")
+	(generator_version "8.0")
+	(layer "F.Cu")
+	(descr "<b>WE-MAIA SMT Power Inductor <br></b><br>Size:4020, SMT, 2pins<br>L X W X H = 4.1mm X 4.1mm X 2.1mm")
+	(property "Reference" "REF**"
+		(at 0 -3.435 0)
+		(layer "F.SilkS")
+		(uuid "f5e19f28-15ae-4f40-ade8-0b3d46756a4d")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Value" "WE-MAIA_4020"
+		(at 0 3.365 0)
+		(layer "F.Fab")
+		(uuid "6c806eb7-dcd5-4678-a344-8a362f1d81b8")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Footprint" ""
+		(at 0 0 0)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "c9bc0e69-e115-424a-a5ee-d3ca037df016")
+		(effects
+			(font
+				(size 1.27 1.27)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Datasheet" ""
+		(at 0 0 0)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "d09719c0-0d30-4188-a324-fd33b774f5c4")
+		(effects
+			(font
+				(size 1.27 1.27)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Description" ""
+		(at 0 0 0)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "5fabfed6-f28c-4e3b-b4b0-cba62bf0cf16")
+		(effects
+			(font
+				(size 1.27 1.27)
+				(thickness 0.15)
+			)
+		)
+	)
+	(attr smd)
+	(fp_line
+		(start -2.15 -2.15)
+		(end 2.15 -2.15)
+		(stroke
+			(width 0.2)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(uuid "c7b7e2a8-f99b-43e6-9d25-ca485fd400ab")
+	)
+	(fp_line
+		(start -2.15 2.15)
+		(end -2.15 -2.15)
+		(stroke
+			(width 0.2)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(uuid "5ff86042-eb34-47d4-b0b6-30507ffd2639")
+	)
+	(fp_line
+		(start 2.15 -2.15)
+		(end 2.15 2.15)
+		(stroke
+			(width 0.2)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(uuid "9e6ec0e8-5a5c-4aeb-a020-3dba015b8c0f")
+	)
+	(fp_line
+		(start 2.15 2.15)
+		(end -2.15 2.15)
+		(stroke
+			(width 0.2)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(uuid "7eb17d23-ad72-4e83-af45-003386289691")
+	)
+	(fp_circle
+		(center -2.8 -2)
+		(end -2.7 -2)
+		(stroke
+			(width 0.4)
+			(type solid)
+		)
+		(fill none)
+		(layer "F.SilkS")
+		(uuid "58d43479-b6d5-4afc-8b9c-9bbe9ead1436")
+	)
+	(fp_poly
+		(pts
+			(xy -2.35 -2.35) (xy 2.35 -2.35) (xy 2.35 2.35) (xy -2.35 2.35)
+		)
+		(stroke
+			(width 0.1)
+			(type solid)
+		)
+		(fill solid)
+		(layer "F.CrtYd")
+		(uuid "a4d67e3f-1730-477e-a169-c146112a34cf")
+	)
+	(fp_line
+		(start -2.05 -2.05)
+		(end 2.05 -2.05)
+		(stroke
+			(width 0.1)
+			(type solid)
+		)
+		(layer "F.Fab")
+		(uuid "76e98311-7cc9-46ec-ac78-92ee9f947070")
+	)
+	(fp_line
+		(start -2.05 2.05)
+		(end -2.05 -2.05)
+		(stroke
+			(width 0.1)
+			(type solid)
+		)
+		(layer "F.Fab")
+		(uuid "4011b275-e481-4ebd-8811-28698036ab5a")
+	)
+	(fp_line
+		(start 2.05 -2.05)
+		(end 2.05 2.05)
+		(stroke
+			(width 0.1)
+			(type solid)
+		)
+		(layer "F.Fab")
+		(uuid "82566356-90ad-4810-b54f-cd5d0e9bf3cb")
+	)
+	(fp_line
+		(start 2.05 2.05)
+		(end -2.05 2.05)
+		(stroke
+			(width 0.1)
+			(type solid)
+		)
+		(layer "F.Fab")
+		(uuid "b61fa915-6209-4404-9596-ac249765b942")
+	)
+	(fp_circle
+		(center -2.8 -2)
+		(end -2.7 -2)
+		(stroke
+			(width 0.4)
+			(type solid)
+		)
+		(fill none)
+		(layer "F.Fab")
+		(uuid "394bf240-8a1a-4862-8f82-18d272e19f98")
+	)
+	(pad "1" smd rect
+		(at -1.185 0)
+		(size 0.98 3.7)
+		(layers "F.Cu" "F.Paste" "F.Mask")
+		(solder_mask_margin 0.102)
+		(uuid "bbeaa9aa-50cd-4d28-b4a7-8ffafde91be6")
+	)
+	(pad "2" smd rect
+		(at 1.185 0)
+		(size 0.98 3.7)
+		(layers "F.Cu" "F.Paste" "F.Mask")
+		(solder_mask_margin 0.102)
+		(uuid "2c391e5c-ef44-403e-9598-c603328da693")
+	)
+	(zone
+		(net 0)
+		(net_name "")
+		(layer "F.Cu")
+		(uuid "965deff1-cab6-4b24-89cb-38597ca474c8")
+		(hatch full 0.508)
+		(connect_pads
+			(clearance 0)
+		)
+		(min_thickness 0.01)
+		(filled_areas_thickness no)
+		(keepout
+			(tracks not_allowed)
+			(vias not_allowed)
+			(pads not_allowed)
+			(copperpour not_allowed)
+			(footprints allowed)
+		)
+		(fill
+			(thermal_gap 0.508)
+			(thermal_bridge_width 0.508)
+		)
+		(polygon
+			(pts
+				(xy -0.685 -1.85) (xy 0.685 -1.85) (xy 0.685 1.85) (xy -0.685 1.85)
+			)
+		)
+	)
+	(zone
+		(net 0)
+		(net_name "")
+		(layers "*.Cu")
+		(uuid "46cb68d0-5287-4bfe-9309-f98685d58000")
+		(hatch full 0.508)
+		(connect_pads
+			(clearance 0)
+		)
+		(min_thickness 0.01)
+		(filled_areas_thickness no)
+		(keepout
+			(tracks allowed)
+			(vias not_allowed)
+			(pads allowed)
+			(copperpour allowed)
+			(footprints allowed)
+		)
+		(fill
+			(thermal_gap 0.508)
+			(thermal_bridge_width 0.508)
+		)
+		(polygon
+			(pts
+				(xy -0.685 -1.85) (xy 0.685 -1.85) (xy 0.685 1.85) (xy -0.685 1.85)
+			)
+		)
+	)
+	(model "${KIPRJMOD}/models/WE-MAIA_4020.step"
+		(offset
+			(xyz 0 0 2)
+		)
+		(scale
+			(xyz 1 1 1)
+		)
+		(rotate
+			(xyz 0 180 0)
+		)
+	)
+)
