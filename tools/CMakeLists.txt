@@ -17,6 +17,10 @@ if (COMPILE_TOOLS)
                    imu_calib.cpp
     )
 
+    add_executable(board_test
+                   board_test.cpp
+    )
+
     # pull in common dependencies
     target_link_libraries(read_flash pico_stdlib hardware_spi)
     target_include_directories(read_flash PUBLIC ../include)
@@ -25,6 +29,7 @@ if (COMPILE_TOOLS)
     target_include_directories(servo_test PUBLIC ../include)
 
     target_link_libraries(alt_test pico_stdlib hardware_i2c hardware_gpio)
+    target_link_libraries(board_test pico_stdlib hardware_gpio)
 
     target_link_libraries(imu_calib pico_stdlib hardware_i2c hardware_gpio)
     target_include_directories(imu_calib PUBLIC ../include)
@@ -38,6 +43,9 @@ if (COMPILE_TOOLS)
     pico_enable_stdio_usb(alt_test 1)
     pico_enable_stdio_uart(alt_test 0)
 
+    pico_enable_stdio_usb(board_test 1)
+    pico_enable_stdio_uart(board_test 0)
+
     pico_enable_stdio_usb(imu_calib 1)
     pico_enable_stdio_uart(imu_calib 0)
 
@@ -45,6 +53,7 @@ if (COMPILE_TOOLS)
     pico_add_extra_outputs(read_flash)
     pico_add_extra_outputs(servo_test)
     pico_add_extra_outputs(alt_test)
+    pico_add_extra_outputs(board_test)
     pico_add_extra_outputs(imu_calib)
 endif()
 

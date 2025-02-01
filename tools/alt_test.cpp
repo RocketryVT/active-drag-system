@@ -1,50 +1,121 @@
 #include <stdio.h>
 
 #include "hardware/gpio.h"
-#include "boards/pico_w.h"
+#include "boards/pico.h"
 #include "hardware/i2c.h"
 #include "pico/stdio.h"
 #include "pico/time.h"
+#include "pico/types.h"
+#include <inttypes.h>
 
-#define ALT_ADDR 0x60
+#define ALT_ADDR 0x77
 #define MAX_SCL 400000
-#define DATA_RATE_HZ 15
 
-float altitude = 0.0f;
-float get_altitude();
+int64_t pressure_read_callback(alarm_id_t id, void* user_data);
+int64_t temperature_read_callback(alarm_id_t id, void* user_data);
+
+uint32_t pressure_adc = 0;
+uint32_t temperature_adc = 0;
 
 int main() {
     stdio_init_all();
 
-    i2c_init(i2c_default, MAX_SCL);
-    gpio_set_function(PICO_DEFAULT_I2C_SDA_PIN, GPIO_FUNC_I2C);
-    gpio_set_function(PICO_DEFAULT_I2C_SCL_PIN, GPIO_FUNC_I2C);
-    gpio_pull_up(PICO_DEFAULT_I2C_SDA_PIN);
-    gpio_pull_up(PICO_DEFAULT_I2C_SCL_PIN);
+    i2c_init(i2c0, MAX_SCL);
+    gpio_init(PICO_DEFAULT_LED_PIN);
+    gpio_set_function(21, GPIO_FUNC_I2C);
+    gpio_set_function(20, GPIO_FUNC_I2C);
+    gpio_set_dir(PICO_DEFAULT_LED_PIN, GPIO_OUT);
+    gpio_put(PICO_DEFAULT_LED_PIN, 1);
 
-    uint8_t config[2] = {0};
+    alarm_pool_init_default();
 
-    // Select control register(0x26)
-    // Active mode, OSR = 16, altimeter mode(0xB8)
-    config[0] = 0x26;
-    config[1] = 0xB9;
-    i2c_write_blocking(i2c_default, ALT_ADDR, config, 2, true);
-    sleep_ms(1500);
+    getchar();
+
+    uint8_t cmd = 0x1E;
+    uint8_t prom_raw[12] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+
+    i2c_write_blocking(i2c0, ALT_ADDR, &cmd, 1, true);
+    printf("resetting the baro sensor\n");
+    sleep_ms(500);
+
+    uint8_t prom_cmd_start = 0xA0;
+
+    printf("getting prom data\n");
+    for (uint8_t i = 1; i < 7; i++) {
+        sleep_ms(100);
+        cmd = (prom_cmd_start | (i << 1));
+        i2c_write_blocking(i2c0, ALT_ADDR, &cmd, 1, true);
+        i2c_read_blocking(i2c0, ALT_ADDR, (uint8_t *)(prom_raw + (i-1)*2), 2, false);
+    }
+    uint16_t prom[6] = {static_cast<uint16_t>((((uint16_t) prom_raw[0]) << 8) | ((uint16_t) prom_raw[1])),
+                        static_cast<uint16_t>((((uint16_t) prom_raw[2]) << 8) | ((uint16_t) prom_raw[3])),
+                        static_cast<uint16_t>((((uint16_t) prom_raw[4]) << 8) | ((uint16_t) prom_raw[5])),
+                        static_cast<uint16_t>((((uint16_t) prom_raw[6]) << 8) | ((uint16_t) prom_raw[7])),
+                        static_cast<uint16_t>((((uint16_t) prom_raw[8]) << 8) | ((uint16_t) prom_raw[9])),
+                        static_cast<uint16_t>((((uint16_t) prom_raw[10]) << 8) | ((uint16_t) prom_raw[11]))};
+    cmd = 0x40;
+
+    getchar();
+
+    for (uint8_t i = 0; i < 6; i++) {
+        printf("%04X ", prom[i]);
+    }
+
+    printf("\n");
 
     while (1) {
-        sleep_ms(1000);
-        altitude = get_altitude();
-        printf("Altitude: %4.2f\n", altitude);
+
+        getchar();
+        printf("requesting adc conversions\n");
+
+        i2c_write_blocking(i2c0, ALT_ADDR, &cmd, 1, true);
+
+        add_alarm_in_us(500, &pressure_read_callback, NULL, true);
+        
+        sleep_ms(100);
+
+        absolute_time_t end_time;
+        absolute_time_t start_time = get_absolute_time();
+
+        int32_t dT = temperature_adc - (((uint32_t) prom[4]) << 8);
+        int32_t actual_temp = 2000 + ( ( ( (int64_t) dT) * ( (int64_t) prom[5]) ) >> 23);
+        int64_t OFF = ( ( (int64_t) prom[1]) << 17) + ( ( ((int64_t) prom[3]) * ( (int64_t) dT)) >> 6);
+        int64_t SENS = ( ( (int64_t) prom[0]) << 16) + (( ( (int64_t) prom[2]) * ((int64_t) dT)) >> 7);
+        int32_t actual_pres = (int32_t) ((((((int64_t) pressure_adc) * SENS) >> 21) - OFF) >> 15);
+
+        end_time = get_absolute_time();
+
+        int64_t microseconds =  absolute_time_diff_us(start_time, end_time);
+
+        printf("Pressure: %4.2f\nTemperature: %4.2f\nTime to Convert: %" PRIi64 " us\n", ((float) (actual_pres)) / 100.0f, ((float) (actual_temp)) / 100.0f, microseconds);
+
+        pressure_adc = 0;
+        temperature_adc = 0;
+
     }
+
 }
 
-float get_altitude() {
-    uint8_t reg = 0x01;
-    uint8_t data[5];
-    i2c_write_blocking(i2c_default, ALT_ADDR, &reg, 1, true);
-    i2c_read_blocking(i2c_default, ALT_ADDR, data, 5, false);
-    // Exactly how MPL3115A2 datasheet says to retrieve altitude
-    float altitude = (float) ((int16_t) ((data[0] << 8) | data[1])) + (float) (data[2] >> 4) * 0.0625;
-    return altitude;
+int64_t pressure_read_callback(alarm_id_t id, void* user_data) {
+    uint8_t cmd = 0;
+    uint8_t buffer[3] = {0, 0, 0};
+    i2c_write_blocking(i2c0, ALT_ADDR, &cmd, 1, true);
+    i2c_read_blocking(i2c0, ALT_ADDR, (uint8_t *)(buffer), 3, false);
+
+    pressure_adc = (((uint32_t) buffer[0]) << 16) | (((uint32_t) buffer[1]) << 8) | ((uint32_t) buffer[0]);
+
+    cmd = 0x50;
+    i2c_write_blocking(i2c0, ALT_ADDR, &cmd, 1, true);
+    add_alarm_in_us(500, &temperature_read_callback, NULL, true);
+    return 0;
 }
 
+int64_t temperature_read_callback(alarm_id_t id, void* user_data) {
+    uint8_t cmd = 0;
+    uint8_t buffer[3] = {0, 0, 0};
+    i2c_write_blocking(i2c0, ALT_ADDR, &cmd, 1, true);
+    i2c_read_blocking(i2c0, ALT_ADDR, (uint8_t *)(buffer), 3, false);
+
+    temperature_adc = (((uint32_t) buffer[0]) << 16) | (((uint32_t) buffer[1]) << 8) | ((uint32_t) buffer[0]);
+    return 0;
+}
