@@ -29,7 +29,8 @@ if (COMPILE_TOOLS)
     target_include_directories(servo_test PUBLIC ../include)
 
     target_link_libraries(alt_test pico_stdlib hardware_i2c hardware_gpio)
-    target_link_libraries(board_test pico_stdlib hardware_gpio)
+
+    target_link_libraries(board_test pico_stdlib hardware_i2c hardware_clocks hardware_gpio)
 
     target_link_libraries(imu_calib pico_stdlib hardware_i2c hardware_gpio)
     target_include_directories(imu_calib PUBLIC ../include)
