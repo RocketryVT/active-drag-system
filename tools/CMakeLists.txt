@@ -21,6 +21,10 @@ if (COMPILE_TOOLS)
                    board_test.cpp
     )
 
+    add_executable(motor_driver
+                   motor_driver.cpp
+    )
+
     # pull in common dependencies
     target_link_libraries(read_flash pico_stdlib hardware_spi)
     target_include_directories(read_flash PUBLIC ../include)
@@ -34,6 +38,8 @@ if (COMPILE_TOOLS)
 
     target_link_libraries(imu_calib pico_stdlib hardware_i2c hardware_gpio)
     target_include_directories(imu_calib PUBLIC ../include)
+
+    target_link_libraries(motor_driver pico_stdlib pico_multicore hardware_spi hardware_clocks hardware_gpio hardware_pwm)
 
     pico_enable_stdio_usb(read_flash 1)
     pico_enable_stdio_uart(read_flash 0)
@@ -50,11 +56,15 @@ if (COMPILE_TOOLS)
     pico_enable_stdio_usb(imu_calib 1)
     pico_enable_stdio_uart(imu_calib 0)
 
+    pico_enable_stdio_usb(motor_driver 1)
+    pico_enable_stdio_uart(motor_driver 0)
+
     # create map/bin/hex file etc.
     pico_add_extra_outputs(read_flash)
     pico_add_extra_outputs(servo_test)
     pico_add_extra_outputs(alt_test)
     pico_add_extra_outputs(board_test)
     pico_add_extra_outputs(imu_calib)
+    pico_add_extra_outputs(motor_driver)
 endif()
 
