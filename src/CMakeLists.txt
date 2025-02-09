@@ -15,28 +15,3 @@
 #
 #pico_add_extra_outputs(ads)
 
-add_executable(validatePeripherals
-	peripheral_validation_test.cpp
-	mid_imu.cpp
-	high_imu.cpp
-	altimeter.cpp
-	magnetometer.cpp
-)
-
-target_link_libraries(validatePeripherals
-	pico_platform
-	pico_stdlib
-	pico_time
-	hardware_gpio
-	hardware_i2c
-	hardware_adc
-	hardware_clocks
-)
-
-target_include_directories(validatePeripherals PUBLIC ../include)
-
-pico_enable_stdio_usb(validatePeripherals 1)
-pico_enable_stdio_uart(validatePeripherals 0)
-
-pico_add_extra_outputs(validatePeripherals)
-	
