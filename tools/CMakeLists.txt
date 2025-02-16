@@ -39,7 +39,7 @@ if (COMPILE_TOOLS)
     target_link_libraries(imu_calib pico_stdlib hardware_i2c hardware_gpio)
     target_include_directories(imu_calib PUBLIC ../include)
 
-    target_link_libraries(motor_driver pico_stdlib pico_multicore pico_binary_info hardware_spi hardware_clocks hardware_gpio hardware_pwm)
+    target_link_libraries(motor_driver pico_stdlib pico_multicore pico_binary_info hardware_i2c pico_divider hardware_spi hardware_clocks hardware_gpio hardware_pwm)
 
     pico_enable_stdio_usb(read_flash 1)
     pico_enable_stdio_uart(read_flash 0)

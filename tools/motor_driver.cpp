@@ -1,6 +1,8 @@
+#include <cstdint>
 #include <stdio.h>
 
 #include "pico/multicore.h"
+#include "hardware/i2c.h"
 #include "hardware/spi.h"
 #include "hardware/gpio.h"
 #include "hardware/pwm.h"
@@ -21,6 +23,10 @@
 #define MICRO_MOTOR_nFAULT 10
 #define MICRO_MOTOR_DRVOFF 11
 
+#define MICRO_MOTOR_POS_SENS_SDA 14
+#define MICRO_MOTOR_POS_SENS_SCL 15
+#define MICRO_MOTOR_POS_ADDR 0x06
+
 #define HEART_RATE_HZ 5
 
 #define READ_BIT 0x80
@@ -32,12 +38,13 @@ bool heartbeat_callback(repeating_timer_t *rt);
 void process_cmd(char* buf, uint8_t len);
 uint8_t cton(char c);
 
+static uint8_t parity_calc(uint8_t value);
 static void read_registers(uint8_t reg, uint16_t *result);
 static void write_register(uint8_t reg, uint8_t data);
 static inline void cs_select();
 static inline void cs_deselect();
 
-void set_pwm_pin(uint pin, uint freq, uint duty_c); // duty_c between 0..10000
+void set_pwm_pin(uint32_t pin, uint32_t freq, uint32_t duty_c); // duty_c between 0..10000
 
 
 volatile uint8_t led_counter;
@@ -49,6 +56,12 @@ int main() {
     stdio_init_all();
 
     spi_init(spi0, 5000000);
+    i2c_init(i2c1, 400000);
+
+    gpio_set_function(MICRO_MOTOR_POS_SENS_SCL, GPIO_FUNC_I2C);
+    gpio_set_function(MICRO_MOTOR_POS_SENS_SDA, GPIO_FUNC_I2C);
+    gpio_pull_up(MICRO_MOTOR_POS_SENS_SCL);
+    gpio_pull_up(MICRO_MOTOR_POS_SENS_SDA);
 
     gpio_init(PICO_DEFAULT_LED_PIN);
     gpio_set_dir(PICO_DEFAULT_LED_PIN, GPIO_OUT);
@@ -86,6 +99,56 @@ int main() {
     gpio_put(PICO_DEFAULT_LED_PIN, 1);
 
     multicore_launch_core1(heartbeat_core);
+
+
+    getchar();
+/******** INITIALIZE MOTOR DRIVER IC ************/
+    printf("unlocking registers!\n");
+    write_register(0x3, 0x3);
+
+    printf("Disabling the buck converter!\n");
+    write_register(0x8, 0b00010000);
+
+    printf("Clearing latched fault bits!\n");
+    write_register(0x4, 0b10000001);
+
+    printf("Enabling brake mode!\n");
+    write_register(0x9, 0b00000010);
+
+    printf("Setting slew rate to 200 V per us!\n");
+    printf("Enabling Hall PWM mode with Asynchronous rectification with digital hall!\n");
+    write_register(0x4, 0b10011010);
+
+    printf("Enabling active asynchronous rectification!\n");
+    printf("Setting CSA gain to 1.2 V/A (artificial 1 A Curr Lim)\n");
+    write_register(0x7, 0b00001011);
+
+    printf("Setting Motor lock detection time to 500 ms!\n");
+    printf("Setting motor lock to automatic retry!\n");
+    write_register(0xA, 0b00000111);
+
+    printf("Setting phase advance to 0 degrees!\n");
+    write_register(0xB, 0b00000000);
+
+    uint16_t result;
+
+    read_registers(0x0, &result);
+
+    printf("Status: 0x%02X\n", result);
+
+    write_register(0x3, 0b00000110);
+
+    uint8_t src = 0x3;
+    uint8_t ibuf[2] = {0x0, 0x0};
+
+    i2c_write_blocking(i2c1, MICRO_MOTOR_POS_ADDR, &src, 1, true);
+    i2c_read_blocking(i2c1, MICRO_MOTOR_POS_ADDR, ibuf, 2, false);
+    uint16_t raw_angle = ((((uint16_t) ibuf[0]) << 6) | (((uint16_t) ibuf[1]) << 2));
+    float angular_pos = (((float) raw_angle) / 16384.0f) * 360.0f;
+    printf("Raw angle: %04X; float angle: %4.2f\n", raw_angle, angular_pos);
+
+/******** INITIALIZE MOTOR DRIVER IC ************/
+
 
     char c;
     char buf[16] = {0, 0, 0, 0, 0, 0, 0, 0};
@@ -190,15 +253,15 @@ void process_cmd(char* buf, uint8_t len) {
                     uint8_t msb_duty = cton(buf[5]);
                     uint8_t lsb_duty = cton(buf[6]);
                     if (msb_freq <= 0xF && lsb_freq <= 0xF && msb_duty <= 0xF && lsb_duty <= 0xF) {
-                        uint8_t frequency = (msb_freq << 4) | lsb_freq;
-                        uint8_t duty_cycle = (msb_duty << 4) | lsb_duty;
+                        uint32_t frequency = (msb_freq << 4) | lsb_freq;
+                        uint32_t duty_cycle = (msb_duty << 4) | lsb_duty;
                         if (frequency > 200) frequency = 200;
                         if (duty_cycle > 100) duty_cycle = 100;
 
                         if (motor_enabled) {
                             printf("\nOperating motor at %d kHz with a %d percent duty cycle\n", frequency, duty_cycle);
-                            duty_cycle *= 100;
                             frequency *= 1000;
+                            duty_cycle = duty_cycle * (UINT16_MAX / 100);
                             set_pwm_pin(MICRO_MOTOR_PWM, frequency, duty_cycle);
                         } else {
                             printf("\nMotor is disabled! Enable motor with 'enable' to access this command!\n");
@@ -213,6 +276,7 @@ void process_cmd(char* buf, uint8_t len) {
                 gpio_put(MICRO_MOTOR_BRAKE, 1);
                 sleep_ms(100);
                 gpio_put(MICRO_MOTOR_DRVOFF, 1);
+                set_pwm_pin(MICRO_MOTOR_PWM, 0, 0);
                 printf("\nStopping motor!\n");
                 motor_enabled = false;
                 result = 0;
@@ -228,6 +292,16 @@ void process_cmd(char* buf, uint8_t len) {
                         result = 0;
                     }
                 }
+                break;
+            }
+            case 't': {
+                uint8_t src = 0x3;
+                uint8_t ibuf[2] = {0x0, 0x0};
+                i2c_write_blocking(i2c1, MICRO_MOTOR_POS_ADDR, &src, 1, true);
+                i2c_read_blocking(i2c1, MICRO_MOTOR_POS_ADDR, ibuf, 2, false);
+                uint16_t raw_angle = ((((uint16_t) ibuf[0]) << 6) | (((uint16_t) ibuf[1]) << 2));
+                float angular_pos = (((float) raw_angle) / 16384.0f) * 360.0f;
+                printf("Raw angle: %04X; float angle: %4.2f\n", raw_angle, angular_pos);
                 break;
             }
             default:
@@ -267,7 +341,15 @@ static inline void cs_deselect() {
 
 static void write_register(uint8_t reg, uint8_t data) {
     uint8_t buf[2];
-    buf[0] = reg & 0x7f;  // remove read bit as this is a write
+
+    uint8_t rw = 0;
+
+    uint8_t parity_1 = parity_calc((rw << 7) | (reg << 1));
+	uint8_t parity_2 = parity_calc(data);
+
+    uint8_t parity = parity_1 ^ parity_2;
+
+    buf[0] = (rw << 7) | (reg << 1) | (parity);  // remove read bit as this is a write
     buf[1] = data;
     cs_select();
     spi_write_blocking(spi0, buf, 2);
@@ -279,24 +361,60 @@ static void read_registers(uint8_t reg, uint16_t *result) {
     // For this particular device, we send the device the register we want to read
     // first, then subsequently read from the device. The register is auto incrementing
     // so we don't need to keep sending the register we want, just the first.
-    uint8_t buf[2] = {0, 0};
-    reg |= READ_BIT;
+    uint8_t tx_buf[2] = {0, 0};
+    uint8_t rx_buf[2] = {0, 0};
+    uint8_t rw = 1;
+
+    uint8_t parity_1 = parity_calc((rw << 7) | (reg << 1));
+    uint8_t parity_2 = parity_calc(0);
+
+    uint8_t parity = parity_1 ^ parity_2;
+
+    tx_buf[0] = (rw << 7) | (reg << 1) | (parity);
+    tx_buf[1] = 0;
+
     cs_select();
     spi_write_blocking(spi0, &reg, 1);
-    spi_read_blocking(spi0, 0, buf, 2);
+    spi_read_blocking(spi0, 0, rx_buf, 2);
     cs_deselect();
-    printf("\nbuf[0]: %02X buf[1]: %02X\n", buf[0], buf[1]);
+    printf("\nbuf[0]: %02X buf[1]: %02X\n", rx_buf[0], rx_buf[1]);
     sleep_ms(10);
-    *result = ((((uint16_t) buf[0]) << 8) | ((uint16_t) (buf[1])));
+    *result = ((((uint16_t) rx_buf[0]) << 8) | ((uint16_t) (rx_buf[1])));
 }
 
-void set_pwm_pin(uint pin, uint freq, uint duty_c) { // duty_c between 0..10000
+static uint8_t parity_calc(uint8_t value) {
+	// unsigned char because of 8 bit parity check
+	// Initialize a variable to hold the parity value
+	uint8_t parity = value;
+
+	// XOR value with itself shifted right by 1 bit to get the parity of the first 2 bits
+	parity = parity ^ (value >> 1);
+	// XOR the result with itself shifted right by 2 bits to get the parity of the first 4 bits
+	parity = parity ^ (parity >> 2);
+	// XOR the result with itself shifted right by 4 bits to get the parity of all 8 bits
+	parity = parity ^ (parity >> 4);
+
+	// The parity is the least significant bit of the result
+	return parity & 1;
+}
+
+void set_pwm_pin(uint32_t pin, uint32_t freq, uint32_t duty_c) { // duty_c between 0..65535
+        printf("freq: %d\n", freq);
 		gpio_set_function(pin, GPIO_FUNC_PWM);
 		uint slice_num = pwm_gpio_to_slice_num(pin);
+        uint16_t wrap_val = UINT16_MAX;
         pwm_config config = pwm_get_default_config();
-		float div = (float)clock_get_hz(clk_sys) / (freq * 10000);
+        float clock_get_hz_var = ((float) clock_get_hz(clk_sys));
+        printf("clock_get_hz: %4.2f\n", clock_get_hz_var);
+		float div = clock_get_hz_var / (((float) freq) * UINT16_MAX);
+        for (; (div < 1.0f); ) {
+            duty_c /= ((div + 1) / div);
+            wrap_val /= ((div + 1) / div);
+            div += 1;
+        }
+        printf("div: %4.2f\n", div);
 		pwm_config_set_clkdiv(&config, div);
-		pwm_config_set_wrap(&config, 10000); 
+		pwm_config_set_wrap(&config, wrap_val); 
 		pwm_init(slice_num, &config, true); // start the pwm running according to the config
 		pwm_set_gpio_level(pin, duty_c); //connect the pin to the pwm engine and set the on/off level. 
-	};
+};
