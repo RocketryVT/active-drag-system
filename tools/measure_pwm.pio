@@ -1,0 +1,50 @@
+.define SIDESET_PIN 5
+
+.program pulse_counter_pio
+
+start:
+    set x, 0
+
+    wait 1 gpio SIDESET_PIN
+    wait 0 gpio SIDESET_PIN
+
+count:
+    wait 1 pin 0
+    wait 0 pin 0
+    jmp x-- check_sideset_pin
+
+check_sideset_pin:
+    jmp pin shift
+    jmp count
+
+shift:
+    in x, 32
+    jmp start
+
+% c-sdk {
+static inline void pulse_counter_pio_program_init(PIO pio, uint sm, uint offset, uint sideset_pin, uint input_pin) {
+}
+}
+
+.program timing_pulse_pio
+
+start:
+    set x, TIMING_PULSE_RATIO
+    set y, 0
+
+    wait 1 gpio INPUT_PULSE_PIN
+
+    irq sm_id
+
+    wait 1 pin 0
+    wait 0 pin 0
+
+    nop sideset 0
+loop:
+    wait 0 pin 0
+    wait 1 pin 0
+    in x, 32
+    jmp x-- check_x
+check_x:
+    jmp x!=y loop
+    jmp start sideset 1
