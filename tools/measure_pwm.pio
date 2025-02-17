@@ -1,10 +1,11 @@
+.define public TIMING_PULSE_RATIO      4
+.define public INPUT_PULSE_PIN         6
+.define public TIMING_PULSE_SM_ID      0
+.define public SIDESET_PIN             5
+.define public TIMING_PULSE_PIN       16
+.define public TIMING_PULSE_FREQUENCY  8
 
 .program pulse_counter_pio
-
-.define TIMING_PULSE_RATIO 0x4
-.define INPUT_PULSE_PIN 6
-.define TIMING_PULSE_SM_ID 0
-.define SIDESET_PIN 5
 
 start:
     set x, 0
@@ -27,8 +28,6 @@ shift:
 
 % c-sdk {
 static inline void pulse_counter_pio_program_init(PIO pio, uint sm, uint offset, uint pin) {
-    pio_gpio_init(pio, pin);
-    pio_sm_set_consecutive_pindirs(pio, sm, pin, 1, false);
 
     pio_sm_config c = pulse_counter_pio_program_get_default_config(offset);
     sm_config_set_in_shift(&c, true, true, 32);
@@ -43,25 +42,20 @@ static inline void pulse_counter_pio_program_init(PIO pio, uint sm, uint offset,
 
 .program timing_pulse_pio
 
-.define TIMING_PULSE_RATIO 0x4
-.define INPUT_PULSE_PIN 6
-.define TIMING_PULSE_SM_ID 0
-.define SIDESET_PIN 5
-
 .side_set 1 opt
 
 start:
-    set x, TIMING_PULSE_RATIO sideset 1
+    set x, TIMING_PULSE_RATIO side 1
     set y, 0
 
     wait 1 gpio INPUT_PULSE_PIN
 
-    irq 1 rel
+    irq 0 rel
 
     wait 1 pin 0
     wait 0 pin 0
 
-    nop sideset 0
+    nop side 0
 loop:
     wait 0 pin 0
     wait 1 pin 0
@@ -69,17 +63,17 @@ loop:
     jmp x-- check_x
 check_x:
     jmp x!=y loop
-    jmp start sideset 1
+    jmp start side 1
 
 
 % c-sdk {
 static inline void timing_pulse_pio_program_init(PIO pio, uint sm, uint offset, uint pin) {
-    pio_gpio_init(pio, pin);
+    pio_gpio_init(pio, SIDESET_PIN);
     pio_sm_set_consecutive_pindirs(pio, sm, pin, 1, true);
     pio_sm_config c = timing_pulse_pio_program_get_default_config(offset);
     sm_config_set_in_shift(&c, true, true, 32);
     sm_config_set_in_pins(&c, pin);
-    sm_config_set_sideset_pins(&c, 5);
+    sm_config_set_sideset_pins(&c, SIDESET_PIN);
     sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_RX);
     pio_sm_init(pio, sm, offset, &c);
     pio_sm_set_enabled(pio, sm, true);
