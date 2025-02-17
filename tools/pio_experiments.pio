@@ -1,0 +1,27 @@
+.program blink
+
+start:
+    set x, 0
+
+    wait 1 pin 0
+    wait 0 pin 1
+
+    irq 0 rel
+    jmp start
+
+% c-sdk {
+static inline void blink_program_init(PIO pio, uint sm, uint offset, uint pin) {
+    pio_sm_config c = blink_program_get_default_config(offset);
+    sm_config_set_in_pins(&c, pin);
+
+    // Clear IRQ flag before starting, and make sure flag doesn't actually
+    // assert a system-level interrupt (we're using it as a status flag)
+    pio_set_irq0_source_enabled(pio, (enum pio_interrupt_source) ((uint) pis_interrupt0 + sm), false);
+    pio_set_irq1_source_enabled(pio, (enum pio_interrupt_source) ((uint) pis_interrupt0 + sm), true);
+    pio_interrupt_clear(pio, sm);
+   
+    pio_sm_init(pio, sm, offset, &c);
+    pio_sm_set_enabled(pio, sm, true);
+}
+%}
+
