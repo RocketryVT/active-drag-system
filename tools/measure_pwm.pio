@@ -1,29 +1,38 @@
-.define public TIMING_PULSE_RATIO      4
+.define public TIMING_PULSE_RATIO      3
 .define public INPUT_PULSE_PIN         6
 .define public TIMING_PULSE_SM_ID      0
 .define public SIDESET_PIN             5
 .define public TIMING_PULSE_PIN       16
-.define public TIMING_PULSE_FREQUENCY  8
+.define public TIMING_PULSE_FREQUENCY  158
 
 .program pulse_counter_pio
 
+; PIO program to count pulses, the gate time is controlled by a side-set pin set by another PIO program
 start:
+    ; Set the x register to 0, this is the counter register for the pulses
     set x, 0
 
+    ; measuring the falling edge of the side-set pin
     wait 1 gpio SIDESET_PIN
     wait 0 gpio SIDESET_PIN
 
+; start counting the pulses
 count:
+; Measure the rising edge of the input pin
     wait 0 pin 0
     wait 1 pin 0
+; Decrement counter and jump to check_sideset_pin
     jmp x-- check_sideset_pin
 
 check_sideset_pin:
+; If side-set is high, jump to shift
     jmp pin shift
     jmp count
 
 shift:
+; Shift the x register to the ISR
     in x, 32
+; Restart the program
     jmp start
 
 % c-sdk {
@@ -32,50 +41,65 @@ static inline void pulse_counter_pio_program_init(PIO pio, uint sm, uint offset,
     pio_sm_config c = pulse_counter_pio_program_get_default_config(offset);
     sm_config_set_in_shift(&c, true, true, 32);
     sm_config_set_in_pins(&c, pin);
-    sm_config_set_jmp_pin(&c, 5);
-    sm_config_set_sideset_pins(&c, 5);
+    sm_config_set_jmp_pin(&c, SIDESET_PIN);
+    sm_config_set_sideset_pins(&c, SIDESET_PIN);
     sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_RX);
     pio_sm_init(pio, sm, offset, &c);
-    pio_sm_set_enabled(pio, sm, true);
 }
 %}
 
+; A second pio program to set a side-set pin, initialize the side-set pin to high
 .program timing_pulse_pio
 
-.side_set 1 opt
+.side_set 1
 
 start:
+; Set the x register to timing_ratio
     set x, TIMING_PULSE_RATIO side 1
-    set y, 0
+; set the y register to 0 to compare with the x register
+    set y, 0 side 1
 
-    wait 1 gpio INPUT_PULSE_PIN
+; synchronize the timing pulse with the actual pulse
+    wait 0 gpio INPUT_PULSE_PIN side 1
+    wait 1 gpio INPUT_PULSE_PIN side 1
 
-    irq 0 rel
+; set the irq to signal interrupt to start the timing pulse, this ensure timing pulse is synchronized with the pulse
+;    irq 0 rel side 1
 
-    wait 1 pin 0
-    wait 0 pin 0
-
+; wait for the timing pulse to go low to synchronize the timing
+    wait 1 pin 0 side 1
+    wait 0 pin 0 side 1
+; set the side-set pin to 0 to let the pulse counter know that the gate time has started
     nop side 0
+
 loop:
-    wait 0 pin 0
-    wait 1 pin 0
-    in x, 32
-    jmp x-- check_x
+; Wait for high pulse on input pin
+    wait 1 pin 0 side 0 
+
+; Wait for low pulse on input pin
+    wait 0 pin 0 side 0
+
+; for debugging purposes, move the x to the isr
+    in x, 32 side 0
+
+; One pulse has been received, decrement the x register
+    jmp x-- check_x side 0
 check_x:
-    jmp x!=y loop
+; if x is not equal to y, jump back to the loop
+    jmp x!=y loop side 0
+; else set the side-set pin to 1 and jump back to the start
     jmp start side 1
 
 
 % c-sdk {
 static inline void timing_pulse_pio_program_init(PIO pio, uint sm, uint offset, uint pin) {
     pio_gpio_init(pio, SIDESET_PIN);
-    pio_sm_set_consecutive_pindirs(pio, sm, pin, 1, true);
+    pio_sm_set_consecutive_pindirs(pio, sm, SIDESET_PIN, 1, true);
     pio_sm_config c = timing_pulse_pio_program_get_default_config(offset);
     sm_config_set_in_shift(&c, true, true, 32);
     sm_config_set_in_pins(&c, pin);
     sm_config_set_sideset_pins(&c, SIDESET_PIN);
     sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_RX);
     pio_sm_init(pio, sm, offset, &c);
-    pio_sm_set_enabled(pio, sm, true);
 }
 %}

@@ -1,3 +1,4 @@
+#include <cstdint>
 #include <stdio.h>
 #include "hardware/gpio.h"
 #include "pico/stdlib.h"
@@ -18,6 +19,9 @@ void callback();
 
 const uint32_t timing_interval_ms =  (1000 / TIMING_PULSE_FREQUENCY * TIMING_PULSE_RATIO);
 
+uint slice_num = 0;
+pwm_config config;
+
 /************ MAIN ************/
 int main()
 {
@@ -29,32 +33,44 @@ int main()
     gpio_init(INPUT_PULSE_PIN);
     gpio_set_dir(INPUT_PULSE_PIN, GPIO_IN);
     gpio_pull_down(INPUT_PULSE_PIN);
-    gpio_init(SIDESET_PIN);
 
     gpio_init(OUTPUT_PIN);
     gpio_set_function(OUTPUT_PIN, GPIO_FUNC_PWM);
     gpio_init(TIMING_PULSE_PIN);
+    gpio_set_dir(TIMING_PULSE_PIN, GPIO_OUT);
     gpio_set_function(TIMING_PULSE_PIN, GPIO_FUNC_PWM);
     uint32_t freq = 5000;
     uint32_t duty_c = 32768;
-    uint slice_num = pwm_gpio_to_slice_num(OUTPUT_PIN);
+    uint oslice_num = pwm_gpio_to_slice_num(OUTPUT_PIN);
     uint16_t wrap_val = UINT16_MAX;
-    pwm_config config = pwm_get_default_config();
+    pwm_config oconfig = pwm_get_default_config();
     float clock_get_hz_var = ((float) clock_get_hz(clk_sys));
-    printf("clock_get_hz: %4.2f\n", clock_get_hz_var);
     float div = clock_get_hz_var / (((float) freq) * UINT16_MAX);
     for (; (div < 1.0f); ) {
         duty_c /= ((div + 1) / div);
         wrap_val /= ((div + 1) / div);
         div += 1;
     }
-    printf("div: %4.2f\n", div);
+    pwm_config_set_clkdiv(&oconfig, div);
+    pwm_config_set_wrap(&oconfig, wrap_val); 
+    pwm_init(oslice_num, &oconfig, true); // start the pwm running according to the config
+    pwm_set_gpio_level(OUTPUT_PIN, duty_c); //connect the pin to the pwm engine and set the on/off level. 
+
+    slice_num = pwm_gpio_to_slice_num(TIMING_PULSE_PIN);
+    config = pwm_get_default_config();
+    wrap_val = UINT16_MAX;
+    clock_get_hz_var = ((float) clock_get_hz(clk_sys));
+    div = clock_get_hz_var / (((float) TIMING_PULSE_FREQUENCY) * UINT16_MAX);
+    for (; (div < 1.0f); ) {
+        duty_c /= ((div + 1) / div);
+        wrap_val /= ((div + 1) / div);
+        div += 1;
+    }
     pwm_config_set_clkdiv(&config, div);
     pwm_config_set_wrap(&config, wrap_val); 
     pwm_init(slice_num, &config, true); // start the pwm running according to the config
-    pwm_set_gpio_level(OUTPUT_PIN, duty_c); //connect the pin to the pwm engine and set the on/off level. 
+    pwm_set_gpio_level(TIMING_PULSE_PIN, 32768); //connect the pin to the pwm engine and set the on/off level. 
 
-    // encoder PIO setup
     PIO pio = pio0;
     uint offset = pio_add_program(pio0, &pulse_counter_pio_program);
     pulse_counter_pio_program_init(pio0, 0, offset, INPUT_PULSE_PIN);
@@ -65,6 +81,12 @@ int main()
     irq_add_shared_handler(PIO0_IRQ_1, callback, 0);
     irq_set_enabled(PIO0_IRQ_1, true);
 
+    pio_sm_restart(pio0, 0);
+    pio_sm_restart(pio0, 1);
+
+    pio_sm_set_enabled(pio0, 1, true);
+    pio_sm_set_enabled(pio0, 0, true);
+
 
     /************ FOREVER LOOP ************/
     while (true) {
@@ -74,11 +96,10 @@ int main()
                 if (!pio_sm_is_rx_fifo_empty(pio, 0)) {
                     uint32_t pulse_count = pio_sm_get_blocking(pio, 0);
                     pulse_count = (0x100000000 - pulse_count) & 0xFFFFFFFF;
-                    printf("Freq: %d\n", (pulse_count / timing_interval_ms * 1000));
+                    printf("PIO Raw Count: %d, Freq: %d\n", pulse_count, (pulse_count * 1000 / timing_interval_ms));
                 }
             }
         }
-        sleep_ms(1000);
 
 
     }
@@ -103,15 +124,8 @@ void pico_set_led(bool led_on) {
 }
 
 void callback() {
-    uint32_t duty_c = 32768;
-    uint slice_num = pwm_gpio_to_slice_num(TIMING_PULSE_PIN);
     pwm_set_enabled(slice_num, false);
-    uint16_t wrap_val = UINT16_MAX;
-    pwm_config config = pwm_get_default_config();
-    float div = 238.422f;
-    pwm_config_set_clkdiv(&config, div);
-    pwm_config_set_wrap(&config, wrap_val); 
-    pwm_init(slice_num, &config, true); // start the pwm running according to the config
-    pwm_set_gpio_level(TIMING_PULSE_PIN, duty_c); //connect the pin to the pwm engine and set the on/off level. 
+    pwm_set_counter(slice_num, 0);
     pwm_set_enabled(slice_num, true);
+    pio_interrupt_clear(pio0, 1);
 }
