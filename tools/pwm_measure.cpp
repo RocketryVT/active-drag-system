@@ -32,7 +32,7 @@ int main()
 
     gpio_init(INPUT_PULSE_PIN);
     gpio_set_dir(INPUT_PULSE_PIN, GPIO_IN);
-    gpio_pull_down(INPUT_PULSE_PIN);
+    gpio_pull_up(INPUT_PULSE_PIN);
 
     gpio_init(OUTPUT_PIN);
     gpio_set_function(OUTPUT_PIN, GPIO_FUNC_PWM);

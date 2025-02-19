@@ -19,8 +19,8 @@ start:
 ; start counting the pulses
 count:
 ; Measure the rising edge of the input pin
-    wait 0 pin 0
     wait 1 pin 0
+    wait 0 pin 0
 ; Decrement counter and jump to check_sideset_pin
     jmp x-- check_sideset_pin
 
@@ -60,8 +60,8 @@ start:
     set y, 0 side 1
 
 ; synchronize the timing pulse with the actual pulse
-    wait 0 gpio INPUT_PULSE_PIN side 1
     wait 1 gpio INPUT_PULSE_PIN side 1
+    wait 0 gpio INPUT_PULSE_PIN side 1
 
 ; set the irq to signal interrupt to start the timing pulse, this ensure timing pulse is synchronized with the pulse
 ;    irq 0 rel side 1
