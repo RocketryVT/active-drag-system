@@ -10,7 +10,11 @@
 #include "boards/pico.h"
 #include "pico/stdio.h"
 #include "pico/time.h"
+#include "hardware/pio.h"
+#include "hardware/irq.h"
 #include "pico/binary_info.h"
+
+#include "measure_pwm.pio.h"
 
 #define MICRO_SPI0_CS   1
 #define MICRO_SPI0_TX   3
@@ -46,11 +50,15 @@ static inline void cs_deselect();
 
 void set_pwm_pin(uint32_t pin, uint32_t freq, uint32_t duty_c); // duty_c between 0..10000
 
+void timing_pulse_callback();
+
+const uint32_t timing_interval_ms =  (1000 / TIMING_PULSE_FREQUENCY * TIMING_PULSE_RATIO);
 
 volatile uint8_t led_counter;
 volatile bool motor_enabled = false;
 repeating_timer_t heartbeat_timer;
 
+uint slice_num = 0;
 
 int main() {
     stdio_init_all();
@@ -95,6 +103,42 @@ int main() {
     gpio_set_dir(MICRO_SPI0_CS, GPIO_OUT);
     gpio_put(MICRO_SPI0_CS, 1);
     bi_decl(bi_1pin_with_name(MICRO_SPI0_CS, "SPI CS"));
+
+    gpio_init(TIMING_PULSE_PIN);
+    gpio_set_dir(TIMING_PULSE_PIN, GPIO_OUT);
+    gpio_set_function(TIMING_PULSE_PIN, GPIO_FUNC_PWM);
+
+    slice_num = pwm_gpio_to_slice_num(TIMING_PULSE_PIN);
+    pwm_config config = pwm_get_default_config();
+    uint32_t duty_c = 32768;
+    uint16_t wrap_val = UINT16_MAX;
+    float clock_get_hz_var = ((float) clock_get_hz(clk_sys));
+    float div = clock_get_hz_var / (((float) TIMING_PULSE_FREQUENCY) * UINT16_MAX);
+    for (; (div < 1.0f); ) {
+        duty_c /= ((div + 1) / div);
+        wrap_val /= ((div + 1) / div);
+        div += 1;
+    }
+    pwm_config_set_clkdiv(&config, div);
+    pwm_config_set_wrap(&config, wrap_val); 
+    pwm_init(slice_num, &config, true); // start the pwm running according to the config
+    pwm_set_gpio_level(TIMING_PULSE_PIN, 32768); //connect the pin to the pwm engine and set the on/off level. 
+
+    PIO pio = pio0;
+    uint offset = pio_add_program(pio0, &pulse_counter_pio_program);
+    pulse_counter_pio_program_init(pio0, 0, offset, INPUT_PULSE_PIN);
+
+    offset = pio_add_program(pio, &timing_pulse_pio_program);
+    timing_pulse_pio_program_init(pio, 1, offset, TIMING_PULSE_PIN);
+    pio_set_irq1_source_enabled(pio, pis_interrupt1, true);
+    irq_add_shared_handler(PIO0_IRQ_1, timing_pulse_callback, 0);
+    irq_set_enabled(PIO0_IRQ_1, true);
+
+    pio_sm_restart(pio0, 0);
+    pio_sm_restart(pio0, 1);
+
+    pio_sm_set_enabled(pio0, 1, true);
+    pio_sm_set_enabled(pio0, 0, true);
 
     gpio_put(PICO_DEFAULT_LED_PIN, 1);
 
@@ -151,7 +195,7 @@ int main() {
 
 
     char c;
-    char buf[16] = {0, 0, 0, 0, 0, 0, 0, 0};
+    char buf[16] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
     uint8_t idx = 0;
     printf(">\t");
     while (1) {
@@ -184,6 +228,18 @@ int main() {
                     }
                     idx = 0;
                     printf("\n>\t");
+                }
+            }
+        }
+
+        if (motor_enabled) {
+            if (!pio_sm_is_rx_fifo_empty(pio, 1)) {
+                if (pio_sm_get_blocking(pio, 1) == 1) {
+                    if (!pio_sm_is_rx_fifo_empty(pio, 0)) {
+                        uint32_t pulse_count = pio_sm_get_blocking(pio, 0);
+                        pulse_count = (0x100000000 - pulse_count) & 0xFFFFFFFF;
+                        printf("\nPIO Raw Count: %d, Freq: %d\n", pulse_count, (pulse_count * 1000 / timing_interval_ms));
+                    }
                 }
             }
         }
@@ -418,3 +474,10 @@ void set_pwm_pin(uint32_t pin, uint32_t freq, uint32_t duty_c) { // duty_c betwe
 		pwm_init(slice_num, &config, true); // start the pwm running according to the config
 		pwm_set_gpio_level(pin, duty_c); //connect the pin to the pwm engine and set the on/off level. 
 };
+
+void timing_pulse_callback() {
+    pwm_set_enabled(slice_num, false);
+    pwm_set_counter(slice_num, 0);
+    pwm_set_enabled(slice_num, true);
+    pio_interrupt_clear(pio0, 1);
+}
