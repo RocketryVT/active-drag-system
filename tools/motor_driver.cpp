@@ -132,25 +132,13 @@ void process_cmd(char* buf, uint8_t len) {
         switch (buf[0]) {
             case 'p': {
                 if (len >= 7) {
-                    uint8_t msb_freq = cton(buf[2]);
-                    uint8_t lsb_freq = cton(buf[3]);
-
-                    uint8_t msb_duty = cton(buf[5]);
-                    uint8_t lsb_duty = cton(buf[6]);
-                    if (msb_freq <= 0xF && lsb_freq <= 0xF && msb_duty <= 0xF && lsb_duty <= 0xF) {
-                        uint32_t frequency = (msb_freq << 4) | lsb_freq;
-                        uint32_t duty_cycle = (msb_duty << 4) | lsb_duty;
-                        if (frequency > 200) frequency = 200;
-                        if (duty_cycle > 100) duty_cycle = 100;
-
-                        if (motor_driver.is_motor_enabled()) {
-                            printf("\nOperating motor at %d kHz with a %d percent duty cycle\n", frequency, duty_cycle);
-                            frequency *= 1000;
-                            duty_cycle = duty_cycle * (UINT16_MAX / 100);
-                            motor_driver.set_pwm(frequency, duty_cycle);
-                        } else {
-                            printf("\nMotor is disabled! Enable motor with 'enable' to access this command!\n");
-                        }
+                    uint8_t msb_duty = cton(buf[2]);
+                    uint8_t lsb_duty = cton(buf[3]);
+                    if (msb_duty <= 0xF && lsb_duty <= 0xF) {
+                        uint8_t duty_cycle = (msb_duty << 4) | lsb_duty;
+                        printf("\nOperating motor with a %d percent duty cycle\n", duty_cycle);
+                        result = motor_driver.set_pwm(duty_cycle);
+                        if (result < 0) printf("\nMotor is disabled! Enable motor with 'enable' to access this command!\n");
                         result = 0;
                     }
                     break;
@@ -182,6 +170,7 @@ void process_cmd(char* buf, uint8_t len) {
             }
             case 'y': {
                 printf("\nMotor Speed: %d\n", motor_driver.get_speed());
+                printf("\nMotor Speed Filtered: %d\n", motor_driver.get_speed_filtered());
                 break;
             }
             default:

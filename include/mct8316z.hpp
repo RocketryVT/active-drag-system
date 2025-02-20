@@ -8,8 +8,10 @@
 #include "hardware/pwm.h"
 #include "hardware/pio.h"
 #include "hardware/clocks.h"
-#include "measure_pwm.pio.h"
 #include "pico/time.h"
+
+#include "lpf.hpp"
+#include "measure_pwm.pio.h"
 
 #define MICRO_SPI_CS        1
 #define MICRO_SPI_TX        3
@@ -23,6 +25,8 @@
 #define MICRO_MOTOR_DRVOFF 11
 
 #define MOTOR_UPDATE_HZ 50
+
+#define MOTOR_PWM_WRAP 5000
 
 /*
  The SDI input data word is 16 bits long and consists of the following format:
@@ -477,8 +481,12 @@ class mct8316z {
 
         int8_t set_speed(uint32_t speed);
 
-        uint32_t get_speed() {
+        uint16_t get_speed() {
             return speed;
+        }
+
+        uint16_t get_speed_filtered() {
+            return speed_filtered;
         }
 
         bool is_motor_enabled() {
@@ -489,7 +497,7 @@ class mct8316z {
             return motor_running;
         }
 
-        int8_t set_pwm(uint32_t freq, uint32_t duty);
+        int8_t set_pwm(uint8_t duty);
 
         int8_t clear_faults();
 
@@ -505,6 +513,7 @@ class mct8316z {
 
             return parity & 1;
         }
+
         void write_register(uint8_t addr, uint8_t data, uint8_t* buffer) {
             uint8_t rw = WRITE;
 
@@ -519,6 +528,7 @@ class mct8316z {
             spi_write_blocking(inst, buffer, 2);
             cs_deselect();
         };
+
         uint8_t read_register(uint8_t addr, uint8_t* buffer) {
             uint8_t rw = READ;
 
@@ -558,8 +568,10 @@ class mct8316z {
         IC_Control_Register9 ctrl_reg_9;
         IC_Control_Register10 ctrl_reg_10;
 
-        uint32_t speed_setpoint = 0;
-        uint32_t speed = 0;
+        uint16_t speed_setpoint = 0;
+        uint16_t speed = 0;
+
+        uint8_t duty = 0;
 
         bool motor_enabled = false;
 
@@ -567,7 +579,8 @@ class mct8316z {
 
         repeating_timer_t motor_timer;
 
-//        uint32_t speed_filtered = 0;
-//        uint32_t speed_setpoint_filtered = 0;
+        lpf speed_flt = lpf(MOTOR_UPDATE_HZ, 10.0f, 0.707f);
+
+        uint16_t speed_filtered = 0;
 };
 

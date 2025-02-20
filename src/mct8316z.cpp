@@ -53,6 +53,7 @@ mct8316z::mct8316z(spi_inst_t* inst) {
     gpio_init(TIMING_PULSE_PIN);
     gpio_set_dir(TIMING_PULSE_PIN, GPIO_OUT);
     gpio_set_function(TIMING_PULSE_PIN, GPIO_FUNC_PWM);
+
 }
 
 int8_t mct8316z::initialize() {
@@ -84,6 +85,12 @@ int8_t mct8316z::initialize() {
 
     pio_sm_restart(pio, 0);
     pio_sm_restart(pio, 1);
+
+    uint8_t slice_num = pwm_gpio_to_slice_num(MICRO_MOTOR_PWM);
+    config = pwm_get_default_config();
+    pwm_config_set_clkdiv_int_frac(&config, 1, 4); // 1 MHz with 5000 (MOTOR_PWM_WRAP) wrap value = 20 kHz PWM
+    pwm_config_set_wrap(&config, MOTOR_PWM_WRAP); 
+    pwm_init(slice_num, &config, true);
 
     printf("Unlocking MCT8316Z Registers...\n");
     this->ctrl_reg_1.fields.REG_LOCK = CONTROL_REGISTER_1_REG_LOCK_UNLOCK_ALL_REGISTERS;
@@ -165,7 +172,7 @@ int8_t mct8316z::disable_motor() {
 
 int8_t mct8316z::brake() {
     printf("\nBraking!\n");
-    set_pwm(0, 0);
+    set_pwm(0);
     gpio_put(MICRO_MOTOR_BRAKE, 1);
     pio_sm_set_enabled(pio0, 0, false);
     pio_sm_set_enabled(pio0, 1, false);
@@ -186,23 +193,18 @@ int8_t mct8316z::set_speed(uint32_t speed) {
     return result;
 }
 
-int8_t mct8316z::set_pwm(uint32_t freq, uint32_t duty) {
-    uint8_t slice_num = pwm_gpio_to_slice_num(MICRO_MOTOR_PWM);
-    uint16_t wrap_value = UINT16_MAX;
-    pwm_config config = pwm_get_default_config();
-    float clk_hz = ((float) clock_get_hz(clk_sys));
-
-    float clk_div = clk_hz / (((float) freq) * wrap_value);
-    for (; (clk_div < 1.0f); ) {
-        duty /= ((clk_div + 1) / clk_div);
-        wrap_value /= ((clk_div + 1) / clk_div);
-        clk_div += 1;
+int8_t mct8316z::set_pwm(uint8_t duty) {
+    int8_t result = -1;
+    if (duty > 100) duty = 100;
+    this->duty = duty;
+    if (motor_enabled) {
+        uint16_t duty_scaled = (uint16_t) ((((uint32_t) duty) * ((uint32_t) MOTOR_PWM_WRAP)) / ((uint32_t) 100));
+        pwm_set_gpio_level(MICRO_MOTOR_PWM, duty_scaled);
+        result = 0;
+    } else {
+        printf("Enable the motor prior to setting a PWM!\n");
     }
-    pwm_config_set_clkdiv(&config, clk_div);
-    pwm_config_set_wrap(&config, wrap_value); 
-    pwm_init(slice_num, &config, true);
-    pwm_set_gpio_level(MICRO_MOTOR_PWM, duty);
-    return 0;
+    return result;
 };
 
 int8_t mct8316z::clear_faults() {
@@ -235,9 +237,14 @@ void mct8316z::update() {
                     if (pulse_count > 5) {
                         pulse_count = (0x100000000 - pulse_count) & 0xFFFFFFFF;
                         speed = (pulse_count * 1000 / timing_interval_ms);
+                        speed_filtered = ((uint16_t) speed_flt.update(((s1x14) speed)));
                         motor_running = true;
                     } else {
                         speed = 0;
+                        speed_filtered = ((uint16_t) speed_flt.update(((s1x14) speed)));
+                        if ((speed_filtered == 0) && (duty != 0)) {
+                            printf("Something seems wrong here...\n");
+                        }
                         motor_running = false;
                     }
                 }

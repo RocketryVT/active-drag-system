@@ -24,6 +24,7 @@ if (COMPILE_TOOLS)
     add_executable(motor_driver
                    motor_driver.cpp
                    ../src/measure_pwm.pio
+                   ../src/lpf.cpp
                    ../src/mct8316z.cpp
     )
 
