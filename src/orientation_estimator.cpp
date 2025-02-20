@@ -2,13 +2,16 @@
 
 #include <cmath>
 
-//Default constructor, input timestep
+//Default constructor, input timestep and initialize internal state transition matrices
 orientation_estimator::pose_pos_kalman_estimator(float dt) {
+	//Set dt value
 	this->dt = dt;
 }
 
 //Run the three update equations and set the internal members they are used to calculate using measurement vector (z)
-void orientation_estimator::update(Vector3f z_accel) {
+void orientation_estimator::update(Vector3f z_accel, Vector3f z_mag) {
+	//0: Calculate the new orientation matrix (H) based on the current quaternion coefficients
+	
 	//1: Kalman Gain Calculation
 	kalman_gain_M = proj_state_cov_M*observation_M.transpose() * (observation_M*proj_state_cov_M*observation_M.transpose() + measurement_cov_M).inverse();
 
@@ -19,15 +22,33 @@ void orientation_estimator::update(Vector3f z_accel) {
 	state_cov_M = (I - kalman_gain_M*observation_M)*proj_state_cov_M*(I - kalman_gain_M*observation_M).transpose() + kalman_gain_M*measurement_cov_M*kalman_gain_M.transpose();
 
 	//0: Convert the accelerometer axes into fixed pitch and roll measurements by comparing axis measurement ratios
+	
 }
 
-//Extrapolate and predict the next orientation by integrating the gyro rates over the time step
-void orientation_estimator::predict(Vector3f u) {
-	//1: State Extrapolation Equation
-	proj_state_vector = state_transition_M*state_vector + control_M*u;
+//Extrapolate and predict the next orientation by integrating the UNBIASED gyro rates over the time step
+void orientation_estimator::predict(Vector3f u_gyro) {
+	//TODO: Test in lab to confirm gyro output is in radians/degrees and that math matches
+	float w_x = u_gyro(0);
+	float w_y = u_gyro(1);
+	float w_z = u_gyro(2);
+
+	//1: State Extrapolation Equation via multiplicative rotation quaternion addition
+	float gyro_mag = u_gyro.norm();					//Calculate magnitude of rotation rate
+	Quaternionf update_q(std::cos(gyro_mag/2.0f), 
+						 std::sin(gyro_mag/2.0f)*w_x/gyro_mag,
+						 std::sin(gyro_mag/2.0f)*w_y/gyro_mag,
+						 std::sin(gyro_mag/2.0f)*w_z/gyro_mag);
+	//TODO: Eigen's quaternion coefficient ordering is funky, confirm that constructor and math are in right order
+	proj_state_quat = proj_state_quat + proj_state_quat*update_q;
+	proj_state_quat.normalize();	//Normalize after operation to make sure new quaternion is a rotation quaternion
 	
-	//2: Covariance Extrapolation Equation
+	//2: Update the state transition matrix (F) based on gyro rates, and calculate P(n+1,n) with it
+	state_transition_M << 0, -w_x*dt, -w_y*dt, -w_z*dt,
+					   	  w_x*dt, 0, w_z*dt, -w_y*dt,
+						  w_y*dt, -w_z*dt, 0, w_x*dt,
+						  w_z*dt, w_y*dt, -w_x*dt, 0;
 	proj_state_cov_M = state_transition_M*state_cov_M*state_transition_M.transpose() + process_noise_cov_M;
+	//TODO: Confirm in testing that the gyro rate skew matrix correctly updates covariance/is stable
 }
 
 //Set the initial state and state covariance, and project next state using gyro rates
@@ -47,27 +68,6 @@ bool orientation_estimator::set_initial_state_and_predict(Quaternionf x, MatrixX
 	return true;
 }
 
-//Helper update method for the state transition matrix, set the actual matrix F from the coefficient and power matrices
-void orientation_estimator::dt_update_state_transition_M(float dt) {
-	//TODO: Figure out a convenient way to set up the F matrix dt update and store powers and coefficients
-	
-}
-
-//Setter for state transition matrix (F) - intakes matrix of coefficients of dt components, and matrix of their powers
-bool orientation_estimator::set_state_transition_M(MatrixXf dt_coeff_M, MatrixXf dt_pow_M) {
-	//TODO: There's definitely some pointer weirdness that needs to be done here, for now working on primarily structure
-	
-	//Confirm that both matrices are of the correct dimension
-	if (dt_coeff_M.cols() != n_x || dt_coeff_M.rows() != n_x || dt_pow_M.cols() != n_x || dt_pow_M.rows() != n_x) {
-		return false;
-	}
-	
-	//With dimensions verified, set each of the two internal matrices
-	F_dt_coeff_M = dt_coeff_M;
-	F_dt_pow_M = dt_pow_M;
-	return true;
-}
-
 //Setter for the observation matrix (H)
 bool orientation_estimator::set_observation_M(MatrixXf H) {
 	//Confirm dimensions of matrix
@@ -77,19 +77,6 @@ bool orientation_estimator::set_observation_M(MatrixXf H) {
 
 	//With dimensions verified, set internal matrix
 	observation_M = H;
-
-	return true;
-}
-
-//Setter for the control matrix (B, sometimes G)
-bool orientation_estimator::set_control_M(MatrixXf B) {
-	//Confirm dimensions of matrix
-	if (B.rows() != n_x || B.cols() != n_u) {
-		return false;
-	}
-
-	//With dimensions verified, set internal matrix
-	control_M = B;
 
 	return true;
 }
