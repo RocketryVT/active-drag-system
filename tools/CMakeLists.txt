@@ -23,15 +23,16 @@ if (COMPILE_TOOLS)
 
     add_executable(motor_driver
                    motor_driver.cpp
-                   measure_pwm.pio
+                   ../src/measure_pwm.pio
+                   ../src/mct8316z.cpp
     )
 
     add_executable(pwm_measure
                    pwm_measure.cpp
-                   measure_pwm.pio
+                   ../src/measure_pwm.pio
     )
-    pico_generate_pio_header(pwm_measure ${CMAKE_CURRENT_LIST_DIR}/measure_pwm.pio)
-    pico_generate_pio_header(motor_driver ${CMAKE_CURRENT_LIST_DIR}/measure_pwm.pio)
+    pico_generate_pio_header(pwm_measure ${CMAKE_CURRENT_LIST_DIR}/../src/measure_pwm.pio)
+    pico_generate_pio_header(motor_driver ${CMAKE_CURRENT_LIST_DIR}/../src/measure_pwm.pio)
     # pull in common dependencies
     target_link_libraries(read_flash pico_stdlib hardware_spi)
     target_include_directories(read_flash PUBLIC ../include)
@@ -47,6 +48,7 @@ if (COMPILE_TOOLS)
     target_include_directories(imu_calib PUBLIC ../include)
 
     target_link_libraries(motor_driver pico_stdlib pico_multicore pico_binary_info hardware_pio hardware_irq hardware_i2c pico_divider hardware_spi hardware_clocks hardware_gpio hardware_pwm)
+    target_include_directories(motor_driver PUBLIC ../include)
 
     target_link_libraries(pwm_measure pico_stdlib hardware_gpio hardware_pio hardware_irq hardware_clocks hardware_pwm) 
 
