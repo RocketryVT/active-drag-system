@@ -183,7 +183,7 @@ int8_t mct8316z::brake() {
     return 0;
 }
 
-int8_t mct8316z::set_speed(uint32_t speed) {
+int8_t mct8316z::set_speed(uint16_t speed) {
     int8_t result = -1;
     if (motor_enabled) {
         this->speed_setpoint = speed;
@@ -197,6 +197,7 @@ int8_t mct8316z::set_pwm(uint8_t duty) {
     int8_t result = -1;
     if (duty > 100) duty = 100;
     this->duty = duty;
+    this->speed_setpoint = (duty * SUPPLY_VOLTAGE) / 100;
     if (motor_enabled) {
         uint16_t duty_scaled = (uint16_t) ((((uint32_t) duty) * ((uint32_t) MOTOR_PWM_WRAP)) / ((uint32_t) 100));
         pwm_set_gpio_level(MICRO_MOTOR_PWM, duty_scaled);
