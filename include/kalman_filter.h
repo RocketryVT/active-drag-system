@@ -3,10 +3,9 @@
 
 using namespace Eigen;
 
-class kalman_filter {
+class kalman_filter_old {
 
     private:
-
         VectorXf state_vector; // x
         MatrixXf state_covariance; // P
 
@@ -23,7 +22,7 @@ class kalman_filter {
         int p; // Control Vector Dimension
         int m; // Measurement Vector Dimension
 
-        float dt; // timestep
+        float dt; // Timestep
 
         /**
          * @brief Initialize all necessary matrices.
@@ -43,7 +42,7 @@ class kalman_filter {
          * given the current control input.
          * 
          * @param control_vec The control input to be applied to the
-         * previous State Vector
+         * previous State Vector (u)
          */
         void predict(VectorXf control_vec);
 
@@ -51,7 +50,7 @@ class kalman_filter {
          * @brief Correct the State Vector & State Covariance predictions
          * given a related current measurement.
          * 
-         * @param measurement Current measurement
+         * @param measurement Current measurement (z)
          */
         void update(VectorXf measurement);
 
