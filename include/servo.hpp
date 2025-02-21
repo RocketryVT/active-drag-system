@@ -7,6 +7,10 @@
 
 #include "hardware/i2c.h"
 #include "mct8316z.hpp"
+#include "lpf.hpp"
+#include "pid.hpp"
+
+#define SERVO_UPDATE_HZ 50
 
 class servo {
     public:
@@ -31,7 +35,13 @@ class servo {
 
         i2c_inst_t* inst;
 
+        mct8316z* motor_driver;
+
         uint8_t buffer[8] = {0, 0, 0, 0, 0, 0, 0, 0};
 
         uint16_t raw_angle_counts = 0;
+                        // Kp   Ki    Kd
+        pid pos_pid = pid(0.0f, 0.0f, 0.0f);
+                            //  Fs           Fc     Q
+        lpf speed_flt = lpf(SERVO_UPDATE_HZ, 1.25f, 0.707f);
 };

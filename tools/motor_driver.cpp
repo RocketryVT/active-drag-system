@@ -31,8 +31,15 @@ uint8_t cton(char c);
 
 volatile uint8_t led_counter;
 repeating_timer_t heartbeat_timer;
+repeating_timer_t motor_timer;
 
 mct8316z motor_driver(spi0);
+
+bool mct8316z_update(repeating_timer_t* rt) {
+    mct8316z* motor_driver = (mct8316z *) (rt->user_data);
+    motor_driver->update();
+    return true;
+}
 
 int main() {
     stdio_init_all();
@@ -56,6 +63,8 @@ int main() {
     getchar();
 
     motor_driver.initialize();
+
+    add_repeating_timer_us(-1000000 / MOTOR_UPDATE_HZ,  &mct8316z_update, ((void *) &motor_driver), &motor_timer);
 
     uint8_t src = 0x3;
     uint8_t ibuf[2] = {0x0, 0x0};
@@ -131,13 +140,28 @@ void process_cmd(char* buf, uint8_t len) {
         int8_t result = -1;
         switch (buf[0]) {
             case 'p': {
-                if (len >= 7) {
+                if (len >= 4) {
                     uint8_t msb_duty = cton(buf[2]);
                     uint8_t lsb_duty = cton(buf[3]);
                     if (msb_duty <= 0xF && lsb_duty <= 0xF) {
                         uint8_t duty_cycle = (msb_duty << 4) | lsb_duty;
                         printf("\nOperating motor with a %d percent duty cycle\n", duty_cycle);
                         result = motor_driver.set_pwm(duty_cycle);
+                        if (result < 0) printf("\nMotor is disabled! Enable motor with 'enable' to access this command!\n");
+                        result = 0;
+                    }
+                    break;
+                }
+            }
+            case 'v': {
+                if (len >= 4) {
+                    uint8_t msb_speed = cton(buf[2]);
+                    uint8_t lsb_speed = cton(buf[3]);
+                    if (msb_speed <= 0xF && lsb_speed <= 0xF) {
+                        uint16_t speed_cmd_unsigned = ((((uint16_t) msb_speed) << 4) | ((uint16_t) lsb_speed)) * ((uint16_t) 100);
+                        int16_t speed_cmd = *((int16_t *) &speed_cmd_unsigned);
+                        printf("\nCommanding motor to %d RPM!\n", speed_cmd);
+                        result = motor_driver.set_speed(speed_cmd);
                         if (result < 0) printf("\nMotor is disabled! Enable motor with 'enable' to access this command!\n");
                         result = 0;
                     }
@@ -166,11 +190,30 @@ void process_cmd(char* buf, uint8_t len) {
                 uint16_t raw_angle = ((((uint16_t) ibuf[0]) << 6) | (((uint16_t) ibuf[1]) << 2));
                 float angular_pos = (((float) raw_angle) / 16384.0f) * 360.0f;
                 printf("Raw angle: %04X; float angle: %4.2f\n", raw_angle, angular_pos);
+                result = 0;
                 break;
             }
             case 'y': {
                 printf("\nMotor Speed: %d\n", motor_driver.get_speed());
                 printf("\nMotor Speed Filtered: %d\n", motor_driver.get_speed_filtered());
+                printf("\nMotor Speed Command: %d\n", motor_driver.get_speed_cmd());
+                printf("\nMotor Speed Setpoint: %d\n", motor_driver.get_speed_setpoint());
+                result = 0;
+                break;
+            }
+            case 'f': {
+                printf("Clearing motor driver faults!\n");
+                motor_driver.clear_faults();
+                result = 0;
+                break;
+            }
+            case 'r': {
+                int16_t old_setpoint = motor_driver.get_speed_setpoint();
+                printf("\nReversing direction!\n");
+                motor_driver.set_reverse_direction();
+                printf("\nResetting setpoint to %d RPM!\n", old_setpoint);
+                motor_driver.set_speed(old_setpoint);
+                result = 0;
                 break;
             }
             default:

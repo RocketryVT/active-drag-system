@@ -1,4 +1,5 @@
 #include "mct8316z.hpp"
+#include "fixed_point.h"
 
 static volatile uint8_t timing_pulse_slice_num = 0;
 
@@ -7,12 +8,6 @@ static void timing_pulse_callback() {
     pwm_set_counter(timing_pulse_slice_num, 0);
     pwm_set_enabled(timing_pulse_slice_num, true);
     pio_interrupt_clear(pio0, 1);
-}
-
-static bool mct8316z_update(repeating_timer_t* rt) {
-    mct8316z* motor_driver = (mct8316z *) (rt->user_data);
-    motor_driver->update();
-    return true;
 }
 
 mct8316z::mct8316z(spi_inst_t* inst) {
@@ -43,6 +38,7 @@ mct8316z::mct8316z(spi_inst_t* inst) {
     gpio_set_function(MICRO_MOTOR_PWM, GPIO_FUNC_PWM);
 
     gpio_set_function(MICRO_SPI_RX, GPIO_FUNC_SPI);
+    gpio_pull_up(MICRO_SPI_RX);
     gpio_set_function(MICRO_SPI_TX, GPIO_FUNC_SPI);
     gpio_set_function(MICRO_SPI_SCLK, GPIO_FUNC_SPI);
 
@@ -93,28 +89,31 @@ int8_t mct8316z::initialize() {
     pwm_init(slice_num, &config, true);
 
     printf("Unlocking MCT8316Z Registers...\n");
-    this->ctrl_reg_1.fields.REG_LOCK = CONTROL_REGISTER_1_REG_LOCK_UNLOCK_ALL_REGISTERS;
+    this->ctrl_reg_1.fields.REG_LOCK = 0b011;
+    printf("\nREG_LOCK_DATA: %02X\n", this->ctrl_reg_1.data);
     write_register(IC_CONTROL_REGISTER_1_ADDRESS, (this->ctrl_reg_1.data & CONTROL_REGISTER_1_MASK), this->buffer);
+
+    printf("Clearing latched fault bits...\n");
+    this->ctrl_reg_2.fields.CLR_FLAG = CONTROL_REGISTER_2_CLEAR_FAULT_CMD;
+    write_register(IC_CONTROL_REGISTER_2_ADDRESS, ((this->ctrl_reg_2.data & CONTROL_REGISTER_2_MASK) | CONTROL_REGISTER_2_RESERVED), this->buffer);
+
+    printf("Enabling push-pull mode for SDO...\n");
+    printf("Setting 200 V/us slew rate...\n");
+    printf("Setting PWM mode to asynchronous rectification with digital hall...\n");
+//    this->ctrl_reg_2.fields.SDO_MODE = CONTROL_REGISTER_2_SDO_MODE_SDO_IO_IN_PUSH_PULL_MODE;
+    this->ctrl_reg_2.fields.SLEW = CONTROL_REGISTER_2_SLEW_RATE_200_V_PER_US;
+    this->ctrl_reg_2.fields.PWM_MODE = CONTROL_REGISTER_2_PWM_MODE_ASYNCHRONOUS_RECTIFICATION_WITH_DIGITAL_HALL;
+    write_register(IC_CONTROL_REGISTER_2_ADDRESS, (this->ctrl_reg_2.data & CONTROL_REGISTER_2_MASK), this->buffer);
 
     printf("Disabling the buck converter...\n");
     this->ctrl_reg_6.fields.BUCK_DIS = CONTROL_REGISTER_6_BUCK_DISABLED;
     write_register(IC_CONTROL_REGISTER_6_ADDRESS, (this->ctrl_reg_6.data & CONTROL_REGISTER_6_MASK), this->buffer);
 
-    printf("Clearing latched fault bits...\n");
-    this->ctrl_reg_2.fields.CLR_FLAG = CONTROL_REGISTER_2_CLEAR_FAULT_CMD;
-    write_register(IC_CONTROL_REGISTER_2_ADDRESS, (this->ctrl_reg_2.data & CONTROL_REGISTER_2_MASK), this->buffer);
-
     printf("Enabling brake mode...\n");
+    printf("Counter clockwise direction...\n");
     this->ctrl_reg_7.fields.BRAKE_MODE = CONTROL_REGISTER_7_BRAKE_MODE_BRAKING;
+    this->ctrl_reg_7.fields.DIR = CONTROL_REGISTER_7_DIR_CCW;
     write_register(IC_CONTROL_REGISTER_7_ADDRESS, (this->ctrl_reg_7.data & CONTROL_REGISTER_7_MASK), this->buffer);
-
-    printf("Enabling push-pull mode for SDO...\n");
-    printf("Setting 200 V/us slew rate...\n");
-    printf("Setting PWM mode to asynchronous rectification with digital hall...\n");
-    this->ctrl_reg_2.fields.SDO_MODE = CONTROL_REGISTER_2_SDO_MODE_SDO_IO_IN_PUSH_PULL_MODE;
-    this->ctrl_reg_2.fields.SLEW = CONTROL_REGISTER_2_SLEW_RATE_200_V_PER_US;
-    this->ctrl_reg_2.fields.PWM_MODE = CONTROL_REGISTER_2_PWM_MODE_ASYNCHRONOUS_RECTIFICATION_WITH_DIGITAL_HALL;
-    write_register(IC_CONTROL_REGISTER_2_ADDRESS, (this->ctrl_reg_2.data & CONTROL_REGISTER_2_MASK), this->buffer);
 
     printf("Setting CSA gain to 0.6 V/A (artificial 2 A current limit)...\n");
     printf("Enabling active asynchronous rectification...\n");
@@ -124,10 +123,10 @@ int8_t mct8316z::initialize() {
 
     printf("Setting motor lock detection time to 500 ms...\n");
     printf("Setting motor lock response to automatic retry...\n");
-    printf("Setting FGOUT signal to communicate 1x the commutation frequency...\n");
+    printf("Setting FGOUT signal to communicate 3x the commutation frequency...\n");
     this->ctrl_reg_8.fields.MTR_LOCK_MODE = CONTROL_REGISTER_8_MTR_LOCK_MODE_AUTO_RETRY_FAULT;
     this->ctrl_reg_8.fields.MTR_LOCK_TDET = CONTROL_REGISTER_8_MTR_LOCK_DETECT_TIME_500MS;
-    this->ctrl_reg_8.fields.FGOUT_SEL = CONTROL_REGISTER_8_FGOUT_SEL_1X_COMM_FREQ;
+    this->ctrl_reg_8.fields.FGOUT_SEL = CONTROL_REGISTER_8_FGOUT_SEL_3X_COMM_FREQ;
     write_register(IC_CONTROL_REGISTER_8_ADDRESS, (this->ctrl_reg_8.data & CONTROL_REGISTER_8_MASK), this->buffer);
 
     printf("Setting phase advance to 0 degrees...\n");
@@ -144,7 +143,6 @@ int8_t mct8316z::initialize() {
     gpio_put(MICRO_MOTOR_DRVOFF, 1);
     gpio_put(MICRO_MOTOR_BRAKE, 1);
 
-    add_repeating_timer_us(-1000000 / MOTOR_UPDATE_HZ,  &mct8316z_update, ((void *) this), &(this->motor_timer));
 
     return 0;
 }
@@ -160,6 +158,7 @@ int8_t mct8316z::enable_motor() {
 }
 
 int8_t mct8316z::disable_motor() {
+    printf("\nDisabling motor!\n");
     if (motor_enabled) {
         if (motor_running) {
             brake();
@@ -179,25 +178,32 @@ int8_t mct8316z::brake() {
     pio_sm_restart(pio0, 0);
     pio_sm_restart(pio0, 1);
     this->speed_setpoint = 0;
+    this->speed_cmd = 0;
     this->motor_running = false;
     return 0;
 }
 
-int8_t mct8316z::set_speed(uint16_t speed) {
+int8_t mct8316z::set_speed(int16_t cmd) {
     int8_t result = -1;
     if (motor_enabled) {
-        this->speed_setpoint = speed;
+        if (cmd > MOTOR_MAX_SPEED) {
+            cmd = MOTOR_MAX_SPEED;
+        } else if (cmd < 500) {
+            cmd = 0;
+        }
+        this->speed_setpoint = cmd;
+        result = 0;
     } else {
         printf("Enable the motor prior to setting a speed!\n");
     }
     return result;
 }
 
-int8_t mct8316z::set_pwm(uint8_t duty) {
+int8_t mct8316z::set_pwm(int8_t duty_cycle) {
     int8_t result = -1;
-    if (duty > 100) duty = 100;
-    this->duty = duty;
-    this->speed_setpoint = (duty * SUPPLY_VOLTAGE) / 100;
+    if (duty_cycle > 100) duty_cycle = 100;
+    if (duty_cycle < 0) duty_cycle = 0;
+    this->duty = duty_cycle;
     if (motor_enabled) {
         uint16_t duty_scaled = (uint16_t) ((((uint32_t) duty) * ((uint32_t) MOTOR_PWM_WRAP)) / ((uint32_t) 100));
         pwm_set_gpio_level(MICRO_MOTOR_PWM, duty_scaled);
@@ -235,14 +241,15 @@ void mct8316z::update() {
             if (pio_sm_get_blocking(pio0, 1) == 1) {
                 if (!pio_sm_is_rx_fifo_empty(pio0, 0)) {
                     uint32_t pulse_count = pio_sm_get_blocking(pio0, 0);
-                    if (pulse_count > 5) {
-                        pulse_count = (0x100000000 - pulse_count) & 0xFFFFFFFF;
-                        speed = (pulse_count * 1000 / timing_interval_ms);
-                        speed_filtered = ((uint16_t) speed_flt.update(((s1x14) speed)));
+                    pulse_count = (0x100000000 - pulse_count) & 0xFFFFFFFF;
+                    if (pulse_count > 10) {
+                        int16_t commutation_freq_3x = (int16_t) (((uint32_t) pulse_count) * ((uint32_t) 1000) / ((uint32_t) timing_interval_ms));
+                        speed = ((commutation_freq_3x / 3) * 60);
+                        speed_filtered = ((int16_t) speed_flt.update(((s1x14) speed)));
                         motor_running = true;
                     } else {
                         speed = 0;
-                        speed_filtered = ((uint16_t) speed_flt.update(((s1x14) speed)));
+                        speed_filtered = ((int16_t) speed_flt.update(((s1x14) speed)));
                         if ((speed_filtered == 0) && (duty != 0)) {
                             printf("Something seems wrong here...\n");
                         }
@@ -251,5 +258,25 @@ void mct8316z::update() {
                 }
             }
         }
+                                                                                                    // 50 Hz
+        speed_cmd = ((int16_t) speed_pid.update(((s1x14) speed_setpoint), ((s1x14) speed_filtered), float_to_s1x14(0.02f)));
+        // printf("speed_cmd: %d\n", speed_cmd);
+        if (speed_cmd > MOTOR_MAX_SPEED) {
+            speed_cmd = MOTOR_MAX_SPEED;
+        } else if (speed_cmd < 0) {
+            speed_cmd = 0;
+        }
+        duty = (int8_t) (((((int32_t) speed_cmd) * ((int32_t) 100)) / ((int32_t) SUPPLY_VOLTAGE)) / ((int32_t) MOTOR_KV));
+        set_pwm(duty);
+    } else {
+        speed = 0;
+        speed_filtered = ((int16_t) speed_flt.update(((s1x14) speed)));
+                                // 50 Hz
+        speed_pid.update(0, 0, float_to_s1x14(0.02f));
     }
+
+//    read_register(0, buffer);
+//    printf("%02X%02X\n", buffer[0], buffer[1]);
+
+//    printf("%d,%d,%d,%d\n", speed, speed_filtered, speed_cmd, speed_setpoint);
 }

@@ -11,6 +11,7 @@
 #include "pico/time.h"
 
 #include "lpf.hpp"
+#include "pid.hpp"
 #include "measure_pwm.pio.h"
 
 #define MICRO_SPI_CS        1
@@ -24,10 +25,13 @@
 #define MICRO_MOTOR_nFAULT 10
 #define MICRO_MOTOR_DRVOFF 11
 
+#define MOTOR_MAX_SPEED 25000
 #define SUPPLY_VOLTAGE 12
 #define MOTOR_KV 2333
 
 #define MOTOR_UPDATE_HZ 50
+#define MOTOR_UPDATE_DT_s1x14 ((int16_t) 328)
+
 
 #define MOTOR_PWM_WRAP 5000
 
@@ -86,17 +90,29 @@
 #define STATUS_REGISTER_FAULT 0x1
 
 // Masks to exclude bits marked as 'RESERVED' in datasheet
-#define STATUS_REGISTER_MASK	 0x11111111
-#define CONTROL_REGISTER_1_MASK  0x00000111
-#define CONTROL_REGISTER_2_MASK  0x00111111
-#define CONTROL_REGISTER_3_MASK  0x00011101
-#define CONTROL_REGISTER_4_MASK  0x11111111
-#define CONTROL_REGISTER_5_MASK  0x01001111
-#define CONTROL_REGISTER_6_MASK  0x00011111
-#define CONTROL_REGISTER_7_MASK  0x00011111
-#define CONTROL_REGISTER_8_MASK  0x11011111
-#define CONTROL_REGISTER_9_MASK  0x00000111
-#define CONTROL_REGISTER_10_MASK 0x00011111
+#define STATUS_REGISTER_MASK	 0b11111111
+#define CONTROL_REGISTER_1_MASK  0b00000111
+#define CONTROL_REGISTER_2_MASK  0b00111111
+#define CONTROL_REGISTER_3_MASK  0b00011101
+#define CONTROL_REGISTER_4_MASK  0b11111111
+#define CONTROL_REGISTER_5_MASK  0b01001111
+#define CONTROL_REGISTER_6_MASK  0b00011111
+#define CONTROL_REGISTER_7_MASK  0b00011111
+#define CONTROL_REGISTER_8_MASK  0b11011111
+#define CONTROL_REGISTER_9_MASK  0b00000111
+#define CONTROL_REGISTER_10_MASK 0b00011111
+
+// Masks to exclude bits marked as 'RESERVED' in datasheet
+#define CONTROL_REGISTER_1_RESERVED  0b00000000
+#define CONTROL_REGISTER_2_RESERVED  0b10000000
+#define CONTROL_REGISTER_3_RESERVED  0b01000010
+#define CONTROL_REGISTER_4_RESERVED  0b00000000
+#define CONTROL_REGISTER_5_RESERVED  0b00000000
+#define CONTROL_REGISTER_6_RESERVED  0b00000000
+#define CONTROL_REGISTER_7_RESERVED  0b00000000
+#define CONTROL_REGISTER_8_RESERVED  0b00000000
+#define CONTROL_REGISTER_9_RESERVED  0b00000000
+#define CONTROL_REGISTER_10_RESERVED 0b00000000
 
 typedef union {
 	struct {
@@ -349,20 +365,20 @@ typedef union {
 } IC_Control_Register6;
 
 // IC_Control_Register7
-#define CONTROL_REGISTER_7_HALL_HYS_5MV 0x00
-#define CONTROL_REGISTER_7_HALL_HYS_50MV 0x01
+#define CONTROL_REGISTER_7_HALL_HYS_5MV 0b0
+#define CONTROL_REGISTER_7_HALL_HYS_50MV 0b1
 
-#define CONTROL_REGISTER_7_BRAKE_MODE_BRAKING 0x00
-#define CONTROL_REGISTER_7_BRAKE_MODE_COASTING 0x01
+#define CONTROL_REGISTER_7_BRAKE_MODE_BRAKING 0b0
+#define CONTROL_REGISTER_7_BRAKE_MODE_COASTING 0b1
 
-#define CONTROL_REGISTER_7_COAST_DISABLED 0x00
-#define CONTROL_REGISTER_7_COAST_ENABLED 0x01
+#define CONTROL_REGISTER_7_COAST_DISABLED 0b0
+#define CONTROL_REGISTER_7_COAST_ENABLED 0b1
 
-#define CONTROL_REGISTER_7_BRAKE_DISABLED 0x00
-#define CONTROL_REGISTER_7_BRAKE_ENABLED 0x01
+#define CONTROL_REGISTER_7_BRAKE_DISABLED 0b0
+#define CONTROL_REGISTER_7_BRAKE_ENABLED 0b1
 
-#define CONTROL_REGISTER_7_DIR_CW 0x00
-#define CONTROL_REGISTER_7_DIR_CCW 0x01
+#define CONTROL_REGISTER_7_DIR_CW 0b0
+#define CONTROL_REGISTER_7_DIR_CCW 0b1
 
 typedef union {
 	struct {
@@ -463,7 +479,6 @@ static inline void cs_select() {
     asm volatile("nop \n nop \n nop");
 }
 
-
 static inline void cs_deselect() {
     asm volatile("nop \n nop \n nop");
     gpio_put(MICRO_SPI_CS, 1);
@@ -482,14 +497,22 @@ class mct8316z {
 
         int8_t brake();
 
-        int8_t set_speed(uint32_t speed);
+        int8_t set_speed(int16_t cmd);
 
-        uint16_t get_speed() {
+        int16_t get_speed() {
             return speed;
         }
 
-        uint16_t get_speed_filtered() {
+        int16_t get_speed_filtered() {
             return speed_filtered;
+        }
+
+        int16_t get_speed_cmd() {
+            return speed_cmd;
+        }
+
+        int16_t get_speed_setpoint() {
+            return speed_setpoint;
         }
 
         bool is_motor_enabled() {
@@ -500,7 +523,32 @@ class mct8316z {
             return motor_running;
         }
 
-        int8_t set_pwm(uint8_t duty);
+        void set_reverse_direction() {
+            reverse_direction = !reverse_direction;
+
+            printf("Unlocking MCT8316Z Registers...\n");
+            this->ctrl_reg_1.fields.REG_LOCK = CONTROL_REGISTER_1_REG_LOCK_UNLOCK_ALL_REGISTERS;
+            write_register(IC_CONTROL_REGISTER_1_ADDRESS, (this->ctrl_reg_1.data & CONTROL_REGISTER_1_MASK), this->buffer);
+
+            sleep_ms(5);
+
+            printf("Clearing latched fault bits...\n");
+            this->ctrl_reg_2.fields.CLR_FLAG = CONTROL_REGISTER_2_CLEAR_FAULT_CMD;
+            write_register(IC_CONTROL_REGISTER_2_ADDRESS, (this->ctrl_reg_2.data & CONTROL_REGISTER_2_MASK), this->buffer);
+
+            printf("Reversing direction...\n");
+            this->ctrl_reg_7.fields.DIR = (reverse_direction ? (CONTROL_REGISTER_7_DIR_CW) : (CONTROL_REGISTER_7_DIR_CCW));
+            write_register(IC_CONTROL_REGISTER_7_ADDRESS, (this->ctrl_reg_7.data & CONTROL_REGISTER_7_MASK), this->buffer);
+
+            sleep_ms(5);
+
+            printf("Locking MCT8316Z Registers...\n");
+            this->ctrl_reg_1.fields.REG_LOCK = CONTROL_REGISTER_1_REG_LOCK_LOCK_ALL_REGISTERS;
+            write_register(IC_CONTROL_REGISTER_1_ADDRESS, (this->ctrl_reg_1.data & CONTROL_REGISTER_1_MASK), this->buffer);
+
+        }
+
+        int8_t set_pwm(int8_t duty_cycle);
 
         int8_t clear_faults();
 
@@ -525,10 +573,26 @@ class mct8316z {
 
             uint8_t parity = parity_1 ^ parity_2;
 
-            buffer[0] = (rw << 7) | (addr << 1) | (parity);  // remove read bit as this is a write
+            buffer[0] = ((rw << 7) | (addr << 1) | (parity));  // remove read bit as this is a write
             buffer[1] = data;
+
+            uint8_t rx_buffer[2] = {0, 0};
+
             cs_select();
-            spi_write_blocking(inst, buffer, 2);
+
+            if (addr == IC_CONTROL_REGISTER_7_ADDRESS || addr == IC_CONTROL_REGISTER_1_ADDRESS) {
+                spi_write_blocking(inst, buffer, 1);
+                spi_write_blocking(inst, (buffer + 1), 1);
+                printf("NEW DATA: %02X or %02X\n", data, buffer[1]);
+                printf("OLD DATA: %02X%02X\n", rx_buffer[0], rx_buffer[1]);
+                read_register(addr, rx_buffer);
+                printf("CURRENT DATA: %02X%02X\n", rx_buffer[0], rx_buffer[1]);
+
+            } else {
+                spi_write_blocking(inst, buffer, 1);
+                spi_write_blocking(inst, (buffer + 1), 1);
+            }
+
             cs_deselect();
         };
 
@@ -544,14 +608,15 @@ class mct8316z {
             buffer[1] = 0;
 
             cs_select();
-            spi_write_blocking(spi0, buffer, 2);
-            spi_read_blocking(spi0, 0, buffer, 2);
+            spi_write_blocking(inst, buffer, 1);
+            spi_write_blocking(inst, (buffer + 1), 1);
+            spi_read_blocking(inst, 0, buffer, 2);
             cs_deselect();
             return buffer[1];
 
         };
 
-        const uint32_t timing_interval_ms =  (1000 / TIMING_PULSE_FREQUENCY * TIMING_PULSE_RATIO);
+        const uint32_t timing_interval_ms =  ((uint32_t) 1000) / ((uint32_t) TIMING_PULSE_FREQUENCY) * ((uint32_t) TIMING_PULSE_RATIO);
 
         spi_inst_t* inst;
 
@@ -571,8 +636,10 @@ class mct8316z {
         IC_Control_Register9 ctrl_reg_9;
         IC_Control_Register10 ctrl_reg_10;
 
-        uint16_t speed_setpoint = 0;
-        uint16_t speed = 0;
+        int16_t speed_setpoint = 0;
+        int16_t speed_cmd = 0;
+        int16_t speed = 0;
+        int16_t speed_filtered = 0;
 
         uint8_t duty = 0;
 
@@ -580,10 +647,12 @@ class mct8316z {
 
         bool motor_running = false;
 
-        repeating_timer_t motor_timer;
+        lpf speed_flt = lpf(MOTOR_UPDATE_HZ, 1.25f, 0.707f);
 
-        lpf speed_flt = lpf(MOTOR_UPDATE_HZ, 10.0f, 0.707f);
+        //                  Kp    Ki    Kd
+        pid speed_pid = pid(0.1125f, 0.1f, 0.0f);
 
-        uint16_t speed_filtered = 0;
+        bool reverse_direction = false;
+
 };
 

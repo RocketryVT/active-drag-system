@@ -1,9 +1,9 @@
-.define public TIMING_PULSE_RATIO      3
+.define public TIMING_PULSE_RATIO      4
 .define public INPUT_PULSE_PIN         6
 .define public TIMING_PULSE_SM_ID      0
 .define public SIDESET_PIN             5
 .define public TIMING_PULSE_PIN       16
-.define public TIMING_PULSE_FREQUENCY  158
+.define public TIMING_PULSE_FREQUENCY  128
 
 .program pulse_counter_pio
 
