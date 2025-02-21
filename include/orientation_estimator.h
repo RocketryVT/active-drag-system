@@ -30,6 +30,9 @@ class orientation_estimator {
 		void update(Vector3f z_accel);	//Kalman Gain, State Update, Covariance Update
 		void predict(Vector3f u_gyro);	//State Extrapolation, Covariance Extrapolation
 
+		//Helper methods for converting back and forth between rotation quaternions and euler angles
+		Quaternionf euler2quat(float yaw, float pitch, float roll);
+		Vector3f quat2Euler(Quaternionf quat);
 	public:
 		//Minimally parameterized constructor, intakes dt
 		kalman_filter(float dt);
@@ -46,4 +49,8 @@ class orientation_estimator {
 
 		//Calculation method - run update and predict steps with inputs, return state vector
 		VectorXf run(VectorXf z, VectorXf u, float dt);
+
+		//Getter method, return state vector (as quaternion or euler vector)
+		Quaternionf getOrientationEstQuat();
+		Vector3f 	getOrientationEstEuler();
 };

@@ -2,6 +2,8 @@
 
 #include <cmath>
 
+using std::sin, std::cos, std::atan, std::atan2, std::pow, std::sqrt;
+
 //Default constructor, input timestep and initialize internal state transition matrices
 orientation_estimator::pose_pos_kalman_estimator(float dt) {
 	//Set dt value
@@ -10,9 +12,22 @@ orientation_estimator::pose_pos_kalman_estimator(float dt) {
 
 //Run the three update equations and set the internal members they are used to calculate using measurement vector (z)
 void orientation_estimator::update(Vector3f z_accel, Vector3f z_mag) {
-	//0: Calculate the new orientation matrix (H) based on the current quaternion coefficients
-	
+	//0: Convert z_accel measurements into pitch/roll, and convert mag into earth frame and *then* into yaw
+	float a_xr = z_accel(0);
+	float a_yr = z_accel(1);
+	float a_zr = z_accel(2);
+	float m_xr = z_mag(0);
+	float m_yr = z_mag(1);
+	float m_zr = z_mag(2);
+	//TODO: I know std::pow() is inefficient; I just don't know what would be more efficient to replace it with
+	//TODO: Confirm in testing whether quaternion conversion expects radian or degree input
+	float pitch = atan(a_yr/(sqrt(pow(a_xr, 2) + pow(a_zr, 2))));	//Radians
+	float roll =  atan(a_xr/(sqrt(pow(a_yr, 2) + pow(a_zr, 2))));	//Radians
+	float yaw =   atan2(-m_yr*cos(roll) + m_zr*sin(roll), 
+						m_xr*cos(pitch) + m_yr*sin(roll*sin(pitch)+m_zr*cos(roll)*sin(pitch)));
+		
 	//1: Kalman Gain Calculation
+	Quaternionf z_quat = euler2quat(yaw, pitch, roll);
 	kalman_gain_M = proj_state_cov_M*observation_M.transpose() * (observation_M*proj_state_cov_M*observation_M.transpose() + measurement_cov_M).inverse();
 
 	//2: State Update Equation
@@ -21,8 +36,6 @@ void orientation_estimator::update(Vector3f z_accel, Vector3f z_mag) {
 	//3: Covariance Update Equation
 	state_cov_M = (I - kalman_gain_M*observation_M)*proj_state_cov_M*(I - kalman_gain_M*observation_M).transpose() + kalman_gain_M*measurement_cov_M*kalman_gain_M.transpose();
 
-	//0: Convert the accelerometer axes into fixed pitch and roll measurements by comparing axis measurement ratios
-	
 }
 
 //Extrapolate and predict the next orientation by integrating the UNBIASED gyro rates over the time step
@@ -105,4 +118,43 @@ bool kalman_filter::set_measurement_cov_M(MatrixXf R) {
 	measurement_cov_M = R;
 
 	return true;
+}
+
+//Helper method, convert 3 euler angles to equivalent rotation quaternion - directly from Wikipedia
+Quaternionf euler2quat(float yaw, float pitch, float roll) {
+	float cr = cos(roll * 0.5);
+    float sr = sin(roll * 0.5);
+    float cp = cos(pitch * 0.5);
+    float sp = sin(pitch * 0.5);
+    float cy = cos(yaw * 0.5);
+    float sy = sin(yaw * 0.5);
+
+    Quaternion q{
+    	cr * cp * cy + sr * sp * sy,
+   		sr * cp * cy - cr * sp * sy,
+    	cr * sp * cy + sr * cp * sy,
+    	cr * cp * sy - sr * sp * cy
+	};
+	
+	return q;
+}
+
+//Helper method, convert quaternion to vector of equivalent euler angles (yaw, pitch, roll) - directly from Wikipedia
+Vector3f quat2euler(Quaternionf q) {
+	// Roll
+    float sinr_cosp = 2 * (q.w * q.x + q.y * q.z);
+    float cosr_cosp = 1 - 2 * (q.x * q.x + q.y * q.y);
+    float roll = atan2(sinr_cosp, cosr_cosp);
+
+    // Pitch
+    float sinp = sqrt(1 + 2 * (q.w * q.y - q.x * q.z));
+    float cosp = sqrt(1 - 2 * (q.w * q.y - q.x * q.z));
+    float pitch = 2 * atan2(sinp, cosp) - M_PI / 2;
+
+    // Yaw 
+    float siny_cosp = 2 * (q.w * q.z + q.x * q.y);
+    float cosy_cosp = 1 - 2 * (q.y * q.y + q.z * q.z);
+    float yaw = atan2(siny_cosp, cosy_cosp);
+
+    return {yaw, pitch, roll};
 }
