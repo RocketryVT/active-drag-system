@@ -13,7 +13,7 @@
 #define ALT_ADDR 0x77
 #define IMU_ADDR 0x68
 #define ACC_ADDR 0x1D
-#define MAG_ADDR
+#define MAG_ADDR 0x30
 
 #define MAX_SCL 400000
 
@@ -35,7 +35,7 @@ int main() {
     gpio_put(PICO_DEFAULT_LED_PIN, 1);
 
 
-/*IIM-42653
+/*IIM-42653 - Init ---------------------------------------------------------------------
 	//Enable 40kHz clock output on GPIO 21
 	//0x06 is for clock source, 3125 is 125MHz to 40kHz divider
 	clock_gpio_init(23, 0x6, 3125);	//TODO: Store these constants somewhere?
@@ -53,22 +53,29 @@ int main() {
     i2c_write_blocking(i2c0, IMU_ADDR, imu_act, 2, true);
     sleep_ms(100);
     uint8_t buf[12] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-IIM-42653*/
+IIM-42653 - Init ----------------------------------------------------------------------- */
 
 //    alarm_pool_init_default();
 
     getchar();
-
+	
+	// ([ODR]) --> (BW_RATE)
     uint8_t acc_act[2] = {0x2C, 0x0D};
     i2c_write_blocking(i2c0, ACC_ADDR, acc_act, 2, true);
-    acc_act[0] = 0x2D;
+    
+	// ([MEASURE MODE]) --> (POWER_CTL)
+	acc_act[0] = 0x2D;
     acc_act[1] = 0x08;
     i2c_write_blocking(i2c0, ACC_ADDR, acc_act, 2, true);
-    acc_act[0] = 0x31;
+    
+	// ([DEFAULT]) --> (DATA_FORMAT)
+	acc_act[0] = 0x31;
     acc_act[1] = 0b00001011;
     i2c_write_blocking(i2c0, ACC_ADDR, acc_act, 2, true);
-    sleep_ms(10);
-/*MS5607
+    
+	sleep_ms(10);
+
+/* MS5607 - Init ------------------------------------------------------------------------
 //    uint8_t cmd = 0x1E;
 //    uint8_t prom_raw[12] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 //
@@ -100,7 +107,7 @@ IIM-42653*/
 //    }
 //
 //    printf("\n");
-MS5607 */
+MS5607 - Init -------------------------------------------------------------------------- */
 
 /* IIM-42653
     float accel_x, accel_y, accel_z, gyro_x, gyro_y, gyro_z;
@@ -111,35 +118,35 @@ IIM-42653*/
     float accel_high_x, accel_high_y, accel_high_z;
     uint8_t acc_reg = 0x32;
     uint8_t buf[6] = {0, 0, 0, 0, 0, 0};
-    while (1) {
+    
+	while (1) {
         start_time = get_absolute_time();
-        i2c_write_blocking(i2c0, ACC_ADDR, &acc_reg, 1, true);
-        i2c_read_blocking(i2c0, ACC_ADDR, buf, 6, false);
 
+        // Read data buffer (0x32 - 0x37)
+		i2c_write_blocking(i2c0, ACC_ADDR, &acc_reg, 1, true);
+        i2c_read_blocking(i2c0, ACC_ADDR, buf, 6, false);
+	
+		// Split buffer into individual fields
         int16_t x, y, z;
         x = y = z = 0;
-
-        x = ((int16_t) buf[0]) | ((int16_t) buf[1] << 8);
-
+	    x = ((int16_t) buf[0]) | ((int16_t) buf[1] << 8);
         y = ((int16_t) buf[2]) | ((int16_t) buf[3] << 8);
-
         z = ((int16_t) buf[4]) | ((int16_t) buf[5] << 8);
-
-        accel_high_x = ((float) x) / 20.5;
-
+		
+		// Divide by scale factor
+        accel_high_x = ((float) x) / 20.5;	//TODO: Add calibration for scale factor
         accel_high_y = ((float) y) / 20.5;
-
         accel_high_z = ((float) z) / 20.5;
 
         end_time = get_absolute_time();
-
         int64_t micros = absolute_time_diff_us(start_time, end_time);
 
         printf("accel_x: %4.2f, accel_y: %4.2f, accel_z: %4.2f, time: %" PRIi64 "\n",
                 accel_high_x, accel_high_y, accel_high_z, micros);
 
         sleep_ms(100);
-/* IIM-42653
+
+/* IIM-42653 - Output --------------------------------------------------------------------
 //        start_time = get_absolute_time();
 //        i2c_write_blocking(i2c0, IMU_ADDR, &imu_reg, 1, true);
 //        i2c_read_blocking(i2c0, IMU_ADDR, buf, 12, false);
@@ -175,13 +182,12 @@ IIM-42653*/
 //        printf("accel_x: %4.2f, accel_y: %4.2f, accel_z: %4.2f, gyro_x: %4.2f, gyro_y: %4.2f, gyro_z: %4.2f, time: %" PRIi64 "\n",
 //                accel_x, accel_y, accel_z, gyro_x, gyro_y, gyro_z, micros);
 //        sleep_ms(100);
-IIM-42653 */
+IIM-42653 - Output ------------------------------------------------------------------------ */
 
+/* MS5607 - Alarm Configuration -----------------------------------------------------------
 //        i2c_write_blocking(i2c0, ALT_ADDR, &cmd, 1, true);
 //
 //        add_alarm_in_us(500, &pressure_read_callback, NULL, true);
-//
-//
 //
 //        while (!temperature_available) {}
 //        
@@ -195,8 +201,9 @@ IIM-42653 */
 //        int32_t actual_pres = (int32_t) ((((((int64_t) pressure_adc) * SENS) >> 21) - OFF) >> 15);
 
         // printf("Pressure: %4.2f\nTemperature: %4.2f\nTime to Convert: %" PRIi64 " us\n", ((float) (actual_pres)) / 100.0f, ((float) (actual_temp)) / 100.0f, microseconds);
-    }
+MS5607 - Alarm Configuration ---------------------------------------------------------------- */
 
+	}
 }
 
 // int64_t pressure_read_callback(alarm_id_t id, void* user_data) {
@@ -212,7 +219,7 @@ IIM-42653 */
 //     add_alarm_in_us(500, &temperature_read_callback, NULL, true);
 //     return 0;
 // }
-// 
+
 // int64_t temperature_read_callback(alarm_id_t id, void* user_data) {
 //     uint8_t cmd = 0;
 //     uint8_t buffer[3] = {0, 0, 0};
