@@ -13,7 +13,7 @@ static void timing_pulse_callback() {
 mct8316z::mct8316z(spi_inst_t* inst) {
     this->inst = inst;
 
-    spi_init(this->inst, 5000000);
+    spi_init(this->inst, 1000000);
 
     gpio_init(MICRO_MOTOR_BRAKE);
     gpio_set_dir(MICRO_MOTOR_BRAKE, GPIO_OUT);
@@ -100,7 +100,7 @@ int8_t mct8316z::initialize() {
     printf("Enabling push-pull mode for SDO...\n");
     printf("Setting 200 V/us slew rate...\n");
     printf("Setting PWM mode to asynchronous rectification with digital hall...\n");
-//    this->ctrl_reg_2.fields.SDO_MODE = CONTROL_REGISTER_2_SDO_MODE_SDO_IO_IN_PUSH_PULL_MODE;
+    this->ctrl_reg_2.fields.SDO_MODE = CONTROL_REGISTER_2_SDO_MODE_SDO_IO_IN_PUSH_PULL_MODE;
     this->ctrl_reg_2.fields.SLEW = CONTROL_REGISTER_2_SLEW_RATE_200_V_PER_US;
     this->ctrl_reg_2.fields.PWM_MODE = CONTROL_REGISTER_2_PWM_MODE_ASYNCHRONOUS_RECTIFICATION_WITH_DIGITAL_HALL;
     write_register(IC_CONTROL_REGISTER_2_ADDRESS, (this->ctrl_reg_2.data & CONTROL_REGISTER_2_MASK), this->buffer);
@@ -145,6 +145,42 @@ int8_t mct8316z::initialize() {
 
 
     return 0;
+}
+
+uint8_t mct8316z::get_status() {
+    stat_reg.data = read_register(IC_STATUS_REGISTER_ADDRESS, this->buffer);
+    stat_reg_1.data = read_register(IC_STATUS_REGISTER_1_ADDRESS, this->buffer);
+    stat_reg_2.data = read_register(IC_STATUS_REGISTER_1_ADDRESS, this->buffer);
+
+    if (stat_reg.fields.FAULT == STATUS_REGISTER_FAULT) {
+        printf("\nThere is a fault!\n");
+    }
+
+    if (stat_reg.fields.MTR_LOCK == STATUS_REGISTER_MOTOR_LOCK) {
+        printf("\nMotor lock!\n");
+    }
+
+    if (stat_reg.fields.BK_FLT == STATUS_REGISTER_BUCK_FAULT) {
+        printf("\nBuck fault!\n");
+    }
+
+    if (stat_reg.fields.SPI_FLT == STATUS_REGISTER_SPI_FAULT) {
+        printf("\nSPI fault!\n");
+    }
+
+    if (stat_reg.fields.OCP == STATUS_REGISTER_OVERCURRENT) {
+        printf("\nOvercurrent fault!\n");
+    }
+
+    if (stat_reg.fields.OVP == STATUS_REGISTER_OVERVOLTAGE) {
+        printf("\nOvervoltage fault!\n");
+    }
+
+    if (stat_reg.fields.OT == STATUS_REGISTER_OVERTEMPERATURE) {
+        printf("\nOvertemperature fault!\n");
+    }
+
+    return stat_reg.data;
 }
 
 int8_t mct8316z::enable_motor() {

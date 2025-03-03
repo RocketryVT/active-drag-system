@@ -491,6 +491,8 @@ class mct8316z {
 
         int8_t initialize();
 
+        uint8_t get_status();
+
         int8_t enable_motor();
 
         int8_t disable_motor();
@@ -575,25 +577,15 @@ class mct8316z {
 
             buffer[0] = ((rw << 7) | (addr << 1) | (parity));  // remove read bit as this is a write
             buffer[1] = data;
-
-            uint8_t rx_buffer[2] = {0, 0};
+            buffer[2] = 0;
+            buffer[3] = 0;
 
             cs_select();
-
-            if (addr == IC_CONTROL_REGISTER_7_ADDRESS || addr == IC_CONTROL_REGISTER_1_ADDRESS) {
-                spi_write_blocking(inst, buffer, 1);
-                spi_write_blocking(inst, (buffer + 1), 1);
-                printf("NEW DATA: %02X or %02X\n", data, buffer[1]);
-                printf("OLD DATA: %02X%02X\n", rx_buffer[0], rx_buffer[1]);
-                read_register(addr, rx_buffer);
-                printf("CURRENT DATA: %02X%02X\n", rx_buffer[0], rx_buffer[1]);
-
-            } else {
-                spi_write_blocking(inst, buffer, 1);
-                spi_write_blocking(inst, (buffer + 1), 1);
-            }
-
+            spi_write_read_blocking(inst, buffer, (buffer + 2), 2);
             cs_deselect();
+
+            printf("Wrote %02X to Register %02X\n", buffer[1], addr);
+            printf("Received %02X Status with Register's Old Data %02X\n", buffer[2], buffer[3]); 
         };
 
         uint8_t read_register(uint8_t addr, uint8_t* buffer) {
@@ -606,13 +598,16 @@ class mct8316z {
 
             buffer[0] = (rw << 7) | (addr << 1) | (parity);
             buffer[1] = 0;
+            buffer[2] = 0;
+            buffer[3] = 0;
 
             cs_select();
-            spi_write_blocking(inst, buffer, 1);
-            spi_write_blocking(inst, (buffer + 1), 1);
-            spi_read_blocking(inst, 0, buffer, 2);
+            spi_write_read_blocking(inst, buffer, (buffer + 2), 2);
             cs_deselect();
-            return buffer[1];
+
+            printf("Wrote %02X to Register %02X\n", buffer[1], addr);
+            printf("Received %02X Status with Register's Old Data %02X\n", buffer[2], buffer[3]); 
+            return buffer[3];
 
         };
 

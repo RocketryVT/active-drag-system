@@ -216,6 +216,11 @@ void process_cmd(char* buf, uint8_t len) {
                 result = 0;
                 break;
             }
+            case 'x': {
+                motor_driver.get_status();
+                result = 0;
+                break;
+            }
             default:
                 break;
         }
