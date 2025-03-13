@@ -516,7 +516,7 @@
       "gencad": "",
       "idf": "",
       "netlist": "",
-      "plot": "/Users/dawsyn/Documents/ads-rev2-gerbers/",
+      "plot": "/Users/dawsyn/Documents/ads-rev2-backup-gerbers/",
       "pos_files": "",
       "specctra_dsn": "",
       "step": "",
@@ -714,10 +714,6 @@
     [
       "06b86c43-5f09-4cf5-93b8-7c4302900338",
       "Sensors"
-    ],
-    [
-      "89f8c4fc-f49b-45ac-beea-b4e4de3a981e",
-      "Motor Driver"
     ]
   ],
   "text_variables": {}

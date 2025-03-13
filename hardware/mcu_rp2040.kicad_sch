@@ -7580,7 +7580,25 @@
 			"AABMAAAAQgAAAEEAAABjAAAAQQAAAEEAAABBAAAARAAAAEEAAABaAAAATAAAAFIAAABTAAAAcgAA"
 			"ADAAAABKAAAAcwAAAEEAAABBAAAAQwAAAFEAAAA3AAAAVQAAAE4AAABFAAAAZgAAAE4AAABtAAAA"
 			"SAAAAG8AAABBAAAAQQAAAEEAAABBAAAAQQAAAEEAAABBAAAAOQAAAEoAAABqAAAAZwAAAEEAAABB"
-			"AAAAQQ=="
+			"AAAAQf//////////////////////////////////////////////////////////////////////"
+			"/////////////////////////////////////////////38AAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+			"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+			"AAAA////////////////////////////////////////////////////////////////////////"
+			"////////////////////////////////////////////////fwAAAAAAAAAAAAAAAAAAAAAAAAAA"
+			"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+			"AAAAAP//////////////////////////////////////////////////////////////////////"
+			"//////////////////////////////////////////////////9/AAAAAAAAAAAAAAAAAAAAAAAA"
+			"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+			"AAAAAAD/////////////////////////////////////////////////////////////////////"
+			"/////////////////////////////////////////////////////38AAAAAAAAAAAAAAAAAAAAA"
+			"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+			"AAAAAAAA////////////////////////////////////////////////////////////////////"
+			"////////////////////////////////////////////////////////fwAAAAAAAAAAAAAAAAAA"
+			"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+			"AAAAAAAAAP//////////////////////////////////////////////////////////////////"
+			"//////////////////////////////////////////////////////////9/AAAAAAAAAAAAAAAA"
+			"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+			"AAAAAA=="
 		)
 	)
 	(label "QSPI_SCLK"
@@ -7795,17 +7813,6 @@
 		)
 		(uuid "0350b927-88ff-4d53-a219-f49612937bc4")
 	)
-	(hierarchical_label "SPI0_RX"
-		(shape input)
-		(at 106.68 97.79 180)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify right)
-		)
-		(uuid "03c80c36-b21a-498a-a540-a6cd0f642351")
-	)
 	(hierarchical_label "VDD"
 		(shape input)
 		(at 27.94 27.94 0)
@@ -7816,17 +7823,6 @@
 			(justify left)
 		)
 		(uuid "08fa4161-ab86-4a8d-b897-16a1624b64a6")
-	)
-	(hierarchical_label "FGOUT"
-		(shape input)
-		(at 106.68 100.33 180)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify right)
-		)
-		(uuid "15124681-c163-495a-811d-a889ce8be52b")
 	)
 	(hierarchical_label "I2C0_SDA"
 		(shape bidirectional)
@@ -7861,16 +7857,16 @@
 		)
 		(uuid "33c0e5c1-294c-4055-adb3-e0db424b54c2")
 	)
-	(hierarchical_label "BRAKE"
+	(hierarchical_label "SERVO_ENABLE"
 		(shape output)
-		(at 106.68 110.49 180)
+		(at 106.68 97.79 180)
 		(effects
 			(font
 				(size 1.27 1.27)
 			)
 			(justify right)
 		)
-		(uuid "41201d64-e3cd-4550-8c64-a0549ceab6c0")
+		(uuid "390f4247-366d-4d3c-9143-b1e7b2f19f69")
 	)
 	(hierarchical_label "VDD"
 		(shape input)
@@ -7938,17 +7934,6 @@
 		)
 		(uuid "579c7c12-3168-40d7-ac14-1c5b48bdb92e")
 	)
-	(hierarchical_label "SPI0_CSn0"
-		(shape output)
-		(at 106.68 90.17 180)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify right)
-		)
-		(uuid "60dbccaf-a4a9-411d-b3e4-90e999d11542")
-	)
 	(hierarchical_label "UART0_TX"
 		(shape output)
 		(at 125.73 138.43 270)
@@ -7982,17 +7967,6 @@
 		)
 		(uuid "81190b55-e072-4041-abfc-71f7b5618fbe")
 	)
-	(hierarchical_label "nFAULT"
-		(shape input)
-		(at 106.68 115.57 180)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify right)
-		)
-		(uuid "930eca03-9c47-4fb5-b346-dd1730ab9c89")
-	)
 	(hierarchical_label "LED_OUT"
 		(shape output)
 		(at 177.8 97.79 0)
@@ -8003,17 +7977,6 @@
 			(justify left)
 		)
 		(uuid "a1bb80d5-afc1-4e56-aafd-de28022fb10a")
-	)
-	(hierarchical_label "DRVOFF"
-		(shape output)
-		(at 106.68 118.11 180)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify right)
-		)
-		(uuid "a40fce94-93d6-4fa5-86e4-0cb655280440")
 	)
 	(hierarchical_label "I2C0_SCL"
 		(shape bidirectional)
@@ -8036,17 +7999,6 @@
 			(justify left)
 		)
 		(uuid "aa1640e7-a4c3-40c3-a32a-b97e8fd81a6c")
-	)
-	(hierarchical_label "SPI0_TX"
-		(shape output)
-		(at 106.68 95.25 180)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify right)
-		)
-		(uuid "aab77470-0e93-486c-994c-4bb1b2ad169c")
 	)
 	(hierarchical_label "I2C0_SDA"
 		(shape bidirectional)
@@ -8080,17 +8032,6 @@
 			(justify left)
 		)
 		(uuid "b6f29e58-c4af-4539-b164-42b500cc45d3")
-	)
-	(hierarchical_label "SPI0_SCK"
-		(shape output)
-		(at 106.68 92.71 180)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify right)
-		)
-		(uuid "bfbe016d-3c58-4028-a78c-11d4664bbfc7")
 	)
 	(hierarchical_label "CLKOUT"
 		(shape output)
@@ -8168,17 +8109,6 @@
 			(justify left)
 		)
 		(uuid "f7990d90-4fa7-4524-bf32-759506602daa")
-	)
-	(hierarchical_label "nSLEEP"
-		(shape output)
-		(at 106.68 113.03 180)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify right)
-		)
-		(uuid "fbd704c9-fa91-4bd0-8092-4ada6d8ce873")
 	)
 	(symbol
 		(lib_id "Device:C")
