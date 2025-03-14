@@ -4,8 +4,9 @@
 #include "hardware/i2c.h"
 #include "hardware/gpio.h"
 
-#define BARO_I2C_ADDR (0x77)
+#include "sensor_i2c.hpp"
 
+#define BARO_I2C_ADDR (0x77)
 #define LOW_TEMP_THRESHOLD 20	//Temperature in C below which compensation is needed in digital conversion
 
 /*General Commands*/
@@ -40,7 +41,7 @@ enum {
 	BARO_CONVERT_TEMP_4096 = (0x58)
 };
 
-class altimeter {
+class altimeter : protected sensor_i2c {
 	private:
 		i2c_inst_t* inst;
 		
