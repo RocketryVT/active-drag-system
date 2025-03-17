@@ -1,9 +1,14 @@
+#include <cstdint>
 #include <stdio.h>
+
 #include "pico/platform.h"
 #include "pico/stdlib.h"
 #include "boards/pico.h"
 #include "pico/stdio.h"
 #include "pico/time.h"
+#include "pico/types.h"
+
+#include "hardware/clocks.h"
 #include "hardware/gpio.h"
 #include "hardware/i2c.h"
 #include "hardware/adc.h"
@@ -34,19 +39,36 @@ magnetometer mag(i2c_default);
 int main() {
 	//Initialize all necessary RP2040 functions
 	stdio_init_all();
-	stdio_usb_init();
-	uart_init(uart0, MAX_UART_CLOCK);
-	i2c_init(i2c_default, MAX_I2C_CLOCK);
+//	stdio_usb_init();
+//	uart_init(uart0, MAX_UART_CLOCK);
+	i2c_init(i2c0, MAX_I2C_CLOCK);
 
 	//Configure GPIO as necessary
 	gpio_set_function(SDA_GPIO, GPIO_FUNC_I2C);
 	gpio_set_function(SCL_GPIO, GPIO_FUNC_I2C);
-	gpio_pull_up(SDA_GPIO);
-	gpio_pull_up(SCL_GPIO);
+//	gpio_pull_up(SDA_GPIO);
+//	gpio_pull_up(SCL_GPIO);
+
 	gpio_init(PICO_DEFAULT_LED_PIN);	//Board LED connected to pin 25, same as pico default
 	gpio_set_dir(PICO_DEFAULT_LED_PIN, GPIO_OUT);
+	gpio_put(PICO_DEFAULT_LED_PIN, 1);
+	sleep_ms(500);
+	gpio_put(PICO_DEFAULT_LED_PIN, 0);
+	sleep_ms(500);
+	gpio_put(PICO_DEFAULT_LED_PIN, 1);
 	
-	sleep_ms(3000);
+	getchar();
+	
+	sleep_ms(250);
+	gpio_put(PICO_DEFAULT_LED_PIN, 0);
+	sleep_ms(250);
+	gpio_put(PICO_DEFAULT_LED_PIN, 1);
+	sleep_ms(250);
+	gpio_put(PICO_DEFAULT_LED_PIN, 0);
+	sleep_ms(250);
+	gpio_put(PICO_DEFAULT_LED_PIN, 1);
+	sleep_ms(1000);
+
 	printf("RP2040 INITIALIZED, BEGINNING PERIPHERAL INITIALIZATION\n");
 
 	//Run all peripheral initialization routines
