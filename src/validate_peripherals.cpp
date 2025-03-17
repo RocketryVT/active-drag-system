@@ -15,10 +15,10 @@
 #define SCL_GPIO 21
 
 //Instantiate all peripherals
-//mid_imu mid(i2c0);
-//high_accel high(i2c0);
+mid_imu mid(i2c0);
+high_accel high(i2c0);
 //altimeter alt(i2c0);
-//magnetometer mag(i2c0);
+magnetometer mag(i2c0);
 
 //Run all the initialization routines for each of the peripherals and confirm that they're all running properly
 int main() {
@@ -54,12 +54,16 @@ int main() {
 	sleep_ms(1000);
 
 	printf("RP2040 INITIALIZED, BEGINNING PERIPHERAL INITIALIZATION\n");
-/*
+
 	//Run all peripheral initialization routines
 	mid.initialize();
+	printf("IMU INITIALIZED SUCCESSFULLY!\n");
 	high.initialize();
+	printf("HIGH-G ACCELEROMETER INITIALIZED SUCCESSFULLY!\n");
 //	alt.initialize();
+//	printf("ALTIMETER INITIALIZED SUCCESSFULLY!\n");
 	mag.initialize();
+	printf("MAGNETOMETER INITIALIZED SUCCESSFULLY!\n");
 	
 	printf("PERIPHERAL INITIALIZATION COMPLETE, BEGINNING VALIDATION\n");
 
@@ -73,7 +77,7 @@ int main() {
 //	if (!altValid) printf("ALTIMETER VALIDATION FAILED!\n");
 	if (!magValid) printf("MAGNETOMETER VALIDATION FAILED!\n");
 	printf("COMPLETED PERIPHERAL VALIDATION! IF NO ERROR MESSAGE SENT, PERIPHERAL VALIDATED SUCCESSFULLY\n");
-*/	
+
 	while (true) {
 		gpio_put(PICO_DEFAULT_LED_PIN, 1);
 		sleep_ms(125);
