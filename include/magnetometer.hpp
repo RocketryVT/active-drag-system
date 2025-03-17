@@ -1,9 +1,5 @@
 #pragma once
 
-#include "pico/stdlib.h"
-#include "hardware/i2c.h"
-#include "hardware/gpio.h"
-
 #include "sensor_i2c.hpp"
 
 #define MAG_I2C_ADDR 0x30
