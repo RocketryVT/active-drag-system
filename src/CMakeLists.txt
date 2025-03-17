@@ -19,7 +19,7 @@ add_executable(validatePeripherals
 	peripheral_validation_test.cpp
 	mid_imu.cpp
 	high_accel.cpp
-	altimeter.cpp
+	#	altimeter.cpp
 	magnetometer.cpp
 	sensor_i2c.cpp
 )
