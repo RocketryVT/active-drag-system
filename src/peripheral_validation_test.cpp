@@ -9,7 +9,7 @@
 #include "hardware/adc.h"
 
 #include "mid_imu.hpp"
-#include "high_imu.hpp"
+#include "high_accel.hpp"
 #include "altimeter.hpp"
 #include "magnetometer.hpp"
 
@@ -26,7 +26,7 @@
 
 //Instantiate all peripherals
 mid_imu mid(i2c_default);
-high_imu high(i2c_default);
+high_accel high(i2c_default);
 altimeter alt(i2c_default);
 magnetometer mag(i2c_default);
 

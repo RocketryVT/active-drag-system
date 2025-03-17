@@ -4,22 +4,79 @@
 #include "hardware/i2c.h"
 #include "hardware/gpio.h"
 
+#include "sensor_i2c.hpp"
+
 #define MAG_I2C_ADDR 0x30
 
-//Hard definitions will be refactored as tables for full driver
-#define c_READ_PRODID 0x2F
-#define v_PRODID_RESPONSE 0x30
-
-class magnetometer {
-	private:
-		i2c_inst* inst;
-		uint8_t buffer[4];
-
+class magnetometer : protected sensor_i2c {
 	public:
+		//Default constructor, pass I2C instance
 		magnetometer(i2c_inst_t* inst);
+		
+		//Sensor configuration/status check routines
+		void initialize() override;
+		bool validate() override;
+		
+		//Sensor calibration routines
+		void calibrateBridgeOffset();
 
-		void initialize();
+		//Sensor data output
+		Vector3f getData();	
+	
+	private:
+		//Sensor offsets, calculated via performing set/reset measurement routine
+		Vector3f bridgeOffset;
+		
+		/* Xout1 - XYZout2 [Output, 18b X/Y/Z as 2-Byte chunks + 1 Byte with (X1:0,Y1:0,Z1:0,0,0)] */
+		enum {
+			R_MAG_XOUT0 = (0x00),
+			R_MAG_XOUT1 = (0x01),
+			R_MAG_YOUT0 = (0x02),
+			R_MAG_YOUT1 = (0x03),
+			R_MAG_ZOUT0 = (0x04),
+			R_MAG_ZOUT1 = (0x05),
+			R_MAG_XYZOUT2 = (0x06)
+		};
+		const float S_MAG_SENSITIVITY_FACTOR = 0.0000625f;	//TODO: Confirm G output instead of mG
 
-		bool validate();
+		/* Tout [Output, 8b Temperature] */
+		enum {
+			R_MAG_TOUT = (0x07)
+		};
 
+		/* Status [State Output, Check for whether Mag/Temp measurements are done] */
+		enum {
+			R_MAG_STATUS = (0x08),
+			b_MAG_STATUS_MEAS_M_DONE = (1 << 0),
+			b_MAG_STATUS_MEAS_T_DONE = (1 << 1)
+		};
+
+		/* Internal Control 0 [State Configuration, Start measurements and control Set/Reset functionality] */
+		enum {
+			R_MAG_INTERNAL_CONTROL_0 = (0x09),
+			b_MAG_INTERNAL_CONTROL_0_TM_M = (1 << 0),
+			b_MAG_INTERNAL_CONTROL_0_TM_T = (1 << 1),
+			b_MAG_INTERNAL_CONTROL_0_SET = (1 << 3),
+			b_MAG_INTERNAL_CONTROL_0_RESET = (1 << 4)
+		};
+
+		/* Internal Control 1 [Configuration, Decimation filter bandwidth] */
+		enum {
+			R_MAG_INTERNAL_CONTROL_1 = (0x0A),
+			B_MAG_INTERNAL_CONTROL_1_FLT_BW_800HZ = (0x03)	//Anything narrower increases latency to outside scope
+		};
+
+		/* Internal Control 2 [State Configuration, Continuous measurement frequency/enable CM Mode */
+		enum {
+			R_MAG_INTERNAL_CONTROL_2 = (0x0B),
+			B_MAG_INTERNAL_CONTROL_2_CM_OFF = (0x00),
+			B_MAG_INTERNAL_CONTROL_2_CM_FREQ_1000HZ = (0x07),	//Next lowest continuous is 200Hz
+			b_MAG_INTERNAL_CONTROL_2_CMM_EN = (1 << 3)
+		};
+
+		/* Product ID 1 [Validation] */
+		enum {
+			R_MAG_PRODUCT_ID = (0x2F),
+			B_MAG_PRODUCT_ID_VALUE = (0x30)
+		};
 };

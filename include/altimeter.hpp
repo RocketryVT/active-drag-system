@@ -43,7 +43,6 @@ enum {
 
 class altimeter : protected sensor_i2c {
 	private:
-		i2c_inst_t* inst;
 		
 		//Calibration coefficients, loaded during sensor initialization
 		uint16_t c1;	//Pressure Sensitivity
@@ -77,15 +76,19 @@ class altimeter : protected sensor_i2c {
 	    void requestPressureConversion();
 
 	public: 
+		//Default constructor, pass I2C instance
 		altimeter(i2c_inst_t* inst);
-
-		void initialize();
-		bool validate();
-
+		
+		//Sensor configuration/status check routines
+		void initialize() override;
+		bool validate() override;
+		
+		//Sensor polls for data requests
 		float getTemperature();
 		float getPressure();
 		float getAltitude();
 		
+		//Status checks for data readiness
 		bool isFreshAltAvailable();
 		void forceUpdateTemperature();		
 };
