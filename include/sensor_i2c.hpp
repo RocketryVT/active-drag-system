@@ -22,7 +22,8 @@ class sensor_i2c {
 		uint8_t read_register_byte(const uint8_t reg);						//Read register, return raw byte
 		bool check_register_bit(const uint8_t reg, const int bit);			//Read register, return bit (0 = LSB)
 		bool check_register_byte(const uint8_t reg, const uint8_t byte);	//Read register, check if byte matches
-		uint8_t* read_register_buffer(const uint8_t reg, int numBytes);	//Read multiple registers, return array
+		//Read multiple sequential registers into passed array of parameterized size
+		void read_register_buffer_into_array(const uint8_t reg, uint8_t buffer[], const int numBytes);
 		
 		//Write a single bit to a register to start a process, check it until it completes, and print the op time (ms)
 		void test_print_operation_time(const uint8_t reg, const uint8_t mask);

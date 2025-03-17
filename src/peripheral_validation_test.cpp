@@ -10,7 +10,7 @@
 
 #include "mid_imu.hpp"
 #include "high_accel.hpp"
-#include "altimeter.hpp"
+//#include "altimeter.hpp"
 #include "magnetometer.hpp"
 
 #define MAX_UART_CLOCK 115200
@@ -27,7 +27,7 @@
 //Instantiate all peripherals
 mid_imu mid(i2c_default);
 high_accel high(i2c_default);
-altimeter alt(i2c_default);
+//altimeter alt(i2c_default);
 magnetometer mag(i2c_default);
 
 //Run all the initialization routines for each of the peripherals and confirm that they're all running properly
@@ -52,7 +52,7 @@ int main() {
 	//Run all peripheral initialization routines
 	mid.initialize();
 	high.initialize();
-	alt.initialize();
+//	alt.initialize();
 	mag.initialize();
 	
 	printf("PERIPHERAL INITIALIZATION COMPLETE, BEGINNING VALIDATION\n");
@@ -60,11 +60,11 @@ int main() {
 	//Run validation for all sensors and confirm
 	bool midValid = mid.validate();
 	bool highValid = high.validate();
-	bool altValid = alt.validate();
+//	bool altValid = alt.validate();
 	bool magValid = mag.validate();
 	if (!midValid) printf("MID-G IMU VALIDATION FAILED!\n");
 	if (!highValid) printf("HIGH-G IMU VALIDATION FAILED!\n");
-	if (!altValid) printf("ALTIMETER VALIDATION FAILED!\n");
+//	if (!altValid) printf("ALTIMETER VALIDATION FAILED!\n");
 	if (!magValid) printf("MAGNETOMETER VALIDATION FAILED!\n");
 	printf("COMPLETED PERIPHERAL VALIDATION! IF NO ERROR MESSAGE SENT, PERIPHERAL VALIDATED SUCCESSFULLY\n");
 	

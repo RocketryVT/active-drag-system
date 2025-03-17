@@ -31,7 +31,8 @@ bool mid_imu::validate() {
 //Read all 12 data registers at once, format them, and return as an Eigen 6-vector (Accel, Gyro)
 Vector6f mid_imu::getData() {
 	//Read ACCEL_DATA_X1_UI - GYRO_DATA_Z0_UI as a block
-	uint8_t dataBuffer[12] = read_register_buffer(R_IMU_ACCEL_DATA_X1_UI, 12);	//TODO: Confirm this formatting works
+	uint8_t dataBuffer[12] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+	read_register_buffer_into_array(R_IMU_ACCEL_DATA_X1_UI, dataBuffer, 12);	//TODO: Confirm this formatting works
 
 	//Split buffer into individial fields
 	int16_t ax, ay, az, gx, gy, gz = 0;
