@@ -1,8 +1,13 @@
 #pragma once
 
-#include <stdint.h>
-#include <hardware/i2c.h>
-#include <pico/time.h>
+#include "boards/pico.h"
+#include "pico/stdlib.h"
+#include "pico/time.h"
+
+#include "hardware/i2c.h"
+#include "hardware/clocks.h"
+#include "hardware/gpio.h"
+
 
 #include <Eigen/Dense>
 using namespace Eigen;
