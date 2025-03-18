@@ -4,17 +4,17 @@
 
 #define HIGH_I2C_ADDR 0x1D
 
-class high_accel : protected sensor_i2c {
+class high_accel : public sensor_i2c {
 	public: 
 		//Default constructor, pass I2C instance
 		high_accel(i2c_inst_t* inst);
 		
 		//Sensor configuration and status check routines
-		void initialize() override;
-		bool validate() override;
+		void initialize();
+		bool validate();
 		
 		//Sensor data return
-		Vector6f getData();
+		Vector3f getData();
 
 		//Interrupt handling
 		void clearInterrupt();

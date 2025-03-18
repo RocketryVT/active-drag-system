@@ -3,11 +3,14 @@
 //Default constructor, pass I2C instance
 high_accel::high_accel(i2c_inst_t* inst) {
 	//Configure I2C instance
-	this->configureI2C(inst, HIGH_I2C_ADDR);
+	this->bus = inst;
+	this->bus_addr = HIGH_I2C_ADDR;
 }
 
 //Run initialization and reset routines
 void high_accel::initialize() {
+	//TODO: Refactor to use multi-register buffer writes to simplify process
+
 	//Configure data parameters
 	write_register_byte(R_ACC_BW_RATE, B_ACC_ODR_800_HZ);
 	write_register_byte(R_ACC_DATA_FORMAT, B_ACC_DATA_FORMAT_DEFAULT);
@@ -15,7 +18,7 @@ void high_accel::initialize() {
 	//Configure interrupt settings and mapping
 	write_register_byte(R_ACC_THRESH_SHOCK, B_ACC_THRESH_SHOCK_1560mG);
 	write_register_byte(R_ACC_DUR, B_ACC_DUR_2500uS);
-	write_register_byte(R_ACC_SHOCK_AXES, b_ACC_SHOCK_AXES_Z);	//TODO: Figure out reasonable way to do axis handling
+	write_register_byte(R_ACC_SHOCK_AXES, b_ACC_SHOCK_AXES_Z);		//TODO: Figure out way to do axis handling
 	write_register_byte(R_ACC_INT_MAP, ~b_ACC_INT_MAP_SINGLE_SHOCK);	//TODO: Confirm mapping (0 = INT1, 1 = INT2)
 	
 	//Enable interrupts
@@ -32,10 +35,10 @@ bool high_accel::validate() {
 }
 
 //Read all six data registers in one operation, format them, and return as an eigen 3-vector
-Vector6f high_accel::getData() {
+Vector3f high_accel::getData() {
 	//Read DATAX0 - DATAZ1 as a block
 	uint8_t dataBuffer[6] = {0, 0, 0, 0, 0, 0};
-	read_register_buffer_into_array(R_ACC_DATAX0, dataBuffer, 6);	//TODO: Confirm this formatting works
+	read_register_buffer(R_ACC_DATAX0, dataBuffer, 6);	//TODO: Confirm this formatting works
 	
 	//Split buffer into individual fields
 	int16_t x, y, z = 0;
@@ -44,7 +47,7 @@ Vector6f high_accel::getData() {
 	z = ((int16_t) dataBuffer[4]) | ((int16_t) dataBuffer[5] << 8);
 	
 	//Divide by scale factor to format as float for output
-	Vector6f output;
+	Vector3f output;
 	output[0] = ((float) x) / S_ACC_SENSITIVITY_FACTOR;
 	output[1] = ((float) y) / S_ACC_SENSITIVITY_FACTOR;
 	output[2] = ((float) z) / S_ACC_SENSITIVITY_FACTOR;
@@ -52,7 +55,9 @@ Vector6f high_accel::getData() {
 	return output;
 }
 
+/*
 //Read interrupt source register to clear interrupt
 void high_accel::clearInterrupt() {
-	uint8_t intSource = read_register_byte(R_ACC_INT_SOURCE);
+	uint8_t intSource = read_register_buffer(R_ACC_INT_SOURCE);
 }
+*/

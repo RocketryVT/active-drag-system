@@ -8,35 +8,23 @@
 #include "hardware/clocks.h"
 #include "hardware/gpio.h"
 
-
+//TODO: Figure out better place to define these, shouldn't be inside sensor_i2c scope
 #include <Eigen/Dense>
 using namespace Eigen;
-
-//TODO: Figure out better place to define this typedef, only used for IMU return currently
 typedef Matrix<float, 6, 1> Vector6f;
 
 class sensor_i2c {
 	protected:
-		// I2C Internal state, set by configureI2C()
+		//I2C bus instance and address defining, used to remove the annoyance of passing them each time
 		i2c_inst_t* bus;	//Pico SDK I2C bus instance
 		uint8_t bus_addr;	//Sensor address
-		void configureI2C(i2c_inst_t* i2c, uint8_t addr);	//Pass the I2C bus instance to sensor, configure address
-
-		// Helper methods for handling common I2C bus R/W patterns
-		void write_register_byte(const uint8_t reg, const uint8_t byte);	//Write single byte to register
-		uint8_t read_register_byte(const uint8_t reg);						//Read register, return raw byte
-		bool check_register_bit(const uint8_t reg, const int bit);			//Read register, return bit (0 = LSB)
-		bool check_register_byte(const uint8_t reg, const uint8_t byte);	//Read register, check if byte matches
-		//Read multiple sequential registers into passed array of parameterized size
-		void read_register_buffer_into_array(const uint8_t reg, uint8_t buffer[], const int numBytes);
-		
-		//Write a single bit to a register to start a process, check it until it completes, and print the op time (ms)
-		void test_print_operation_time(const uint8_t reg, const uint8_t mask);
-		
 	public:
-		// Virtual methods for handling initial sensor configuration
-		virtual void initialize() = 0;	//Required override, run all initialization routines and validate
-		virtual bool validate() = 0;	//Required override, read some DEVID/WHOAMI/Other register to confirm operation
+		//Helper functions for handling I2C R/W operations
+		void write_register_byte(uint8_t reg_addr, uint8_t byte);
+		void write_register_buffer(uint8_t reg_addr, uint8_t* dataBuffer, size_t len);
+		void read_register_buffer(uint8_t reg_addr, uint8_t* data, size_t len);
 		
-		//TODO: Figure out virtual methods for real-time output updating			
+		//Helper functions for processing common I2C R/W patterns
+		bool check_register_bit(uint8_t reg_addr, const int bit);			//Read register, return bit (0 = LSB)
+		bool check_register_byte(uint8_t reg_addr, const uint8_t byte);	//Read register, check if byte matches
 };

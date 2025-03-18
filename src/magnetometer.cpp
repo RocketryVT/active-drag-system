@@ -2,7 +2,8 @@
 
 //Default constructor, pass I2C instance and configure address
 magnetometer::magnetometer(i2c_inst_t* inst) {
-	this->configureI2C(inst, MAG_I2C_ADDR);
+	this->bus = inst;
+	this->bus_addr = MAG_I2C_ADDR;
 }
 
 //Startup routine, initialize necessary values and reset
@@ -13,9 +14,10 @@ void magnetometer::initialize() {
 	//Configure and enable continuous measurement mode
 	write_register_byte(R_MAG_INTERNAL_CONTROL_2, (B_MAG_INTERNAL_CONTROL_2_CM_FREQ_1000HZ | 
 												   b_MAG_INTERNAL_CONTROL_2_CMM_EN));
-
+	
+	//TODO: Figure out what amount of calibration the bridge offset actually adds/if it's necessary
 	//Initial calibration of bridge offset on startup
-	calibrateBridgeOffset();
+	//calibrateBridgeOffset();
 }
 
 //Read product ID register and return whether result matches expected (default) response
@@ -27,7 +29,7 @@ bool magnetometer::validate() {
 Vector3f magnetometer::getData() {
 	//Read Xout1 - XYZout2 as a block
 	uint8_t dataBuffer[7] = {0, 0, 0, 0, 0, 0, 0};
-   	read_register_buffer_into_array(R_MAG_XOUT0, dataBuffer, 7);
+   	read_register_buffer(R_MAG_XOUT0, dataBuffer, 7);
 
 	//Split into fields
 	int32_t x, y, z = 0;

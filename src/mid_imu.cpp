@@ -2,7 +2,8 @@
 
 //Default constructor, pass I2C instance and address
 mid_imu::mid_imu(i2c_inst_t* inst) {
-	this->configureI2C(inst, IMU_I2C_ADDR);
+	this->bus = inst;
+	this->bus_addr = IMU_I2C_ADDR;
 }
 
 //Startup routine, initialize GPIO clock output
@@ -11,10 +12,13 @@ void mid_imu::initialize() {
 	//0x06 is for clock source, 3125 is 125MHz to 40kHz divider
 	clock_gpio_init(21, 0x6, 3125);	//TODO: Store these constants somewhere?
 	sleep_ms(10);	//Allow time for clock to stabilize
-	
+
 	//Enable both sensors and configure their ODRs
+	printf("IMU --> GYRO_CONFIG0 WRITE...\n");	
 	write_register_byte(R_IMU_GYRO_CONFIG0, B_IMU_GYRO_CONFIG0_ODR_500HZ);
+	printf("IMU --> ACCEL_CONFIG0 WRITE...\n");
 	write_register_byte(R_IMU_ACCEL_CONFIG0, B_IMU_ACCEL_CONFIG0_ODR_500HZ);
+	printf("IMU --> PWR_MGMT0 Write...\n");
 	write_register_byte(R_IMU_PWR_MGMT0, (B_IMU_PWR_MGMT0_GYRO_MODE_LN | 
 										  B_IMU_PWR_MGMT0_ACCEL_MODE_LN));
 	sleep_ms(1); //Datasheet instructs 200us wait after changing sensor power modes
@@ -32,7 +36,7 @@ bool mid_imu::validate() {
 Vector6f mid_imu::getData() {
 	//Read ACCEL_DATA_X1_UI - GYRO_DATA_Z0_UI as a block
 	uint8_t dataBuffer[12] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-	read_register_buffer_into_array(R_IMU_ACCEL_DATA_X1_UI, dataBuffer, 12);	//TODO: Confirm this formatting works
+	read_register_buffer(R_IMU_ACCEL_DATA_X1_UI, dataBuffer, 12);	//TODO: Confirm this formatting works
 
 	//Split buffer into individial fields
 	int16_t ax, ay, az, gx, gy, gz = 0;
