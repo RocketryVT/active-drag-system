@@ -4,14 +4,14 @@
 
 #define MAG_I2C_ADDR 0x30
 
-class magnetometer : protected sensor_i2c {
+class magnetometer : public sensor_i2c {
 	public:
 		//Default constructor, pass I2C instance
 		magnetometer(i2c_inst_t* inst);
 		
 		//Sensor configuration/status check routines
-		void initialize() override;
-		bool validate() override;
+		void initialize();
+		bool validate();
 		
 		//Sensor calibration routines
 		void calibrateBridgeOffset();

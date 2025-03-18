@@ -2,16 +2,16 @@
 
 #include "sensor_i2c.hpp"
 
-#define IMU_I2C_ADDR 0xD0
+#define IMU_I2C_ADDR 0x68
 
-class mid_imu : protected sensor_i2c {
+class mid_imu : public sensor_i2c {
 	public: 
 		//Default constructor, pass I2C instance
 		mid_imu(i2c_inst_t* inst);
 		
 		//Sensor configuration/status check routines
-		void initialize() override;
-		bool validate() override;
+		void initialize();
+		bool validate();
 		
 		//Sensor data return
 		Vector6f getData();

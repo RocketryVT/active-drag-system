@@ -56,26 +56,26 @@ int main() {
 	printf("RP2040 INITIALIZED, BEGINNING PERIPHERAL INITIALIZATION\n");
 
 	//Run all peripheral initialization routines
-	mid.initialize();
-	printf("IMU INITIALIZED SUCCESSFULLY!\n");
 	high.initialize();
 	printf("HIGH-G ACCELEROMETER INITIALIZED SUCCESSFULLY!\n");
-//	alt.initialize();
-//	printf("ALTIMETER INITIALIZED SUCCESSFULLY!\n");
 	mag.initialize();
 	printf("MAGNETOMETER INITIALIZED SUCCESSFULLY!\n");
+//	mid.initialize();
+//	printf("IMU INITIALIZED SUCCESSFULLY!\n");
+	//	alt.initialize();
+//	printf("ALTIMETER INITIALIZED SUCCESSFULLY!\n");
 	
 	printf("PERIPHERAL INITIALIZATION COMPLETE, BEGINNING VALIDATION\n");
 
 	//Run validation for all sensors and confirm
-	bool midValid = mid.validate();
 	bool highValid = high.validate();
-//	bool altValid = alt.validate();
+	if (!highValid) printf("HIGH-G ACCEL VALIDATION FAILED!\n");
 	bool magValid = mag.validate();
-	if (!midValid) printf("MID-G IMU VALIDATION FAILED!\n");
-	if (!highValid) printf("HIGH-G IMU VALIDATION FAILED!\n");
-//	if (!altValid) printf("ALTIMETER VALIDATION FAILED!\n");
 	if (!magValid) printf("MAGNETOMETER VALIDATION FAILED!\n");
+	bool midValid = mid.validate();
+	if (!midValid) printf("MID-G IMU VALIDATION FAILED!\n");
+	//	bool altValid = alt.validate();
+//	if (!altValid) printf("ALTIMETER VALIDATION FAILED!\n");
 	printf("COMPLETED PERIPHERAL VALIDATION! IF NO ERROR MESSAGE SENT, PERIPHERAL VALIDATED SUCCESSFULLY\n");
 
 	while (true) {
@@ -83,5 +83,20 @@ int main() {
 		sleep_ms(125);
 		gpio_put(PICO_DEFAULT_LED_PIN, 0);
 		sleep_ms(125);
+		gpio_put(PICO_DEFAULT_LED_PIN, 1);
+		sleep_ms(125);
+		gpio_put(PICO_DEFAULT_LED_PIN, 0);
+		sleep_ms(125);
+
+		Vector3f accel_out = high.getData();
+		Vector3f mag_out = mag.getData();
+		Vector6f imu_out = mid.getData();
+
+		printf("ACCELEROMETER: [%4.2f, %4.2f, %4.2f]\n",
+				accel_out[0], accel_out[1], accel_out[2]);
+		printf("MAGNETOMETER:  [%4.2f, %4.2f, %4.2f]\n",
+				mag_out[0], mag_out[1], mag_out[2]);
+		printf("IMU (AC, GY):  [%4.2f, %4.2f, %4.2f, %4.2f, %4.2f, %4.2f]\n\n",
+				imu_out[0], imu_out[1], imu_out[2], imu_out[3], imu_out[4], imu_out[5]);
 	}
 }
