@@ -2,12 +2,12 @@
 
 #include "sensor_i2c.hpp"
 
-#define IMU_I2C_ADDR 0x68
+#define IMU_I2C_ADDR (0x68)
 
-class mid_imu : public sensor_i2c {
+class MidIMU : public SensorI2C {
 	public: 
 		//Default constructor, pass I2C instance
-		mid_imu(i2c_inst_t* inst);
+		MidIMU(i2c_inst_t* inst);
 		
 		//Sensor configuration/status check routines
 		void initialize();
@@ -16,10 +16,18 @@ class mid_imu : public sensor_i2c {
 		//Sensor data return
 		Vector6f getData();
 	private:
+		//Internal buffer for performing I2C operations
+		uint8_t buffer[16];
+		
 		/* DEVICE_CONFIG [State Configuration, SPI mode and Reset] */
 		enum {
 			R_IMU_DEVICE_CONFIG = (0x11),
 			b_IMU_DEVICE_CONFIG_SOFT_RESET = (1 << 0)
+		};
+
+		enum {
+			R_IMU_DRIVE_CONFIG = (0x13),
+			B_IMU_DRIVE_CONFIG_I2C_SLEW_2_to_6_nS = (0x20)	//TODO: Define this *way* better
 		};
 
 		/* TEMP_DATA1_UI - TEMP_DATA0_UI [Output, Temperature Sensor] */

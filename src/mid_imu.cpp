@@ -8,19 +8,21 @@ mid_imu::mid_imu(i2c_inst_t* inst) {
 
 //Startup routine, initialize GPIO clock output
 void mid_imu::initialize() {
-	//Enable 40kHz clock output on GPIO 21
+	//Enable 40kHz clock output on GPIO 23
 	//0x06 is for clock source, 3125 is 125MHz to 40kHz divider
-	clock_gpio_init(21, 0x6, 3125);	//TODO: Store these constants somewhere?
-	sleep_ms(10);	//Allow time for clock to stabilize
+	clock_gpio_init(23, 0x6, 3125);	//TODO: Store these constants somewhere?
+	sleep_ms(100);	//Allow time for clock to stabilize
+	
+	//TODO: Refactor to consolidate sequential register writes into one operation
 
 	//Enable both sensors and configure their ODRs
-	printf("IMU --> GYRO_CONFIG0 WRITE...\n");	
-	write_register_byte(R_IMU_GYRO_CONFIG0, B_IMU_GYRO_CONFIG0_ODR_500HZ);
-	printf("IMU --> ACCEL_CONFIG0 WRITE...\n");
-	write_register_byte(R_IMU_ACCEL_CONFIG0, B_IMU_ACCEL_CONFIG0_ODR_500HZ);
-	printf("IMU --> PWR_MGMT0 Write...\n");
-	write_register_byte(R_IMU_PWR_MGMT0, (B_IMU_PWR_MGMT0_GYRO_MODE_LN | 
-										  B_IMU_PWR_MGMT0_ACCEL_MODE_LN));
+	buffer[0] = B_IMU_GYRO_CONFIG0_ODR_500HZ;
+	write_buffer(R_IMU_GYRO_CONFIG0, buffer, 1);
+	buffer[0] = B_IMU_ACCEL_CONFIG0_ODR_500HZ;
+	write_buffer(R_IMU_ACCEL_CONFIG0, buffer, 1);
+	buffer[0] = (B_IMU_PWR_MGMT0_GYRO_MODE_LN | 
+				 B_IMU_PWR_MGMT0_ACCEL_MODE_LN);
+	write_register_byte(R_IMU_PWR_MGMT0, buffer, 1)
 	sleep_ms(1); //Datasheet instructs 200us wait after changing sensor power modes
 	
 	//TODO: Figure out if disabling AUX1 Serial interface is necessary 

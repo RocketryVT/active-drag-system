@@ -4,10 +4,10 @@
 
 #define HIGH_I2C_ADDR 0x1D
 
-class high_accel : public sensor_i2c {
+class HighAccel : public SensorI2C {
 	public: 
 		//Default constructor, pass I2C instance
-		high_accel(i2c_inst_t* inst);
+		HighAccel(i2c_inst_t* inst);
 		
 		//Sensor configuration and status check routines
 		void initialize();
@@ -20,6 +20,9 @@ class high_accel : public sensor_i2c {
 		void clearInterrupt();
 
 	private:
+		//Internal buffer for performing I2C operations
+		uint8_t buffer[16];
+		
 		/* DEVID [Validation] */
 		enum {
 			R_ACC_DEVID	= (0x00),
@@ -107,5 +110,7 @@ class high_accel : public sensor_i2c {
 			R_ACC_DATAZ1 = (0x37)
 		};
 		const float S_ACC_SENSITIVITY_FACTOR = 20.5f;
+
+		uint8_t buffer[16];
 };
 
