@@ -15,10 +15,10 @@
 #define SCL_GPIO 21
 
 //Instantiate all peripherals
-mid_imu mid(i2c0);
-high_accel high(i2c0);
-//altimeter alt(i2c0);
-magnetometer mag(i2c0);
+MidIMU mid(i2c0);
+HighAccel high(i2c0);
+//Altimeter alt(i2c0);
+Magnetometer mag(i2c0);
 
 //HELPER FUNCTION FROM PICO SDK
 bool reserved_addr(uint8_t addr) {

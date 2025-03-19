@@ -17,7 +17,7 @@ class SensorI2C {
 	protected:
 		//I2C bus instance and address defining, used to remove the annoyance of passing them each time
 		i2c_inst_t* bus;	//Pico SDK I2C bus instance
-		uint8_t bus_addr;	//Sensor address
+		uint8_t addr;		//Sensor address
 
 	public:
 		//Helper functions for handling I2C R/W operations

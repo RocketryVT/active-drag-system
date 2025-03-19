@@ -4,10 +4,10 @@
 
 #define MAG_I2C_ADDR 0x30
 
-class magnetometer : public SensorI2C {
+class Magnetometer : public SensorI2C {
 	public:
 		//Default constructor, pass I2C instance
-		magnetometer(i2c_inst_t* inst);
+		Magnetometer(i2c_inst_t* inst);
 		
 		//Sensor configuration/status check routines
 		void initialize();
@@ -24,7 +24,7 @@ class magnetometer : public SensorI2C {
 		uint8_t buffer[16];
 		
 		//Sensor offsets, calculated via performing set/reset measurement routine
-		Vector3f bridgeOffset;
+		Vector3f bridgeOffset = {0, 0, 0};
 		
 		/* Xout1 - XYZout2 [Output, 18b X/Y/Z as 2-Byte chunks + 1 Byte with (X1:0,Y1:0,Z1:0,0,0)] */
 		enum {
