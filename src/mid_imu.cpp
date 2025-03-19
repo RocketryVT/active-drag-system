@@ -1,13 +1,13 @@
 #include "mid_imu.hpp"
 
 //Default constructor, pass I2C instance and address
-mid_imu::mid_imu(i2c_inst_t* inst) {
+MidIMU::MidIMU(i2c_inst_t* inst) {
 	this->bus = inst;
-	this->bus_addr = IMU_I2C_ADDR;
+	this->addr = IMU_I2C_ADDR;
 }
 
 //Startup routine, initialize GPIO clock output
-void mid_imu::initialize() {
+void MidIMU::initialize() {
 	//Enable 40kHz clock output on GPIO 23
 	//0x06 is for clock source, 3125 is 125MHz to 40kHz divider
 	clock_gpio_init(23, 0x6, 3125);	//TODO: Store these constants somewhere?
@@ -22,32 +22,32 @@ void mid_imu::initialize() {
 	write_buffer(R_IMU_ACCEL_CONFIG0, buffer, 1);
 	buffer[0] = (B_IMU_PWR_MGMT0_GYRO_MODE_LN | 
 				 B_IMU_PWR_MGMT0_ACCEL_MODE_LN);
-	write_register_byte(R_IMU_PWR_MGMT0, buffer, 1)
+	write_buffer(R_IMU_PWR_MGMT0, buffer, 1);
 	sleep_ms(1); //Datasheet instructs 200us wait after changing sensor power modes
 	
 	//TODO: Figure out if disabling AUX1 Serial interface is necessary 
 }
 
 //Read whoami register and return whether result matches expected response
-bool mid_imu::validate() {
+bool MidIMU::validate() {
 	//Check WHO_AM_I register and validate response
-	return check_register_byte(R_IMU_WHO_AM_I, B_IMU_WHO_AM_I_VALUE);	
+	read_buffer(R_IMU_WHO_AM_I, buffer, 1);
+	return (buffer[0] == B_IMU_WHO_AM_I_VALUE);	
 }
 
 //Read all 12 data registers at once, format them, and return as an Eigen 6-vector (Accel, Gyro)
-Vector6f mid_imu::getData() {
+Vector6f MidIMU::getData() {
 	//Read ACCEL_DATA_X1_UI - GYRO_DATA_Z0_UI as a block
-	uint8_t dataBuffer[12] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-	read_register_buffer(R_IMU_ACCEL_DATA_X1_UI, dataBuffer, 12);	//TODO: Confirm this formatting works
+	read_buffer(R_IMU_ACCEL_DATA_X1_UI, buffer, 12);	//TODO: Confirm this formatting works
 
 	//Split buffer into individial fields
 	int16_t ax, ay, az, gx, gy, gz = 0;
-	ax = ((int16_t)dataBuffer[1]) | (((int16_t)dataBuffer[0]) << 8);
-	ay = ((int16_t)dataBuffer[3]) | (((int16_t)dataBuffer[2]) << 8);
-	az = ((int16_t)dataBuffer[5]) | (((int16_t)dataBuffer[4]) << 8);
-	gx = ((int16_t)dataBuffer[7]) | (((int16_t)dataBuffer[6]) << 8);
-	gy = ((int16_t)dataBuffer[9]) | (((int16_t)dataBuffer[8]) << 8);
-	gz = ((int16_t)dataBuffer[11]) | (((int16_t)dataBuffer[10]) << 8);
+	ax = ((int16_t)buffer[1]) | (((int16_t)buffer[0]) << 8);
+	ay = ((int16_t)buffer[3]) | (((int16_t)buffer[2]) << 8);
+	az = ((int16_t)buffer[5]) | (((int16_t)buffer[4]) << 8);
+	gx = ((int16_t)buffer[7]) | (((int16_t)buffer[6]) << 8);
+	gy = ((int16_t)buffer[9]) | (((int16_t)buffer[8]) << 8);
+	gz = ((int16_t)buffer[11]) | (((int16_t)buffer[10]) << 8);
 
 	//Divide by scale factor to format as float for output
 	Vector6f output;

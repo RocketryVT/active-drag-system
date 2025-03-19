@@ -4,7 +4,7 @@
 HighAccel::HighAccel(i2c_inst_t* inst) {
 	//Configure I2C instance
 	this->bus = inst;
-	this->bus_addr = HIGH_I2C_ADDR;
+	this->addr = HIGH_I2C_ADDR;
 }
 
 //Run initialization and reset routines
@@ -47,8 +47,10 @@ bool HighAccel::validate() {
 
 //Read all six data registers in one operation, format them, and return as an eigen 3-vector
 Vector3f HighAccel::getData() {
+	//TODO: Refactor to run as an internal member updater rather than vector return
+	
 	//Read DATAX0 - DATAZ1 as a block
-	read_register_buffer(R_ACC_DATAX0, buffer, 6);	//TODO: Confirm this formatting works
+	read_buffer(R_ACC_DATAX0, buffer, 6);	//TODO: Confirm this formatting works
 	
 	//Split buffer into individual fields
 	int16_t x, y, z = 0;

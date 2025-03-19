@@ -110,7 +110,5 @@ class HighAccel : public SensorI2C {
 			R_ACC_DATAZ1 = (0x37)
 		};
 		const float S_ACC_SENSITIVITY_FACTOR = 20.5f;
-
-		uint8_t buffer[16];
 };
 
