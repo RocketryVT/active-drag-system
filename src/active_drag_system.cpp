@@ -1,4 +1,3 @@
-#include "cyw43_configport.h"
 #include "pico/multicore.h"
 #include "pico/platform.h"
 #include "pico/sem.h"
@@ -9,7 +8,6 @@
 #include "pico/stdlib.h"
 #include "pico/time.h"
 #include "pico/types.h"
-#include "pico/cyw43_arch.h"
 #include <inttypes.h>
 #include <math.h>
 
@@ -106,7 +104,9 @@ int main() {
     adc_init();
     adc_set_temp_sensor_enabled(true);
 
-    cyw43_arch_init();
+    gpio_init(PICO_DEFAULT_LED_PIN);
+    gpio_set_dir(PICO_DEFAULT_LED_PIN, GPIO_OUT);
+    gpio_put(PICO_DEFAULT_LED_PIN, 0);
 
     i2c_init(i2c_default, MAX_SCL);
     gpio_set_function(PICO_DEFAULT_I2C_SDA_PIN, GPIO_FUNC_I2C);
@@ -142,8 +142,6 @@ int main() {
     // Initialize MOSFET
     gpio_init(MOSFET_PIN);
     gpio_set_dir(MOSFET_PIN, GPIO_OUT);
-
-    cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 1);
 
     pad_buffer = (uint8_t*)malloc(PAD_BUFFER_SIZE);
 
@@ -428,7 +426,7 @@ bool heartbeat_callback(repeating_timer_t *rt) {
     const uint8_t sequence_length = 5;
 
     bool led_status = sequence[led_counter];
-    cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, led_status);
+    gpio_put(PICO_DEFAULT_LED_PIN, led_status);
     led_counter++;
     led_counter %= sequence_length;
     return true;
