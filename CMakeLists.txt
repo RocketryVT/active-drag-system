@@ -1,9 +1,10 @@
 cmake_minimum_required(VERSION 3.12)
 
-set(PICO_BOARD pico_w)
+set(PICO_BOARD rp2040_micro)
+set(PICO_BOARD_HEADER_DIRS ${CMAKE_CURRENT_LIST_DIR}/include)
 # Pull in SDK (must be before project)
-include(include/pico-sdk/pico_sdk_init.cmake)
-include_directories(include/eigen)
+include(${CMAKE_CURRENT_LIST_DIR}/include/pico-sdk/pico_sdk_init.cmake)
+include_directories(${CMAKE_CURRENT_LIST_DIR}/include/eigen)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_C_COMPILER arm-none-eabi-gcc)
