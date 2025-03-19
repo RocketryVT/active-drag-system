@@ -4,7 +4,7 @@
 
 #define MAG_I2C_ADDR 0x30
 
-class magnetometer : public sensor_i2c {
+class magnetometer : public SensorI2C {
 	public:
 		//Default constructor, pass I2C instance
 		magnetometer(i2c_inst_t* inst);
@@ -20,6 +20,9 @@ class magnetometer : public sensor_i2c {
 		Vector3f getData();	
 	
 	private:
+		//Internal buffer for performing I2C operations
+		uint8_t buffer[16];
+		
 		//Sensor offsets, calculated via performing set/reset measurement routine
 		Vector3f bridgeOffset;
 		

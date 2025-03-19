@@ -3,7 +3,7 @@
 //#include "altimeter.hpp"
 #include "magnetometer.hpp"
 
-#define MAX_I2C_CLOCK 400000
+#define MAX_I2C_CLOCK 100000
 
 #define DATA_RATE_HZ 500
 #define LOOP_PERIOD (1.0f / DATA_RATE_HZ)
@@ -19,6 +19,11 @@ mid_imu mid(i2c0);
 high_accel high(i2c0);
 //altimeter alt(i2c0);
 magnetometer mag(i2c0);
+
+//HELPER FUNCTION FROM PICO SDK
+bool reserved_addr(uint8_t addr) {
+    return (addr & 0x78) == 0 || (addr & 0x78) == 0x78;
+}
 
 //Run all the initialization routines for each of the peripherals and confirm that they're all running properly
 int main() {
@@ -52,7 +57,31 @@ int main() {
 	sleep_ms(250);
 	gpio_put(PICO_DEFAULT_LED_PIN, 1);
 	sleep_ms(1000);
+	
+	printf("\n-------- I2C BUS SCAN, EXAMPLE FROM PICO SDK --------\n");
+    printf("   0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F\n");
+    for (int addr = 0; addr < (1 << 7); ++addr) {
+        if (addr % 16 == 0) {
+            printf("%02x ", addr);
+        }
 
+        // Perform a 1-byte dummy read from the probe address. If a slave
+        // acknowledges this address, the function returns the number of bytes
+        // transferred. If the address byte is ignored, the function returns
+        // -1.
+
+        // Skip over any reserved addresses.
+        int ret;
+        uint8_t rxdata;
+        if (reserved_addr(addr))
+            ret = PICO_ERROR_GENERIC;
+        else
+            ret = i2c_read_blocking(i2c_default, addr, &rxdata, 1, false);
+
+        printf(ret < 0 ? "." : "@");
+        printf(addr % 16 == 15 ? "\n" : "  ");
+    }
+    printf("-------- I2C BUS SCAN COMPLETE! --------\n\n");
 	printf("RP2040 INITIALIZED, BEGINNING PERIPHERAL INITIALIZATION\n");
 
 	//Run all peripheral initialization routines
@@ -60,8 +89,8 @@ int main() {
 	printf("HIGH-G ACCELEROMETER INITIALIZED SUCCESSFULLY!\n");
 	mag.initialize();
 	printf("MAGNETOMETER INITIALIZED SUCCESSFULLY!\n");
-//	mid.initialize();
-//	printf("IMU INITIALIZED SUCCESSFULLY!\n");
+	mid.initialize();
+	printf("IMU INITIALIZED SUCCESSFULLY!\n");
 	//	alt.initialize();
 //	printf("ALTIMETER INITIALIZED SUCCESSFULLY!\n");
 	
