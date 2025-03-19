@@ -2,14 +2,9 @@
 
 //Write uint8_t buffer to register block starting at address
 void SensorI2C::write_buffer(uint8_t reg_addr, uint8_t* buffer, size_t len) {
-	//ORIGINAL SOLUTION
-	//i2c_write_blocking(this->bus, this->addr, &reg_addr, 1, true);
-	//i2c_write_blocking(this->bus, this->addr, buffer, len, true);
-
-	//INDEX SHIFT SINGLE OPERATION SOLUTION
-	for (uint8_t i = len; i > 0; i--) buffer[i] = buffer[i-1];
-	buffer[0] = reg_addr;
-	i2c_write_blocking(this->bus, this->addr, buffer, len + 1, false);
+	//Add the register address to the outgoing I2C TX buffer before writing actual data to the TX buffer, then send
+	i2c_write_byte_raw(this->bus, reg_addr);
+	i2c_write_blocking(this->bus, this->addr, buffer, len, false);
 }
 
 //Read register block into uint8_t buffer of parameterized len
