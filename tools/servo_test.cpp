@@ -3,16 +3,14 @@
 #include "pico/stdio.h"
 #include "pwm.hpp"
 
-#define MOSFET_PIN 1
-
 PWM pwm;
 
 int main() {
     stdio_init_all();
     // Initialize MOSFET
-    gpio_init(MOSFET_PIN);
-    gpio_set_dir(MOSFET_PIN, GPIO_OUT);
-    gpio_put(MOSFET_PIN, 1);
+    gpio_init(MICRO_DEFAULT_SERVO_ENABLE);
+    gpio_set_dir(MICRO_DEFAULT_SERVO_ENABLE, GPIO_OUT);
+    gpio_put(MICRO_DEFAULT_SERVO_ENABLE, 1);
     pwm.init();
     uint8_t duty_cycle = 13;
     while (1) {
