@@ -1,16 +1,18 @@
 if (COMPILE_TOOLS)
     add_executable(read_flash
                    read_flash.c
-                   ../src/spi_flash.c
+                   ${PROJECT_SOURCE_DIR}/src/spi_flash.c
     )
 
     add_executable(servo_test
                    servo_test.cpp
-                   ../src/pwm.cpp
+                   ${PROJECT_SOURCE_DIR}/src/pwm.cpp
     )
 
     add_executable(alt_test
                    alt_test.cpp
+                   ${PROJECT_SOURCE_DIR}/src/altimeter.cpp
+                   ${PROJECT_SOURCE_DIR}/src/heartbeat.cpp
     )
 
     add_executable(imu_calib
@@ -19,15 +21,16 @@ if (COMPILE_TOOLS)
 
     # pull in common dependencies
     target_link_libraries(read_flash pico_stdlib hardware_spi)
-    target_include_directories(read_flash PUBLIC ../include)
+    target_include_directories(read_flash PUBLIC ${PROJECT_SOURCE_DIR}/include)
 
     target_link_libraries(servo_test pico_stdlib hardware_pwm hardware_i2c)
-    target_include_directories(servo_test PUBLIC ../include)
+    target_include_directories(servo_test PUBLIC ${PROJECT_SOURCE_DIR}/include)
 
     target_link_libraries(alt_test pico_stdlib hardware_i2c hardware_gpio)
+    target_include_directories(alt_test PUBLIC ${PROJECT_SOURCE_DIR}/include)
 
     target_link_libraries(imu_calib pico_stdlib hardware_i2c hardware_gpio)
-    target_include_directories(imu_calib PUBLIC ../include)
+    target_include_directories(imu_calib PUBLIC ${PROJECT_SOURCE_DIR}/include)
 
     pico_enable_stdio_usb(read_flash 1)
     pico_enable_stdio_uart(read_flash 0)
