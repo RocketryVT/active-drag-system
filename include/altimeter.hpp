@@ -1,94 +1,94 @@
 #pragma once
 
+#include <stdint.h>
+
 #include "pico/stdlib.h"
 #include "hardware/i2c.h"
-#include "hardware/gpio.h"
 
 #include "sensor_i2c.hpp"
 
-#define BARO_I2C_ADDR (0x77)
-#define LOW_TEMP_THRESHOLD 20	//Temperature in C below which compensation is needed in digital conversion
+#define MS5607_I2C_ADDRESS 0x77
 
-/*General Commands*/
-enum {
-	BARO_RESET = (0x1E),
-	BARO_ADC_READ = (0x00)
-};
+#define PROM_MANUFACTURER_RESERVED_ADDR    0x0
+#define PROM_CALIBRATION_COEFFICENT_1_ADDR 0x1
+#define PROM_CALIBRATION_COEFFICENT_2_ADDR 0x2
+#define PROM_CALIBRATION_COEFFICENT_3_ADDR 0x3
+#define PROM_CALIBRATION_COEFFICENT_4_ADDR 0x4
+#define PROM_CALIBRATION_COEFFICENT_5_ADDR 0x5
+#define PROM_CALIBRATION_COEFFICENT_6_ADDR 0x6
+#define PROM_CRC_ADDR                      0x7
 
-/*PROM Read Commands*/
-enum {
-	BARO_PROM_READ_START = (0xA0),
-	BARO_PROM_READ_C1 = (0xA2),
-	BARO_PROM_READ_C2 = (0xA4),
-	BARO_PROM_READ_C3 = (0xA6),
-	BARO_PROM_READ_C4 = (0xA8),
-	BARO_PROM_READ_C5 = (0xAA),
-	BARO_PROM_READ_C6 = (0xAC),
-	BARO_PROM_READ_SERIAL_CRC = (0xAE)
-};
+#define OSR_CONVERT_256 0x0
+#define OSR_CONVERT_512 0x1
+#define OSR_CONVERT_1024 0x2
+#define OSR_CONVERT_2048 0x3
+#define OSR_CONVERT_4096 0x4
 
-/*Conversion Request Commands (number is OSR)*/
-enum {
-	BARO_CONVERT_PRES_256 = (0x40),
-	BARO_CONVERT_PRES_512 = (0x42),
-	BARO_CONVERT_PRES_1024 = (0x44),
-	BARO_CONVERT_PRES_2048 = (0x46),
-	BARO_CONVERT_PRES_4096 = (0x48),
-	BARO_CONVERT_TEMP_256 = (0x50),
-	BARO_CONVERT_TEMP_512 = (0x52),
-	BARO_CONVERT_TEMP_1024 = (0x54),
-	BARO_CONVERT_TEMP_2048 = (0x56),
-	BARO_CONVERT_TEMP_4096 = (0x58)
-};
+#define OSR_256_CONVERSION_TIME_US 600
 
-class altimeter : protected sensor_i2c {
-	private:
-		
-		//Calibration coefficients, loaded during sensor initialization
-		uint16_t c1;	//Pressure Sensitivity
-		uint16_t c2;	//Pressure Offset
-		uint16_t c3;	//Temperature Coefficient of Pressure Sensitivity
-		uint16_t c4;	//Temperature Coefficient of Pressure Offset
-		uint16_t c5;	//Reference Temperature
-		uint16_t c6;	//Temperature Coefficient of the Temperature (???)
-		
-		//Storage for values used in onboard conversion math
-		// Used for decoupling conversion request commands from control loop
-		uint32_t d1;	//Digital Pressure Value
-		uint32_t d2;	//Digital Temperature Value
-		int32_t dT;		//Difference from actual and reference temperature (c5)
-		int32_t dTem;	//Digital temperature
-		int64_t off;	//Temperature offset for pressure
-		int64_t sens;	//Sensitivity at temperature
+#define TYPE_UNCOMPENSATED_PRESSURE 0
+#define TYPE_UNCOMPENSATED_TEMPERATURE 1
 
-		//Storage for the actual floating point data, public getters available
-		float altitude;
-		float pressure;
-		float temperature;
-		
-		//State values for conversion math
-		bool compensatingTemperature;
+#define RESET_COMMAND 0x1E
 
-		//Methods for dealing with sensor reading procedure
- 		uint32_t getADC();	
-	    void calculateAltitude();
-	    void calculateTemperature();
-	    void requestPressureConversion();
+#define ADC_READ_COMMAND 0x0
 
-	public: 
-		//Default constructor, pass I2C instance
-		altimeter(i2c_inst_t* inst);
-		
-		//Sensor configuration/status check routines
-		void initialize() override;
-		bool validate() override;
-		
-		//Sensor polls for data requests
-		float getTemperature();
-		float getPressure();
-		float getAltitude();
-		
-		//Status checks for data readiness
-		bool isFreshAltAvailable();
-		void forceUpdateTemperature();		
+#define ALTITUDE_SCALE_F 10.0f
+#define PRESSURE_SCALE_F 100.0f
+#define TEMPERATURE_SCALE_F 100.0f
+
+typedef union {
+	struct {
+        uint8_t RESERVED: 1;
+        uint8_t ADDR_OSR: 3;
+        uint8_t TYPE :1;
+		bool PROM2 :1;
+		bool CONVERT :1;
+        bool PROM: 1;
+	} fields;
+	uint8_t data;
+} ms5607_cmd;
+
+typedef enum {
+    NOT_SAMPLING,
+    PRESSURE_CONVERT,
+    TEMPERATURE_CONVERT,
+    COMPENSATE
+} sample_state_t;
+
+class altimeter : SensorI2C {
+    public:
+        altimeter(i2c_inst_t* i2c) : SensorI2C {i2c, MS5607_I2C_ADDRESS} {};
+
+        void initialize();
+
+        void ms5607_write_cmd(ms5607_cmd* cmd);
+
+        void ms5607_start_sample();
+
+        void ms5607_sample();
+
+        int32_t pressure_to_altitude(int32_t pressure);
+
+        int32_t get_pressure() { return pressure; }
+        int32_t get_temperature() { return temperature; }
+        int32_t get_altitude() { return altitude; }
+
+    private:
+        void ms5607_compensate();
+
+        uint8_t buffer[3];
+
+        uint16_t prom[6];
+
+        uint32_t uncompensated_pressure;
+        uint32_t uncompensated_temperature;
+
+        int32_t pressure;
+
+        int32_t temperature;
+
+        int32_t altitude;
+
+        sample_state_t sample_state;
 };
