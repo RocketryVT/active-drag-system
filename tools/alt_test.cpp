@@ -1,50 +1,47 @@
 #include <stdio.h>
 
 #include "hardware/gpio.h"
-#include "boards/pico_w.h"
 #include "hardware/i2c.h"
 #include "pico/stdio.h"
 #include "pico/time.h"
 
-#define ALT_ADDR 0x60
-#define MAX_SCL 400000
-#define DATA_RATE_HZ 15
+#include "altimeter.hpp"
+#include "heartbeat.hpp"
+#include "rp2040_micro.h"
 
-float altitude = 0.0f;
-float get_altitude();
+#define DATA_RATE_HZ 200
+#define MAX_SCL 400000
+
+bool data_callback(repeating_timer_t *rt);
+
+repeating_timer_t data_timer;
+
+altimeter altimeter(i2c_default);
 
 int main() {
     stdio_init_all();
 
     i2c_init(i2c_default, MAX_SCL);
-    gpio_set_function(PICO_DEFAULT_I2C_SDA_PIN, GPIO_FUNC_I2C);
+    gpio_init(PICO_DEFAULT_I2C_SCL_PIN);
+    gpio_init(PICO_DEFAULT_I2C_SDA_PIN);
     gpio_set_function(PICO_DEFAULT_I2C_SCL_PIN, GPIO_FUNC_I2C);
-    gpio_pull_up(PICO_DEFAULT_I2C_SDA_PIN);
-    gpio_pull_up(PICO_DEFAULT_I2C_SCL_PIN);
+    gpio_set_function(PICO_DEFAULT_I2C_SDA_PIN, GPIO_FUNC_I2C);
 
-    uint8_t config[2] = {0};
+    altimeter.initialize();
+    heartbeat_initialize(PICO_DEFAULT_LED_PIN);
+    // gpio_init(PICO_DEFAULT_LED_PIN);
+    // gpio_set_dir(PICO_DEFAULT_LED_PIN, GPIO_OUT);
+    // gpio_put(PICO_DEFAULT_LED_PIN, 1);
 
-    // Select control register(0x26)
-    // Active mode, OSR = 16, altimeter mode(0xB8)
-    config[0] = 0x26;
-    config[1] = 0xB9;
-    i2c_write_blocking(i2c_default, ALT_ADDR, config, 2, true);
-    sleep_ms(1500);
+    add_repeating_timer_us(-1000000 / DATA_RATE_HZ,  &data_callback, NULL, &data_timer);
 
     while (1) {
-        sleep_ms(1000);
-        altitude = get_altitude();
-		printf("Altitude: %4.2f\n", altitude);
+        sleep_ms(500);
+        printf("\n\nAltitude: %4.2f\nPressure: %4.2f\nTemperature: %4.2f\n", (float) altimeter.get_altitude() / ALTITUDE_SCALE_F, (float) altimeter.get_pressure() / PRESSURE_SCALE_F, (float) altimeter.get_temperature() / TEMPERATURE_SCALE_F);
     }
 }
 
-float get_altitude() {
-    uint8_t reg = 0x01;
-    uint8_t data[5];
-    i2c_write_blocking(i2c_default, ALT_ADDR, &reg, 1, true);
-    i2c_read_blocking(i2c_default, ALT_ADDR, data, 5, false);
-    // Exactly how MPL3115A2 datasheet says to retrieve altitude
-    float altitude = (float) ((int16_t) ((data[0] << 8) | data[1])) + (float) (data[2] >> 4) * 0.0625;
-    return altitude;
+bool data_callback(repeating_timer_t *rt) {
+    altimeter.ms5607_start_sample();
+    return true;
 }
-
