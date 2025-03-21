@@ -4,6 +4,7 @@ set(PICO_BOARD rp2040_micro)
 set(PICO_BOARD_HEADER_DIRS ${CMAKE_CURRENT_LIST_DIR}/include)
 # Pull in SDK (must be before project)
 include(${CMAKE_CURRENT_LIST_DIR}/include/pico-sdk/pico_sdk_init.cmake)
+include(${CMAKE_CURRENT_LIST_DIR}/include/pico-logger/CMakeLists.txt)
 include_directories(${CMAKE_CURRENT_LIST_DIR}/include/eigen)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
