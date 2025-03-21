@@ -1,4 +1,6 @@
 #include "altimeter.hpp"
+#include <stdio.h>
+#include "hardware/gpio.h"
 #include <cstdint>
 
 static const int32_t altitude_table[] = {
@@ -15,6 +17,8 @@ static int64_t adc_read_callback(alarm_id_t id, void* user_data) {
 }
 
 void altimeter::initialize() {
+    sample_state = NOT_SAMPLING;
+
     alarm_pool_init_default();
 
     ms5607_cmd cmd;
@@ -97,7 +101,19 @@ void altimeter::ms5607_sample() {
             ms5607_compensate();
             altitude = pressure_to_altitude(pressure);
 
+
             sample_state = NOT_SAMPLING;
+            if (threshold_callback != NULL) {
+                if (positive_crossing) {
+                    if (altitude >= threshold_altitude) {
+                        add_alarm_in_ms(1, threshold_callback, NULL, true);
+                    }
+                } else {
+                    if (altitude <= threshold_altitude) {
+                        add_alarm_in_ms(1, threshold_callback, NULL, true);
+                    }
+                }
+            }
             break;
         };
     };
@@ -133,3 +149,15 @@ int32_t altimeter::pressure_to_altitude(int32_t pressure) {
 	return ((low + high + (ALT_SCALE >> 1)) >> ALT_SHIFT);
 }
 
+
+void altimeter::set_threshold_altitude(int32_t threshold_altitude, alarm_callback_t callback) {
+    this->threshold_altitude = threshold_altitude;
+
+    positive_crossing = (threshold_altitude > altitude);
+
+    threshold_callback = callback;
+}
+
+void altimeter::clear_threshold_altitude() {
+    this->threshold_callback = NULL;
+}
