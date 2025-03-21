@@ -4,3 +4,6 @@
 [submodule "include/eigen"]
 	path = include/eigen
 	url = https://gitlab.com/libeigen/eigen.git
+[submodule "include/pico-logger"]
+	path = include/pico-logger
+	url = https://github.com/rocketryvt/pico-logger.git

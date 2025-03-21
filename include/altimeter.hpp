@@ -2,9 +2,11 @@
 
 #include <stdint.h>
 
+#include "hardware/gpio.h"
 #include "pico/stdlib.h"
 #include "hardware/i2c.h"
 
+#include "pico/time.h"
 #include "sensor_i2c.hpp"
 
 #define MS5607_I2C_ADDRESS 0x77
@@ -36,6 +38,10 @@
 #define ALTITUDE_SCALE_F 10.0f
 #define PRESSURE_SCALE_F 100.0f
 #define TEMPERATURE_SCALE_F 100.0f
+
+#define ALTITUDE_SCALE 10
+#define PRESSURE_SCALE 100
+#define TEMPERATURE_SCALE 100
 
 typedef union {
 	struct {
@@ -74,6 +80,10 @@ class altimeter : SensorI2C {
         int32_t get_temperature() { return temperature; }
         int32_t get_altitude() { return altitude; }
 
+        void set_threshold_altitude(int32_t threshold_altitude, alarm_callback_t callback);
+
+        void clear_threshold_altitude();
+
     private:
         void ms5607_compensate();
 
@@ -91,4 +101,10 @@ class altimeter : SensorI2C {
         int32_t altitude;
 
         sample_state_t sample_state;
+
+        int32_t threshold_altitude;
+
+        alarm_callback_t threshold_callback  = NULL;
+
+        bool positive_crossing;
 };
