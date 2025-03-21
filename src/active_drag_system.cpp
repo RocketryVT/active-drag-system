@@ -18,7 +18,9 @@
 #include "heartbeat.hpp"
 #include "pico_logger.h"
 #include "rp2040_micro.h"
-
+#include "mid_imu.hpp"
+#include "high_accel.hpp"
+#include "magnetometer.hpp"
 #define SERIAL_RATE_HZ 10
 
 #define MOVING_AVG_MAX_SIZE 20
@@ -26,7 +28,7 @@
 #define DATA_RATE_HZ 200
 #define LOOP_PERIOD (1.0f / DATA_RATE_HZ)
 
-#define LOG_RATE_HZ 100
+#define LOG_RATE_HZ 20
 
 #define MOTOR_BURN_TIME 2600 // Burn time in milliseconds for L2200G
 
@@ -78,6 +80,9 @@ typedef union {
     uint8_t data[PACKET_SIZE];
 } log_entry_t;
 
+MidIMU mid(i2c_default);
+HighAccel high(i2c_default);
+Magnetometer mag(i2c_default);
 PWM pwm;
 
 int64_t pad_callback(alarm_id_t id, void* user_data);
@@ -105,7 +110,7 @@ volatile int32_t altitude = 0;
 volatile int32_t previous_altitude = 0;
 volatile int32_t velocity = 0;
 volatile state_t state = PAD;
-volatile int32_t threshold_altitude = 30;
+volatile int32_t threshold_altitude = 3;
 volatile float threshold_velocity = 30.0f;
 volatile uint8_t deployment_percent = 0;
 
@@ -142,12 +147,18 @@ int main() {
 
     alarm_pool_init_default();
 
+    logger.initialize(true);
+
     altimeter.initialize();
 
     altimeter.ms5607_start_sample();
     sleep_ms(100);
     ground_altitude = altimeter.get_altitude();
-     altimeter.set_threshold_altitude(ground_altitude + (threshold_altitude * ALTITUDE_SCALE), &pad_callback);
+    altimeter.set_threshold_altitude(ground_altitude + (threshold_altitude * ALTITUDE_SCALE), &pad_callback);
+
+    high.initialize();
+    mag.initialize();
+    mid.initialize();
 
 //    pwm.init();
 //
@@ -174,6 +185,9 @@ bool timer_callback(repeating_timer_t *rt) {
     sem_acquire_blocking(&sem);
 
     altimeter.ms5607_start_sample();
+    high.getData();
+    mag.getData();
+    mid.getData();
 
     if (moving_average_size == MOVING_AVG_MAX_SIZE) {
         moving_average_sum -= moving_average[moving_average_offset];
@@ -227,12 +241,10 @@ bool timer_callback(repeating_timer_t *rt) {
 }
 
 int64_t pad_callback(alarm_id_t id, void* user_data) {
-    uint32_t status = save_and_disable_interrupts();
     sem_acquire_blocking(&sem);
     altimeter.clear_threshold_altitude();
     state = BOOST;
     sem_release(&sem);
-    restore_interrupts(status);
     // start motor burn timer with boost transition function as callback
     add_alarm_in_ms(MOTOR_BURN_TIME, &boost_callback, NULL, false);
     return 0;
@@ -311,6 +323,22 @@ void populate_log_entry() {
     log_entry.fields.pressure = altimeter.get_pressure();
     log_entry.fields.altitude = altimeter.get_altitude();
     log_entry.fields.temperature_alt = altimeter.get_temperature();
+
+    log_entry.fields.ax = mid.get_ax();
+    log_entry.fields.ay = mid.get_ay();
+    log_entry.fields.az = mid.get_az();
+    log_entry.fields.gx = mid.get_gx();
+    log_entry.fields.gy = mid.get_gy();
+    log_entry.fields.gz = mid.get_gz();
+
+    log_entry.fields.mag_x = mag.get_ax();
+    log_entry.fields.mag_y = mag.get_ay();
+    log_entry.fields.mag_z = mag.get_az();
+
+    log_entry.fields.high_g_x = high.get_ax();
+    log_entry.fields.high_g_y = high.get_ay();
+    log_entry.fields.high_g_z = high.get_az();
+
 }
 
 bool logging_buffer_callback(repeating_timer_t *rt) {
@@ -384,21 +412,21 @@ void print_log_entry(const uint8_t* entry) {
     printf("%4.2f,", ((float) packet.fields.altitude) / ALTITUDE_SCALE_F);
     printf("%4.2f,", ((float) packet.fields.temperature_alt) / TEMPERATURE_SCALE_F);
 
-    // printf("%4.2f,", mid_imu.scale_accel(packet.fields.ax));
-    // printf("%4.2f,", mid_imu.scale_accel(packet.fields.ay));
-    // printf("%4.2f,", mid_imu.scale_accel(packet.fields.az));
-    //
-    // printf("%4.2f,", mid_imu.scale_gyro(packet.fields.gx));
-    // printf("%4.2f,", mid_imu.scale_gyro(packet.fields.gy));
-    // printf("%4.2f,", mid_imu.scale_gyro(packet.fields.gz));
-    //
-    // printf("%4.2f,", magnetometer.scale(packet.fields.mag_x));
-    // printf("%4.2f,", magnetometer.scale(packet.fields.mag_y));
-    // printf("%4.2f,", magnetometer.scale(packet.fields.mag_z));
-    //
-    // printf("%4.2f,", high_g.scale(packet.fields.high_g_x));
-    // printf("%4.2f,", high_g.scale(packet.fields.high_g_y));
-    // printf("%4.2f", high_g.scale(packet.fields.high_g_z));
+    printf("%4.2f,", mid.scale_accel(packet.fields.ax));
+    printf("%4.2f,", mid.scale_accel(packet.fields.ay));
+    printf("%4.2f,", mid.scale_accel(packet.fields.az));
+    
+    printf("%4.2f,", mid.scale_gyro(packet.fields.gx));
+    printf("%4.2f,", mid.scale_gyro(packet.fields.gy));
+    printf("%4.2f,", mid.scale_gyro(packet.fields.gz));
+    
+    printf("%4.2f,", mag.scale(packet.fields.mag_x));
+    printf("%4.2f,", mag.scale(packet.fields.mag_y));
+    printf("%4.2f,", mag.scale(packet.fields.mag_z));
+    
+    printf("%4.2f,", high.scale(packet.fields.high_g_x));
+    printf("%4.2f,", high.scale(packet.fields.high_g_y));
+    printf("%4.2f", high.scale(packet.fields.high_g_z));
     printf("\r\n");
 }
 
@@ -441,27 +469,28 @@ bool serial_callback(repeating_timer_t *rt) {
     }
 
     if (serial_data_output) {
-        switch (state) {
-            case PAD:
-                printf("PAD");
-                break;
-            case BOOST:
-                printf("BOOST");
-                break;
-            case COAST:
-                printf("COAST");
-                break;
-            case APOGEE:
-                printf("APOGEE");
-                break;
-            case RECOVERY:
-                printf("RECOVERY");
-                break;
-            case END:
-                printf("END");
-                break;
-        }
-        printf(": Altitude: %4.2f, Velocity: %4.2f\n", ((float) altitude) / ALTITUDE_SCALE_F, ((float) velocity) / ALTITUDE_SCALE_F);
+     //   switch (state) {
+     //       case PAD:
+     //           printf("PAD");
+     //           break;
+     //       case BOOST:
+     //           printf("BOOST");
+     //           break;
+     //       case COAST:
+     //           printf("COAST");
+     //           break;
+     //       case APOGEE:
+     //           printf("APOGEE");
+     //           break;
+     //       case RECOVERY:
+     //           printf("RECOVERY");
+     //           break;
+     //       case END:
+     //           printf("END");
+     //           break;
+     //   }
+     //   printf(": Altitude: %4.2f, Velocity: %4.2f\n", ((float) altitude) / ALTITUDE_SCALE_F, ((float) velocity) / ALTITUDE_SCALE_F);
+     print_log_entry(log_entry.data);
     }
 
     return true;
@@ -475,9 +504,7 @@ void process_cmd(char* buf, uint8_t len) {
                 if (len >= 4) {
                     if (buf[1] == 'e' && buf[2] == 'a' && buf[3] == 'd') {
                         printf("\nReading memory!\n");
-                        uint32_t status = save_and_disable_interrupts();
                         logger.read_memory();
-                        restore_interrupts(status);
                         result = 0;
                     }
             }
@@ -485,7 +512,6 @@ void process_cmd(char* buf, uint8_t len) {
                 if (len >= 5) {
                     if (buf[1] == 'r' && buf[2] == 'a' && buf[3] == 's' && buf[4] == 'e') {
                         printf("Are you sure you want to erase all log memory? ");
-                        uint32_t status = save_and_disable_interrupts();
                         char c = getchar();
                         if (c == 'y' or c == 'Y') {
                             printf("\nErasing memory!\n");
@@ -493,7 +519,6 @@ void process_cmd(char* buf, uint8_t len) {
                         } else {
                             printf("\nMemory will NOT be erased!\n");
                         }
-                        restore_interrupts(status);
                         result = 0;
                     }
                 }
