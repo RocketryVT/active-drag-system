@@ -2,29 +2,37 @@
 
 #include "sensor_i2c.hpp"
 
+#include <Eigen/Dense>
+
 #define MAG_I2C_ADDR 0x30
 
 class Magnetometer : public SensorI2C {
 	public:
 		//Default constructor, pass I2C instance
-		Magnetometer(i2c_inst_t* inst);
+		Magnetometer(i2c_inst_t* inst) : SensorI2C{inst, MAG_I2C_ADDR} {};
 		
 		//Sensor configuration/status check routines
 		void initialize();
 		bool validate();
+
+        int32_t get_ax() { return ax; }
+        int32_t get_ay() { return ay; }
+        int32_t get_az() { return az; }
+
+        float scale(int32_t unscaled) { return ((float) unscaled) / S_MAG_SENSITIVITY_FACTOR; }
 		
 		//Sensor calibration routines
 		void calibrateBridgeOffset();
 
 		//Sensor data output
-		Vector3f getData();	
+		Eigen::Vector3f getData();	
 	
 	private:
 		//Internal buffer for performing I2C operations
 		uint8_t buffer[16];
 		
 		//Sensor offsets, calculated via performing set/reset measurement routine
-		Vector3f bridgeOffset = {0, 0, 0};
+		Eigen::Vector3f bridgeOffset = {0, 0, 0};
 		
 		/* Xout1 - XYZout2 [Output, 18b X/Y/Z as 2-Byte chunks + 1 Byte with (X1:0,Y1:0,Z1:0,0,0)] */
 		enum {
@@ -78,4 +86,5 @@ class Magnetometer : public SensorI2C {
 			R_MAG_PRODUCT_ID = (0x2F),
 			B_MAG_PRODUCT_ID_VALUE = (0x30)
 		};
+        int32_t ax, ay, az;
 };

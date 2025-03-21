@@ -1,12 +1,5 @@
 #include "high_accel.hpp"
 
-//Default constructor, pass I2C instance
-HighAccel::HighAccel(i2c_inst_t* inst) {
-	//Configure I2C instance
-	this->bus = inst;
-	this->addr = HIGH_I2C_ADDR;
-}
-
 //Run initialization and reset routines
 void HighAccel::initialize() {
 	//TODO: Refactor to consolidate into multi-register buffer writes, organize by register order and clump
