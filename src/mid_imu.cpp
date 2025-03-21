@@ -1,11 +1,5 @@
 #include "mid_imu.hpp"
 
-//Default constructor, pass I2C instance and address
-MidIMU::MidIMU(i2c_inst_t* inst) {
-	this->bus = inst;
-	this->addr = IMU_I2C_ADDR;
-}
-
 //Startup routine, initialize GPIO clock output
 void MidIMU::initialize() {
 	//Enable 40kHz clock output on GPIO 23

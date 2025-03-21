@@ -1,4 +1,5 @@
 #pragma once
+<<<<<<< HEAD
 #include "sensor_i2c.hpp"
 
 #define HIGH_I2C_ADDR 0x1D
@@ -156,7 +157,7 @@ typedef union {
 class HighAccel : public SensorI2C {
 	public: 
 		//Default constructor, pass I2C instance
-		HighAccel(i2c_inst_t* inst);
+        HighAccel(i2c_inst_t* inst) : SensorI2C{inst, HIGH_I2C_ADDR} {};
 		
 		//Sensor configuration and status check routines
 		void initialize();
@@ -168,6 +169,8 @@ class HighAccel : public SensorI2C {
 		float getX();		//Return formatted x acceleration
 		float getY();		//Return formatted y acceleration
 		float getZ();		//Return formatted z acceleration
+
+        float scale(int16_t unscaled) { return ((float) unscaled) / S_ACC_SENSITIVITY_FACTOR; }
 
 		//Interrupt handling
 		void clearInterrupt();
@@ -188,3 +191,4 @@ class HighAccel : public SensorI2C {
 		ACC_INT_SOURCE int_source;
 		ACC_DATA_FORMAT data_format;
 };
+

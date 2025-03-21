@@ -113,7 +113,7 @@ typedef union {
 class MidIMU : public SensorI2C {
 	public: 
 		//Default constructor, pass I2C instance
-		MidIMU(i2c_inst_t* inst);
+		MidIMU(i2c_inst_t* inst) : SensorI2C{inst, IMU_I2C_ADDR} {};
 		
 		//Sensor configuration/status check routines
 		void initialize();
