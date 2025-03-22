@@ -1,7 +1,6 @@
 if (COMPILE_TOOLS)
     add_executable(read_flash
-                   read_flash.c
-                   ${PROJECT_SOURCE_DIR}/src/spi_flash.c
+                   read_flash.cpp
     )
 
     add_executable(servo_test
@@ -32,7 +31,7 @@ if (COMPILE_TOOLS)
 	)
 
     # pull in common dependencies
-    target_link_libraries(read_flash pico_stdlib hardware_spi)
+    target_link_libraries(read_flash pico_stdlib pico_logger hardware_i2c)
     target_include_directories(read_flash PUBLIC ${PROJECT_SOURCE_DIR}/include)
 
     target_link_libraries(servo_test pico_stdlib hardware_pwm hardware_i2c)

@@ -28,7 +28,7 @@
 #define DATA_RATE_HZ 200
 #define LOOP_PERIOD (1.0f / DATA_RATE_HZ)
 
-#define LOG_RATE_HZ 20
+#define LOG_RATE_HZ 50
 
 #define MOTOR_BURN_TIME 2600 // Burn time in milliseconds for L2200G
 
@@ -45,40 +45,36 @@ typedef enum {
     END
 } state_t;
 
-typedef union {
-    struct {
+typedef struct {
+    // 11 bytes General time and state data
+    uint64_t time_us: 64;
+    state_t state: 4;
+    uint16_t temperature_chip: 12;
+    uint8_t deploy_percent: 8;
 
-        // 11 bytes General time and state data
-        uint64_t time_us: 64;
-        state_t state: 4;
-        uint16_t temperature_chip: 12;
-        uint8_t deploy_percent: 8;
+    // 7.25 bytes MS5607 data
+    uint32_t pressure: 18;
+    int32_t altitude: 24;
+    int16_t temperature_alt: 16;
 
-        // 7.25 bytes MS5607 data
-        uint32_t pressure: 18;
-        int32_t altitude: 24;
-        int16_t temperature_alt: 16;
+    // 12 bytes IMU data
+    int16_t ax : 16;
+    int16_t ay : 16;
+    int16_t az : 16;
+    int16_t gx : 16;
+    int16_t gy : 16;
+    int16_t gz : 16;
 
-        // 12 bytes IMU data
-        int16_t ax : 16;
-        int16_t ay : 16;
-        int16_t az : 16;
-        int16_t gx : 16;
-        int16_t gy : 16;
-        int16_t gz : 16;
+    // 6.75 bytes MAG data
+    int32_t mag_x: 18;         // 18 bits (1.125 bytes) == 27.125
+    int32_t mag_y: 18;         // 18 bits (1.125 bytes) == 28.25
+    int32_t mag_z: 18;         // 18 bits (1.125 bytes) == 29.375
 
-        // 6.75 bytes MAG data
-        int32_t mag_x: 18;         // 18 bits (1.125 bytes) == 27.125
-        int32_t mag_y: 18;         // 18 bits (1.125 bytes) == 28.25
-        int32_t mag_z: 18;         // 18 bits (1.125 bytes) == 29.375
-
-        // 6 bytes High G Accel data
-        int16_t high_g_x : 16;
-        int16_t high_g_y : 16;
-        int16_t high_g_z : 16;
-    } __attribute__((packed)) fields;
-    uint8_t data[PACKET_SIZE];
-} log_entry_t;
+    // 6 bytes High G Accel data
+    int16_t high_g_x : 16;
+    int16_t high_g_y : 16;
+    int16_t high_g_z : 16;
+} __attribute__((packed)) log_entry_t;
 
 MidIMU mid(i2c_default);
 HighAccel high(i2c_default);
@@ -110,7 +106,7 @@ volatile int32_t altitude = 0;
 volatile int32_t previous_altitude = 0;
 volatile int32_t velocity = 0;
 volatile state_t state = PAD;
-volatile int32_t threshold_altitude = 3;
+volatile int32_t threshold_altitude = 30;
 volatile float threshold_velocity = 30.0f;
 volatile uint8_t deployment_percent = 0;
 
@@ -147,9 +143,12 @@ int main() {
 
     alarm_pool_init_default();
 
-    logger.initialize(true);
-
     altimeter.initialize();
+    sleep_ms(100);
+    logger.initialize(true);
+    logger.initialize_circular_buffer(PAD_BUFFER_SIZE);
+
+    sleep_ms(100);
 
     altimeter.ms5607_start_sample();
     sleep_ms(100);
@@ -160,12 +159,12 @@ int main() {
     mag.initialize();
     mid.initialize();
 
-//    pwm.init();
-//
-//    // Initialize MOSFET
-//    gpio_init(MICRO_DEFAULT_SERVO_ENABLE);
-//    gpio_set_dir(MICRO_DEFAULT_SERVO_ENABLE, GPIO_OUT);
-//    gpio_put(MICRO_DEFAULT_SERVO_ENABLE, 0);
+    pwm.init();
+
+    // Initialize MOSFET
+    gpio_init(MICRO_DEFAULT_SERVO_ENABLE);
+    gpio_set_dir(MICRO_DEFAULT_SERVO_ENABLE, GPIO_OUT);
+    gpio_put(MICRO_DEFAULT_SERVO_ENABLE, 0);
 
     sem_init(&sem, 1, 1);
 
@@ -203,39 +202,39 @@ bool timer_callback(repeating_timer_t *rt) {
     previous_altitude = altitude;
     altitude = moving_average_sum / moving_average_size;
 
-    deployment_percent = 30;
+    deployment_percent = 80;
 
-//    switch(state) {
-//        case PAD:
-//            gpio_put(MICRO_DEFAULT_SERVO_ENABLE, 0);
-//            pwm.set_servo_percent(0);
-//            deployment_percent = 0;
-//            break;
-//        case BOOST:
-//            gpio_put(MICRO_DEFAULT_SERVO_ENABLE, 1);
-//            pwm.set_servo_percent(0);
-//            deployment_percent = 0;
-//            break;
-//        case COAST:
-//            gpio_put(MICRO_DEFAULT_SERVO_ENABLE, 1);
-//            pwm.set_servo_percent(deployment_percent);
-//            break;
-//        case APOGEE:
-//            gpio_put(MICRO_DEFAULT_SERVO_ENABLE, 1);
-//            pwm.set_servo_percent(0);
-//            deployment_percent = 0;
-//            break;
-//        case RECOVERY:
-//            gpio_put(MICRO_DEFAULT_SERVO_ENABLE, 1);
-//            pwm.set_servo_percent(0);
-//            deployment_percent = 0;
-//            break;
-//        case END:
-//            gpio_put(MICRO_DEFAULT_SERVO_ENABLE, 0);
-//            pwm.set_servo_percent(0);
-//            deployment_percent = 0;
-//            break;
-//    }
+    switch(state) {
+        case PAD:
+            gpio_put(MICRO_DEFAULT_SERVO_ENABLE, 0);
+            pwm.set_servo_percent(0);
+            deployment_percent = 0;
+            break;
+        case BOOST:
+            gpio_put(MICRO_DEFAULT_SERVO_ENABLE, 1);
+            pwm.set_servo_percent(0);
+            deployment_percent = 0;
+            break;
+        case COAST:
+            gpio_put(MICRO_DEFAULT_SERVO_ENABLE, 1);
+            pwm.set_servo_percent(deployment_percent);
+            break;
+        case APOGEE:
+            gpio_put(MICRO_DEFAULT_SERVO_ENABLE, 1);
+            pwm.set_servo_percent(0);
+            deployment_percent = 0;
+            break;
+        case RECOVERY:
+            gpio_put(MICRO_DEFAULT_SERVO_ENABLE, 1);
+            pwm.set_servo_percent(0);
+            deployment_percent = 0;
+            break;
+        case END:
+            gpio_put(MICRO_DEFAULT_SERVO_ENABLE, 0);
+            pwm.set_servo_percent(0);
+            deployment_percent = 0;
+            break;
+    }
     sem_release(&sem);
     return true;
 }
@@ -254,7 +253,7 @@ int64_t boost_callback(alarm_id_t id, void* user_data) {
     sem_acquire_blocking(&sem);
     state = COAST;
     populate_log_entry();
-    logger.write_memory(log_entry.data, true);
+    logger.write_memory(reinterpret_cast<const uint8_t *>(&log_entry), true);
     sem_release(&sem);
     add_alarm_in_ms(1000, &coast_callback, NULL, false);
     return 0;
@@ -265,7 +264,7 @@ int64_t coast_callback(alarm_id_t id, void* user_data) {
         sem_acquire_blocking(&sem);
         state = APOGEE;
         populate_log_entry();
-        logger.write_memory(log_entry.data, false);
+        logger.write_memory(reinterpret_cast<const uint8_t *>(&log_entry), false);
         sem_release(&sem);
         add_alarm_in_ms(1, &apogee_callback, NULL, false);
     } else {
@@ -281,7 +280,7 @@ int64_t apogee_callback(alarm_id_t id, void* user_data) {
 
     sem_acquire_blocking(&sem);
     populate_log_entry();
-    logger.write_memory(log_entry.data, true);
+    logger.write_memory(reinterpret_cast<const uint8_t *>(&log_entry), true);
     sem_release(&sem);
     return 0;
 }
@@ -291,7 +290,7 @@ int64_t recovery_callback(alarm_id_t id, void* user_data) {
     sem_acquire_blocking(&sem);
     state = END;
     populate_log_entry();
-    logger.write_memory(log_entry.data, true);
+    logger.write_memory(reinterpret_cast<const uint8_t *>(&log_entry), true);
     sem_acquire_blocking(&sem);
     return 0;
 }
@@ -314,30 +313,30 @@ void logging_core() {
 
 void populate_log_entry() {
     absolute_time_t now = get_absolute_time();
-    log_entry.fields.time_us = to_us_since_boot(now);
+    log_entry.time_us = to_us_since_boot(now);
 
     adc_select_input(4);
-    log_entry.fields.temperature_chip = adc_read();
-    log_entry.fields.state = state;
-    log_entry.fields.deploy_percent = deployment_percent;
-    log_entry.fields.pressure = altimeter.get_pressure();
-    log_entry.fields.altitude = altimeter.get_altitude();
-    log_entry.fields.temperature_alt = altimeter.get_temperature();
+    log_entry.temperature_chip = adc_read();
+    log_entry.state = state;
+    log_entry.deploy_percent = deployment_percent;
+    log_entry.pressure = altimeter.get_pressure();
+    log_entry.altitude = altimeter.get_altitude();
+    log_entry.temperature_alt = altimeter.get_temperature();
 
-    log_entry.fields.ax = mid.get_ax();
-    log_entry.fields.ay = mid.get_ay();
-    log_entry.fields.az = mid.get_az();
-    log_entry.fields.gx = mid.get_gx();
-    log_entry.fields.gy = mid.get_gy();
-    log_entry.fields.gz = mid.get_gz();
+    log_entry.ax = mid.get_ax();
+    log_entry.ay = mid.get_ay();
+    log_entry.az = mid.get_az();
+    log_entry.gx = mid.get_gx();
+    log_entry.gy = mid.get_gy();
+    log_entry.gz = mid.get_gz();
 
-    log_entry.fields.mag_x = mag.get_ax();
-    log_entry.fields.mag_y = mag.get_ay();
-    log_entry.fields.mag_z = mag.get_az();
+    log_entry.mag_x = mag.get_ax();
+    log_entry.mag_y = mag.get_ay();
+    log_entry.mag_z = mag.get_az();
 
-    log_entry.fields.high_g_x = high.get_ax();
-    log_entry.fields.high_g_y = high.get_ay();
-    log_entry.fields.high_g_z = high.get_az();
+    log_entry.high_g_x = high.get_ax();
+    log_entry.high_g_y = high.get_ay();
+    log_entry.high_g_z = high.get_az();
 
 }
 
@@ -346,7 +345,7 @@ bool logging_buffer_callback(repeating_timer_t *rt) {
     populate_log_entry();
     sem_release(&sem);
 
-    logger.write_circular_buffer(log_entry.data);
+    logger.write_circular_buffer(reinterpret_cast<const uint8_t *>(&log_entry));
 
     if (state != PAD) {
         sem_acquire_blocking(&sem);
@@ -361,7 +360,7 @@ bool logging_buffer_callback(repeating_timer_t *rt) {
 bool logging_flash_callback(repeating_timer_t *rt) {
     sem_acquire_blocking(&sem);
     populate_log_entry();
-    logger.write_memory(log_entry.data, false);
+    logger.write_memory(reinterpret_cast<const uint8_t *>(&log_entry), false);
     sem_release(&sem);
     if (state == END) {
         logger.flush_buffer();
@@ -378,12 +377,10 @@ void print_log_entry(const uint8_t* entry) {
         first_call = false;
     }
 
-    log_entry_t packet;
+    const log_entry_t* packet = reinterpret_cast<const log_entry_t *>(entry);
 
-    memcpy((void *)packet.data, (const void *)(entry), PACKET_SIZE);
-
-    printf("%" PRIu64 ",", packet.fields.time_us);
-    state_t state = (state_t) packet.fields.state;
+    printf("%" PRIu64 ",", packet->time_us);
+    state_t state = (state_t) packet->state;
     switch (state) {
         case PAD:
             printf("PAD,");
@@ -405,28 +402,28 @@ void print_log_entry(const uint8_t* entry) {
             break;
     }
     const float conversionFactor = 3.3f / (1 << 12);
-    float tempC = 27.0f - (((float)(packet.fields.temperature_chip) * conversionFactor) - 0.706f) / 0.001721f;
+    float tempC = 27.0f - (((float)(packet->temperature_chip) * conversionFactor) - 0.706f) / 0.001721f;
     printf("%4.2f,", tempC);
-    printf("%d,", packet.fields.deploy_percent);
-    printf("%4.2f,", ((float) packet.fields.pressure) / PRESSURE_SCALE_F);
-    printf("%4.2f,", ((float) packet.fields.altitude) / ALTITUDE_SCALE_F);
-    printf("%4.2f,", ((float) packet.fields.temperature_alt) / TEMPERATURE_SCALE_F);
+    printf("%d,", packet->deploy_percent);
+    printf("%4.2f,", ((float) packet->pressure) / PRESSURE_SCALE_F);
+    printf("%4.2f,", ((float) packet->altitude) / ALTITUDE_SCALE_F);
+    printf("%4.2f,", ((float) packet->temperature_alt) / TEMPERATURE_SCALE_F);
 
-    printf("%4.2f,", mid.scale_accel(packet.fields.ax));
-    printf("%4.2f,", mid.scale_accel(packet.fields.ay));
-    printf("%4.2f,", mid.scale_accel(packet.fields.az));
+    printf("%4.2f,", mid.scale_accel(packet->ax));
+    printf("%4.2f,", mid.scale_accel(packet->ay));
+    printf("%4.2f,", mid.scale_accel(packet->az));
     
-    printf("%4.2f,", mid.scale_gyro(packet.fields.gx));
-    printf("%4.2f,", mid.scale_gyro(packet.fields.gy));
-    printf("%4.2f,", mid.scale_gyro(packet.fields.gz));
+    printf("%4.2f,", mid.scale_gyro(packet->gx));
+    printf("%4.2f,", mid.scale_gyro(packet->gy));
+    printf("%4.2f,", mid.scale_gyro(packet->gz));
     
-    printf("%4.2f,", mag.scale(packet.fields.mag_x));
-    printf("%4.2f,", mag.scale(packet.fields.mag_y));
-    printf("%4.2f,", mag.scale(packet.fields.mag_z));
+    printf("%4.2f,", mag.scale(packet->mag_x));
+    printf("%4.2f,", mag.scale(packet->mag_y));
+    printf("%4.2f,", mag.scale(packet->mag_z));
     
-    printf("%4.2f,", high.scale(packet.fields.high_g_x));
-    printf("%4.2f,", high.scale(packet.fields.high_g_y));
-    printf("%4.2f", high.scale(packet.fields.high_g_z));
+    printf("%4.2f,", high.scale(packet->high_g_x));
+    printf("%4.2f,", high.scale(packet->high_g_y));
+    printf("%4.2f", high.scale(packet->high_g_z));
     printf("\r\n");
 }
 
@@ -490,7 +487,7 @@ bool serial_callback(repeating_timer_t *rt) {
      //           break;
      //   }
      //   printf(": Altitude: %4.2f, Velocity: %4.2f\n", ((float) altitude) / ALTITUDE_SCALE_F, ((float) velocity) / ALTITUDE_SCALE_F);
-     print_log_entry(log_entry.data);
+     print_log_entry(reinterpret_cast<const uint8_t *>(&log_entry));
     }
 
     return true;
@@ -504,7 +501,9 @@ void process_cmd(char* buf, uint8_t len) {
                 if (len >= 4) {
                     if (buf[1] == 'e' && buf[2] == 'a' && buf[3] == 'd') {
                         printf("\nReading memory!\n");
+                        uint32_t status = save_and_disable_interrupts();
                         logger.read_memory();
+                        restore_interrupts(status);
                         result = 0;
                     }
             }
@@ -532,6 +531,9 @@ void process_cmd(char* buf, uint8_t len) {
                     }
                 }
             }
+            case 'i':
+                    logger.initialize(true);
+                    result = 0;
                 break;
             default:
                 break;

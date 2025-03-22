@@ -1,4 +1,5 @@
 #include "magnetometer.hpp"
+#include "hardware/i2c.h"
 
 //Startup routine, initialize necessary values and reset
 void Magnetometer::initialize() {
@@ -7,7 +8,8 @@ void Magnetometer::initialize() {
 	write_buffer(R_MAG_INTERNAL_CONTROL_1, buffer, 1);
 
 	//Configure and enable continuous measurement mode
-	buffer[0] = (B_MAG_INTERNAL_CONTROL_2_CM_FREQ_1000HZ | 
+    buffer[0] = R_MAG_INTERNAL_CONTROL_2;
+	buffer[1] = (B_MAG_INTERNAL_CONTROL_2_CM_FREQ_1000HZ | 
 				 b_MAG_INTERNAL_CONTROL_2_CMM_EN);
 	write_buffer(R_MAG_INTERNAL_CONTROL_2, buffer, 1);
 	
