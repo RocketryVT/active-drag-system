@@ -1,34 +1,41 @@
 #include "high_accel.hpp"
+#include "hardware/i2c.h"
 
 //Run initialization and reset routines
 void HighAccel::initialize() {
 	//TODO: Refactor to consolidate into multi-register buffer writes, organize by register order and clump
 
 	//Configure data parameters
-	buffer[0] = B_ACC_ODR_800_HZ;
-	write_register(R_ACC_BW_RATE, buffer, 1);
-	buffer[0] = B_ACC_ODR_800_HZ;
-	write_register(R_ACC_BW_RATE, buffer, 1);
+    buffer[0] = R_ACC_BW_RATE;
+	buffer[1] = B_ACC_ODR_800_HZ;
+    i2c_write_blocking(i2c, addr, buffer, 2, false);
+    buffer[0] = R_ACC_DATA_FORMAT;
 	buffer[0] = B_ACC_DATA_FORMAT_DEFAULT;
-	write_register(R_ACC_DATA_FORMAT, buffer, 1);
+    i2c_write_blocking(i2c, addr, buffer, 2, false);
 
 	//Configure interrupt settings and mapping
-	buffer[0] = B_ACC_THRESH_SHOCK_1560mG;
-	write_register(R_ACC_THRESH_SHOCK, buffer, 1);
-	buffer[0] = B_ACC_DUR_2500uS;
-	write_register(R_ACC_DUR, buffer, 1);
-	buffer[0] = b_ACC_SHOCK_AXES_Z;
-	write_register(R_ACC_SHOCK_AXES, buffer, 1);	//TODO: Figure out way to do axis handling
-	buffer[0] = ~b_ACC_INT_MAP_SINGLE_SHOCK;
-	write_register(R_ACC_INT_MAP, buffer, 1);		//TODO: Confirm mapping (0 = INT1, 1 = INT2)
+	buffer[0] = R_ACC_THRESH_SHOCK;
+    buffer[1] = B_ACC_THRESH_SHOCK_1560mG;
+    i2c_write_blocking(i2c, addr, buffer, 2, false);
+    buffer[0] = R_ACC_DUR;
+	buffer[1] = B_ACC_DUR_2500uS;
+    i2c_write_blocking(i2c, addr, buffer, 2, false);
+	buffer[0] = R_ACC_SHOCK_AXES;
+    buffer[1] = b_ACC_SHOCK_AXES_Z;
+    i2c_write_blocking(i2c, addr, buffer, 2, false);
+    buffer[0] = R_ACC_INT_MAP;
+	buffer[1] = ~b_ACC_INT_MAP_SINGLE_SHOCK;
+    i2c_write_blocking(i2c, addr, buffer, 2, false);
 	
 	//Enable interrupts
-	buffer[0] = b_ACC_INT_ENABLE_SINGLE_SHOCK;
-	write_register(R_ACC_INT_ENABLE, buffer, 1);
+    buffer[0] = R_ACC_INT_ENABLE;
+	buffer[1] = b_ACC_INT_ENABLE_SINGLE_SHOCK;
+    i2c_write_blocking(i2c, addr, buffer, 2, false);
 
 	//Set to measurement mode
-	buffer[0] = b_ACC_POWER_CTL_MEASURE;
-	write_register(R_ACC_POWER_CTL, buffer, 1);
+    buffer[0] = R_ACC_POWER_CTL;
+	buffer[1] = b_ACC_POWER_CTL_MEASURE;
+    i2c_write_blocking(i2c, addr, buffer, 2, false);
 }
 
 //Read devid register and confirm its validity

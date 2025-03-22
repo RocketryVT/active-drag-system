@@ -1,4 +1,5 @@
 #include "mid_imu.hpp"
+#include "hardware/i2c.h"
 #include "magnetometer.hpp"
 
 //Startup routine, initialize GPIO clock output
@@ -11,13 +12,17 @@ void MidIMU::initialize() {
 	//TODO: Refactor to consolidate sequential register writes into one operation
 
 	//Enable both sensors and configure their ODRs
-	buffer[0] = B_IMU_GYRO_CONFIG0_ODR_500HZ;
-	write_register(R_IMU_GYRO_CONFIG0, buffer, 1);
-	buffer[0] = B_IMU_ACCEL_CONFIG0_ODR_500HZ;
-	write_register(R_IMU_ACCEL_CONFIG0, buffer, 1);
-	buffer[0] = (B_IMU_PWR_MGMT0_GYRO_MODE_LN | 
+    buffer[0] = R_IMU_GYRO_CONFIG0;
+	buffer[1] = B_IMU_GYRO_CONFIG0_ODR_500HZ;
+    i2c_write_blocking(i2c, addr, buffer, 2, false);
+
+    buffer[0] = R_IMU_ACCEL_CONFIG0;
+	buffer[1] = B_IMU_ACCEL_CONFIG0_ODR_500HZ;
+    i2c_write_blocking(i2c, addr, buffer, 2, false);
+    buffer[0] = R_IMU_PWR_MGMT0;
+	buffer[1] = (B_IMU_PWR_MGMT0_GYRO_MODE_LN | 
 				 B_IMU_PWR_MGMT0_ACCEL_MODE_LN);
-	write_register(R_IMU_PWR_MGMT0, buffer, 1);
+    i2c_write_blocking(i2c, addr, buffer, 2, false);
 	sleep_ms(1); //Datasheet instructs 200us wait after changing sensor power modes
 	
 	//TODO: Figure out if disabling AUX1 Serial interface is necessary 

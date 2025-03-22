@@ -1,15 +1,18 @@
 #include "magnetometer.hpp"
+#include "hardware/i2c.h"
 
 //Startup routine, initialize necessary values and reset
 void Magnetometer::initialize() {
 	//Configure decimation filter bandwidth
-	buffer[0] = B_MAG_INTERNAL_CONTROL_1_FLT_BW_800HZ;
-	write_register(R_MAG_INTERNAL_CONTROL_1, buffer, 1);
+    buffer[0] = R_MAG_INTERNAL_CONTROL_1;
+	buffer[1] = B_MAG_INTERNAL_CONTROL_1_FLT_BW_800HZ;
+    i2c_write_blocking(i2c, addr, buffer, 2, false);
 
 	//Configure and enable continuous measurement mode
-	buffer[0] = (B_MAG_INTERNAL_CONTROL_2_CM_FREQ_1000HZ | 
+    buffer[0] = R_MAG_INTERNAL_CONTROL_2;
+	buffer[1] = (B_MAG_INTERNAL_CONTROL_2_CM_FREQ_1000HZ | 
 				 b_MAG_INTERNAL_CONTROL_2_CMM_EN);
-	write_register(R_MAG_INTERNAL_CONTROL_2, buffer, 1);
+    i2c_write_blocking(i2c, addr, buffer, 2, false);
 	
 	//TODO: Figure out what amount of calibration the bridge offset actually adds/if it's necessary
 	//Initial calibration of bridge offset on startup
