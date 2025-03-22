@@ -1,4 +1,5 @@
 #include "high_accel.hpp"
+#include "hardware/i2c.h"
 
 //Run initialization and reset routines
 void HighAccel::initialize() {
