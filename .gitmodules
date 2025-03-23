@@ -7,3 +7,6 @@
 [submodule "include/pico-logger"]
 	path = include/pico-logger
 	url = https://github.com/rocketryvt/pico-logger.git
+[submodule "include/FreeRTOS"]
+	path = include/FreeRTOS
+	url = https://github.com/FreeRTOS/FreeRTOS-Kernel.git
