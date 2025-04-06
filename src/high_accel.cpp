@@ -12,8 +12,10 @@ void HighAccel::initialize() {
 	//TODO: Refactor to consolidate into multi-register buffer writes, organize by register order and clump
 
 	//Configure data parameters
+	printf("BEGINNING HIGH ACCEL INITIALIZATION!\n");
 	buffer[0] = B_ACC_ODR_800_HZ;
 	write_buffer(R_ACC_BW_RATE, buffer, 1);
+	printf("FIRST I2C WRITE PERFORMED SUCCESSFULLY!\n");
 	buffer[0] = B_ACC_ODR_800_HZ;
 	write_buffer(R_ACC_BW_RATE, buffer, 1);
 	buffer[0] = B_ACC_DATA_FORMAT_DEFAULT;
