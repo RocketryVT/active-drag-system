@@ -72,6 +72,10 @@ volatile size_t moving_average_offset = 0;
 volatile size_t moving_average_size = 0;
 volatile int32_t moving_average_sum = 0;
 
+char c;
+char buf[16] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+volatile uint8_t idx = 0;
+
 Logger logger(PACKET_SIZE, LOG_BASE_ADDR, &print_log_entry);
 
 int main() {
@@ -100,10 +104,43 @@ int main() {
 
     multicore_launch_core1(core1_entry);
 
-    add_repeating_timer_us(-1000000 / SERIAL_RATE_HZ,  &serial_callback, NULL, &serial_timer);
+//    add_repeating_timer_us(-1000000 / SERIAL_RATE_HZ,  &serial_callback, NULL, &serial_timer);
 
     while (1) {
-        tight_loop_contents();
+
+        c = getchar_timeout_us(0);
+        if (c != 255) {
+            if (idx < 16) {
+                if (c == 0x08 && idx > 0) { /* backspace */
+                    idx--;
+                    buf[idx] = 0;
+                    printf("%c", 0x7f);
+                }
+                else if (c == 0x0D) { /* carriage return (enter) */
+                    process_cmd(buf, idx);
+                    for (uint8_t i = 16; i < 16; i++) {
+                        buf[i] = 0;
+                    }
+                    idx = 0;
+                    printf("\n>\t");
+                }
+                else if (c >= 32 && c <= 126) {
+                    buf[idx] = c;
+                    idx++;
+                }
+                printf("%c", c);
+            } else {
+                printf("Overflow! press enter to reset buffer!\n");
+                if (c == 0x0D) {
+                    for (uint8_t i = 16; i < 16; i++) {
+                        buf[i] = 0;
+                    }
+                    idx = 0;
+                    printf("\n>\t");
+                }
+            }
+        }
+//        tight_loop_contents();
     }
 }
 
@@ -116,11 +153,7 @@ void core1_entry() {
 }
 
 bool serial_callback(repeating_timer_t *rt) {
-    static char c;
-    static char buf[16] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-    static uint8_t idx = 0;
-
-    c = getchar_timeout_us(0);
+    c = getchar_timeout_us(1000);
     if (c != 255) {
         if (idx < 16) {
             if (c == 0x08 && idx > 0) { /* backspace */
