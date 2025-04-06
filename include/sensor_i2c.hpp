@@ -22,5 +22,6 @@ class SensorI2C {
 	public:
 		//Helper functions for handling I2C R/W operations
 		void write_buffer(uint8_t reg_addr, uint8_t* buffer, size_t len);
+		void write_buffer(uint8_t* buffer, size_t len, bool nostop);
 		void read_buffer(uint8_t reg_addr, uint8_t* buffer, size_t len);
 };

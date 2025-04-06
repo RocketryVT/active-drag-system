@@ -59,6 +59,10 @@ int main() {
 	while (true) {
 		//Heartbeat at beginning of cycle
 		heartbeat(2, 125);	//500ms
+		
+		//Request data from sensors
+		high.update();
+		//TODO: Add update method calls for other sensors after refactor
 
 		//Collect data from sensors
 		Vector3f accel_out = high.getData();
