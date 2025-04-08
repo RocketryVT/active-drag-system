@@ -164,7 +164,7 @@ class HighAccel : public SensorI2C {
 		
 		//Sensor data return
 		void update();		//Request data from sensor over I2C and format it
-		Vector3f getData();	//Return formatted data members as a vector
+		Vector3f get_data();	//Return formatted data members as a vector
 		float getX();		//Return formatted x acceleration
 		float getY();		//Return formatted y acceleration
 		float getZ();		//Return formatted z acceleration

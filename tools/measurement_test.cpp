@@ -65,16 +65,17 @@ int main() {
 		//TODO: Add update method calls for other sensors after refactor
 
 		//Collect data from sensors
-		Vector3f accel_out = high.getData();
+		Vector3f accel_out = high.get_data();
 		Vector3f mag_out = mag.getData();
-		Vector6f imu_out = imu.getData();
+		Vector3f imu_accel_out = imu.get_accel_data();
+		Vector3f imu_gyro_out = imu.get_gyro_data();
 
 		printf("ACCELEROMETER: [%4.2f, %4.2f, %4.2f]\n",
 			accel_out[0], accel_out[1], accel_out[2]);
 		printf("MAGNETOMETER:  [%4.2f, %4.2f, %4.2f]\n",
 			mag_out[0], mag_out[1], mag_out[2]);
 		printf("IMU (AC, GY):  [%4.2f, %4.2f, %4.2f, %4.2f, %4.2f, %4.2f]\n\n",
-			imu_out[0], imu_out[1], imu_out[2], imu_out[3], imu_out[4], imu_out[5]);
+			imu_accel_out[0], imu_accel_out[1], imu_accel_out[2], imu_gyro_out[0], imu_gyro_out[1], imu_gyro_out[2]);
 	}
 		
 }

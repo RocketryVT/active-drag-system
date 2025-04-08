@@ -79,7 +79,7 @@ void HighAccel::update() {
 	data[2] = ((float) int_z) / S_ACC_SENSITIVITY_FACTOR;
 }
 
-Vector3f HighAccel::getData() {
+Vector3f HighAccel::get_data() {
 	return data;
 }
 
