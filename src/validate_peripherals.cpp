@@ -117,9 +117,9 @@ int main() {
 		gpio_put(PICO_DEFAULT_LED_PIN, 0);
 		sleep_ms(125);
 
-		Vector3f accel_out = high.getData();
+		Vector3f accel_out = high.get_data();
 		Vector3f mag_out = mag.getData();
-		Vector6f imu_out = mid.getData();
+		Vector3f imu_out = mid.get_accel_data();
 
 		printf("ACCELEROMETER: [%4.2f, %4.2f, %4.2f]\n",
 				accel_out[0], accel_out[1], accel_out[2]);
