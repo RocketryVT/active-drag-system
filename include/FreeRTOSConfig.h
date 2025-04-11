@@ -27,7 +27,12 @@
 
  #ifndef FREERTOS_CONFIG_H
  #define FREERTOS_CONFIG_H
- 
+
+/* *INDENT-OFF* */
+#ifdef __cplusplus
+    extern "C" {
+#endif
+
  /*-----------------------------------------------------------
   * Application specific definitions.
   *
@@ -63,6 +68,9 @@
  #define configUSE_NEWLIB_REENTRANT              0
  #define configENABLE_BACKWARD_COMPATIBILITY     0
  #define configNUM_THREAD_LOCAL_STORAGE_POINTERS 5
+
+ #define configUSE_TASK_NOTIFICATIONS            1
+ #define configTASK_NOTIFICATION_ARRAY_ENTRIES   32
  
  /* System */
  #define configSTACK_DEPTH_TYPE                  uint32_t
@@ -80,9 +88,9 @@
  #define configUSE_DAEMON_TASK_STARTUP_HOOK      0
  
  /* Run time and task stats gathering related definitions. */
- #define configGENERATE_RUN_TIME_STATS           0
+ #define configGENERATE_RUN_TIME_STATS           1
  #define configUSE_TRACE_FACILITY                1
- #define configUSE_STATS_FORMATTING_FUNCTIONS    0
+ #define configUSE_STATS_FORMATTING_FUNCTIONS    1
  
  /* Co-routine related definitions. */
  #define configUSE_CO_ROUTINES                   0
@@ -101,11 +109,19 @@
  #define configMAX_API_CALL_INTERRUPT_PRIORITY   [dependent on processor and application]
  */
  
- /* SMP port only */
- #define configNUM_CORES                         2
- #define configTICK_CORE                         0
- #define configRUN_MULTIPLE_PRIORITIES           0
- 
+#define FREE_RTOS_KERNEL_SMP 1
+#if FREE_RTOS_KERNEL_SMP // set by the RP2040 SMP port of FreeRTOS
+/* SMP port only */
+#define configNUM_CORES                         2
+#define configTICK_CORE                         0
+#define configRUN_MULTIPLE_PRIORITIES           1
+#define configUSE_CORE_AFFINITY                 1
+#define configUSE_PASSIVE_IDLE_HOOK		0
+#else
+#define configNUM_CORES                         1
+#endif
+#define configNUMBER_OF_CORES			configNUM_CORES
+
  /* RP2040 specific */
  #define configSUPPORT_PICO_SYNC_INTEROP         1
  #define configSUPPORT_PICO_TIME_INTEROP         1
@@ -134,6 +150,15 @@
  #define INCLUDE_xQueueGetMutexHolder            1
  
  /* A header file that defines trace macro can be included here. */
- 
- #endif /* FREERTOS_CONFIG_H */
- 
+#define portCONFIGURE_TIMER_FOR_RUN_TIME_STATS() 
+extern uint64_t time_us_64(void);						// "hardware/timer.h"
+#define RUN_TIME_STAT_time_us_64Divider 1000			// stat granularity is mS
+#define portGET_RUN_TIME_COUNTER_VALUE() (time_us_64()/RUN_TIME_STAT_time_us_64Divider)	// runtime counter in mS
+
+/* *INDENT-OFF* */
+#ifdef __cplusplus
+    }
+#endif
+
+#endif /* FREERTOS_CONFIG_H */
+
