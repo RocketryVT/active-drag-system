@@ -9,6 +9,15 @@
 #include "pico/time.h"
 #include "sensor_i2c.hpp"
 
+#if ( USE_FREERTOS == 1 )
+#include "FreeRTOS.h"
+#include "FreeRTOSConfig.h"
+#include "portmacro.h"
+#include "projdefs.h"
+#include "task.h"
+#include "semphr.h"
+#endif
+
 #define MS5607_I2C_ADDRESS 0x77
 
 #define PROM_MANUFACTURER_RESERVED_ADDR    0x0
@@ -74,6 +83,11 @@ class altimeter : SensorI2C {
 
         void ms5607_sample();
 
+        static int64_t ms5607_sample_callback(alarm_id_t id, void* user_data);
+#if (USE_FREERTOS == 1)
+        static void ms5607_sample_handler(void* pvParameters);
+#endif
+
         int32_t pressure_to_altitude(int32_t pressure);
 
         int32_t get_pressure() { return pressure; }
@@ -84,6 +98,9 @@ class altimeter : SensorI2C {
 
         void clear_threshold_altitude();
 
+#if ( USE_FREERTOS == 1 )
+        TaskHandle_t sample_handler_task = NULL;
+#endif
     private:
         void ms5607_compensate();
 

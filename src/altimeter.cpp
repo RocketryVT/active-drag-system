@@ -7,12 +7,6 @@ static const int32_t altitude_table[] = {
 #define ALT_SCALE (1 << ALT_SHIFT)
 #define ALT_MASK (ALT_SCALE - 1)
 
-static int64_t adc_read_callback(alarm_id_t id, void* user_data) {
-    altimeter* alt = (altimeter *) user_data;
-    alt->ms5607_sample();
-    return 0;
-}
-
 void altimeter::initialize() {
     sample_state = NOT_SAMPLING;
 
@@ -38,10 +32,7 @@ void altimeter::initialize() {
         i2c_read_blocking(i2c, addr, buffer, 2, false);
 
         prom[prom_addr - 1] = static_cast<uint16_t>((((uint16_t) buffer[0]) << 8) | ((uint16_t) buffer[1]));
-
     }
-
-
 }
 
 void altimeter::ms5607_write_cmd(ms5607_cmd* cmd) {
@@ -53,6 +44,46 @@ void altimeter::ms5607_start_sample() {
         sample_state = PRESSURE_CONVERT;
         ms5607_sample();
     }
+}
+
+#if (USE_FREERTOS == 1)
+void altimeter::ms5607_sample_handler(void* pvParameters) {
+    /* xMaxExpectedBlockTime is set to be a little longer than the maximum
+    expected time between events. */
+    const TickType_t xInterruptFrequency = pdMS_TO_TICKS( 1000 / 1000 );
+    const TickType_t xMaxExpectedBlockTime = xInterruptFrequency + pdMS_TO_TICKS( 1 );
+    uint32_t ulEventsToProcess;
+    while (1) {
+        /* Wait to receive a notification sent directly to this task from the
+        interrupt service routine. */
+        ulEventsToProcess = ulTaskNotifyTake( pdTRUE, xMaxExpectedBlockTime );
+        if( ulEventsToProcess != 0 ) {
+            /* To get here at least one event must have occurred. Loop here
+            until all the pending events have been processed */
+            while( ulEventsToProcess > 0 ) {
+                altimeter* alt = (altimeter *) pvParameters;
+                alt->ms5607_sample();
+                ulEventsToProcess--;
+            }
+        }
+    }
+
+}
+#endif
+
+int64_t altimeter::ms5607_sample_callback(alarm_id_t id, void* user_data) {
+#if ( USE_FREERTOS == 1 )
+    BaseType_t xHigherPriorityTaskWoken;
+    xHigherPriorityTaskWoken = pdFALSE;
+    altimeter* alt = (altimeter *) user_data;
+    // Defer ISR handling to separate handler within FreeRTOS context
+    vTaskNotifyGiveFromISR(alt->sample_handler_task, &xHigherPriorityTaskWoken );
+    portYIELD_FROM_ISR( xHigherPriorityTaskWoken );
+#else
+    altimeter* alt = (altimeter *) user_data;
+    alt->ms5607_sample();
+#endif
+    return 0;
 }
 
 void altimeter::ms5607_sample() {
@@ -68,7 +99,7 @@ void altimeter::ms5607_sample() {
 
             ms5607_write_cmd(&cmd);
 
-            add_alarm_in_us(OSR_256_CONVERSION_TIME_US, &adc_read_callback, (void *) this, true);
+            add_alarm_in_us(OSR_256_CONVERSION_TIME_US, altimeter::ms5607_sample_callback, (void *) this, true);
 
             sample_state = TEMPERATURE_CONVERT;
             break;
@@ -85,7 +116,7 @@ void altimeter::ms5607_sample() {
 
             ms5607_write_cmd(&cmd);
 
-            add_alarm_in_us(OSR_256_CONVERSION_TIME_US, &adc_read_callback, (void *) this, true);
+            add_alarm_in_us(OSR_256_CONVERSION_TIME_US, altimeter::ms5607_sample_callback, (void *) this, true);
 
             sample_state = COMPENSATE;
             break;
@@ -114,6 +145,7 @@ void altimeter::ms5607_sample() {
             break;
         };
     };
+
 }
 
 void altimeter::ms5607_compensate() {

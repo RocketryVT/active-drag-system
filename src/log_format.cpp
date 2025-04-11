@@ -61,6 +61,5 @@ void print_log_entry(const uint8_t* entry) {
     printf("%4.2f", log_high->scale(packet->high_g_z));
     printf("\r\n");
     stdio_flush();
-    sleep_ms(10);
 }
 

@@ -1,13 +1,13 @@
 if (COMPILE_TOOLS)
     add_executable(read_flash
                    read_flash.cpp
-                   # ${PROJECT_SOURCE_DIR}/src/high_accel.cpp
-                   # ${PROJECT_SOURCE_DIR}/src/magnetometer.cpp
-                   # ${PROJECT_SOURCE_DIR}/src/mid_imu.cpp
-                   # ${PROJECT_SOURCE_DIR}/src/sensor_i2c.cpp
-                   # ${PROJECT_SOURCE_DIR}/src/altimeter.cpp
-                   # ${PROJECT_SOURCE_DIR}/src/log_format.cpp
-                   # ${PROJECT_SOURCE_DIR}/src/heartbeat.cpp
+                   ${PROJECT_SOURCE_DIR}/src/high_accel.cpp
+                   ${PROJECT_SOURCE_DIR}/src/magnetometer.cpp
+                   ${PROJECT_SOURCE_DIR}/src/mid_imu.cpp
+                   ${PROJECT_SOURCE_DIR}/src/sensor_i2c.cpp
+                   ${PROJECT_SOURCE_DIR}/src/altimeter.cpp
+                   ${PROJECT_SOURCE_DIR}/src/log_format.cpp
+                   ${PROJECT_SOURCE_DIR}/src/serial.cpp
     )
 
     add_executable(servo_test
@@ -34,12 +34,13 @@ if (COMPILE_TOOLS)
 	)
 
     # pull in common dependencies
-    target_link_libraries(read_flash pico_stdlib pico_multicore pico_sync FreeRTOS-Kernel FreeRTOS-Kernel-Heap4)
+    target_link_libraries(read_flash pico_stdlib pico_multicore pico_sync hardware_i2c hardware_adc hardware_timer FreeRTOS-Kernel FreeRTOS-Kernel-Heap4)
     target_include_directories(read_flash PUBLIC ${PROJECT_SOURCE_DIR}/include)
     target_compile_definitions(read_flash PRIVATE
+            USE_FREERTOS=1
             PICO_STDIO_STACK_BUFFER_SIZE=64 # use a small printf on stack buffer
     )
-    # pico_set_binary_type(read_flash copy_to_ram)
+    pico_set_binary_type(read_flash copy_to_ram)
 
     target_link_libraries(servo_test pico_stdlib hardware_pwm hardware_i2c)
     target_include_directories(servo_test PUBLIC ${PROJECT_SOURCE_DIR}/include)
