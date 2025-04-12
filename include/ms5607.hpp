@@ -7,7 +7,6 @@
 #include "hardware/i2c.h"
 
 #include "pico/time.h"
-#include "sensor_i2c.hpp"
 
 #if ( USE_FREERTOS == 1 )
 #include "FreeRTOS.h"
