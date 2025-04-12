@@ -10,7 +10,7 @@ void ADXL375::initialize() {
 
     //Configure data output format
     buffer[0] = R_ADXL375_DATA_FORMAT;
-    i2c_write_blocking(i2c, addr, buffer, 1, false);
+    i2c_write_blocking(i2c, addr, buffer, 1, true);
     i2c_read_blocking(i2c, addr, buffer, 1, false);
     //Some reserved fields are set to 1, read byte and *then* set desired bits
     data_format.data = buffer[0];
@@ -31,7 +31,7 @@ void ADXL375::initialize() {
 void ADXL375::sample() {
     //Read DATAX0 - DATAZ1 as a block
     buffer[0] = R_ADXL375_DATAX0;
-    i2c_write_blocking(i2c, addr, buffer, 1, false);
+    i2c_write_blocking(i2c, addr, buffer, 1, true);
     i2c_read_blocking(i2c, addr, buffer, 6, false);
 
     //Split buffer into individual fields
