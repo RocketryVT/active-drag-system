@@ -6,7 +6,6 @@ add_executable(ads
                mid_imu.cpp
                high_accel.cpp
                magnetometer.cpp
-               sensor_i2c.cpp
 )
 
 pico_set_binary_type(ads copy_to_ram)
