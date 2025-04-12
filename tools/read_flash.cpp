@@ -1,18 +1,18 @@
-#include <hardware/timer.h>
-#include <pico/error.h>
-#include <pico/types.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include <inttypes.h>
 
+#include "hardware/gpio.h"
+#include "hardware/i2c.h"
+#include "hardware/adc.h"
+#include <hardware/timer.h>
 #include "pico/stdlib.h"
 #include "pico/stdio.h"
 #include "pico/multicore.h"
 #include "pico/time.h"
-#include "hardware/gpio.h"
-#include "hardware/i2c.h"
-#include "hardware/adc.h"
+#include <pico/error.h>
+#include <pico/types.h>
 
 /* Kernel includes. */
 #include "FreeRTOS.h"
@@ -23,11 +23,8 @@
 #include "task.h"
 #include "semphr.h"
 
-#include "high_accel.hpp"
-#include "altimeter.hpp"
-#include "magnetometer.hpp"
-#include "mid_imu.hpp"
-#include "log_format.hpp"
+#include "adxl375.hpp"
+#include "ms5607.hpp"
 #include "serial.hpp"
 
 /* Priorities at which the tasks are created. */
@@ -40,11 +37,7 @@
 #define HEARTBEAT_RATE_HZ 5
 #define DATA_UPDATE_RATE_HZ 100
 
-#define MOVING_AVG_MAX_SIZE 20
 #define MAX_SCL 400000
-
-int input_line(char* buffer, size_t len);
-void populate_log_entry();
 
 static void sample_cmd_func();
 static void debug_cmd_func();
@@ -54,9 +47,7 @@ static void heartbeat_task( void *pvParameters );
 
 static void update_ms5607_task( void *pvParameters );
 
-static void update_mmc5338_task( void *pvParameters );
 static void update_adxl375_task( void *pvParameters );
-static void update_iim42653_task( void *pvParameters );
 
 void vApplicationTickHook(void) { /* optional */ }
 void vApplicationMallocFailedHook(void) { /* optional */ }
@@ -71,38 +62,12 @@ const command_t user_commands[] = { {.name = "sample",
                                      .len = 5,
                                      .function = &debug_cmd_func} };
 
-volatile int32_t altitude = 0;
-volatile int32_t previous_altitude = 0;
-volatile int32_t velocity = 0;
-volatile state_t state = PAD;
-volatile uint8_t deployment_percent = 0;
-
 volatile bool serial_data_output = false;
 
-volatile int32_t moving_average[MOVING_AVG_MAX_SIZE];
-volatile size_t moving_average_offset = 0;
-volatile size_t moving_average_size = 0;
-volatile int32_t moving_average_sum = 0;
-volatile SemaphoreHandle_t sensor_semaphore = NULL;
-
-volatile int16_t ax = 0, ay = 0, az = 0;
-
-volatile log_entry_t log_entry;
-
 altimeter alt(i2c_default);
-MidIMU mid(i2c_default);
-HighAccel high(i2c_default);
-Magnetometer mag(i2c_default);
-
-extern MidIMU* log_mid;
-extern HighAccel* log_high;
-extern Magnetometer* log_mag;
+ADXL375 adxl375(i2c_default);
 
 int main() {
-    log_mid = &mid;
-    log_high = &high;
-    log_mag = &mag;
-
     stdio_init_all();
 
     adc_init();
@@ -150,61 +115,12 @@ static void update_adxl375_task(void * unused_arg) {
     TickType_t xLastWakeTime;
     const TickType_t xFrequency = pdMS_TO_TICKS(1000 / 100);
 
-    const uint8_t adxl375_addr =  0x1D;
-
-    uint8_t tx_buffer[2] = {0x0, 0x0};
-    uint8_t rx_buffer[6] = {0x0, 0x0, 0x0, 0x0, 0x0, 0x0};
-
-    tx_buffer[0] = 0x2C; // BW_RATE REG
-	tx_buffer[1] = 0x0D; // 800 Hz ODR
-    i2c_write_blocking(i2c_default, adxl375_addr, tx_buffer, 2, false);
-
-    tx_buffer[0] = 0x31; // Data Format Reg
-	tx_buffer[1] = 0x0B; // Default Data Format
-    i2c_write_blocking(i2c_default, adxl375_addr, tx_buffer, 2, false);
-
-    tx_buffer[0] = 0x2D; // Power Control Reg
-	tx_buffer[1] = 0x08; // Mesaurement Mode
-    i2c_write_blocking(i2c_default, adxl375_addr, tx_buffer, 2, false);
-
-    // high.initialize();
+    adxl375.initialize();
 
     xLastWakeTime = xTaskGetTickCount();
     while (1) {
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
-        tx_buffer[0] = 0x32;
-        i2c_write_blocking(i2c_default, adxl375_addr, tx_buffer, 1, false);
-        i2c_read_blocking(i2c_default, adxl375_addr, rx_buffer, 6, false);
-        ax = ((int16_t) rx_buffer[0]) | ((int16_t) rx_buffer[1] << 8);
-        ay = ((int16_t) rx_buffer[2]) | ((int16_t) rx_buffer[3] << 8);
-        az = ((int16_t) rx_buffer[4]) | ((int16_t) rx_buffer[5] << 8);
-        // high.getData();
-    }
-}
-
-static void update_mmc5883_task(void * unused_arg) {
-    TickType_t xLastWakeTime;
-    const TickType_t xFrequency = pdMS_TO_TICKS(1000 / 100);
-
-    mag.initialize();
-
-    xLastWakeTime = xTaskGetTickCount();
-    while (1) {
-        vTaskDelayUntil(&xLastWakeTime, xFrequency);
-        mag.getData();
-    }
-}
-
-static void update_iim42653_task(void * unused_arg) {
-    TickType_t xLastWakeTime;
-    const TickType_t xFrequency = pdMS_TO_TICKS(1000 / 500);
-
-    mid.initialize();
-
-    xLastWakeTime = xTaskGetTickCount();
-    while (1) {
-        vTaskDelayUntil(&xLastWakeTime, xFrequency);
-        mid.getData();
+        adxl375.sample();
     }
 }
 
@@ -216,43 +132,13 @@ static void logging_task(void * unused_arg) {
     printf("Time,Pressure,Altitude,Temperature,ax,ay,az\n");
     while (1) {
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
-        log_entry.time_us = time_us_64();
-        log_entry.pressure = alt.get_pressure();
-        log_entry.altitude = alt.get_altitude();
-        log_entry.temperature_alt = alt.get_temperature();
-//        log_entry.ax = mid.get_ax();
-//        log_entry.ay = mid.get_ay();
-//        log_entry.az = mid.get_az();
-//        log_entry.gx = mid.get_gx();
-//        log_entry.gy = mid.get_gy();
-//        log_entry.gz = mid.get_gz();
-
-//        log_entry.mag_x = mag.get_ax();
-//        log_entry.mag_y = mag.get_ay();
-//        log_entry.mag_z = mag.get_az();
-
-//         log_entry.high_g_x = high.get_ax();
-//         log_entry.high_g_y = high.get_ay();
-//         log_entry.high_g_z = high.get_az();
-        printf("%" PRIu64 ",", log_entry.time_us);
-        printf("%4.2f,", ((float) log_entry.pressure) / PRESSURE_SCALE_F);
-        printf("%4.2f,", ((float) log_entry.altitude) / ALTITUDE_SCALE_F);
-        printf("%4.2f,", ((float) log_entry.temperature_alt) / TEMPERATURE_SCALE_F);
-//        printf("%4.2f,", mid.scale_accel(log_entry.ax));
-//        printf("%4.2f,", mid.scale_accel(log_entry.ay));
-//        printf("%4.2f,", mid.scale_accel(log_entry.az));
-//        
-//        printf("%4.2f,", mid.scale_gyro(log_entry.gx));
-//        printf("%4.2f,", mid.scale_gyro(log_entry.gy));
-//        printf("%4.2f,", mid.scale_gyro(log_entry.gz));
-//        
-//        printf("%4.2f,", mag.scale(log_entry.mag_x));
-//        printf("%4.2f,", mag.scale(log_entry.mag_y));
-//        printf("%4.2f,", mag.scale(log_entry.mag_z));
-        
-        printf("%4.2f,", high.scale(ax));
-        printf("%4.2f,", high.scale(ay));
-        printf("%4.2f", high.scale(az));
+        printf("%" PRIu64 ",", time_us_64());
+        printf("%4.2f,", ((float) alt.get_pressure()) / PRESSURE_SCALE_F);
+        printf("%4.2f,", ((float) alt.get_altitude()) / ALTITUDE_SCALE_F);
+        printf("%4.2f,", ((float) alt.get_temperature()) / TEMPERATURE_SCALE_F);
+        printf("%4.2f,", adxl375.scale(adxl375.get_ax()));
+        printf("%4.2f,", adxl375.scale(adxl375.get_ay()));
+        printf("%4.2f", adxl375.scale(adxl375.get_az()));
         printf("\r\n");
         stdio_flush();
     }
@@ -288,15 +174,11 @@ static void sample_cmd_func() {
 
         xTaskCreate(update_ms5607_task, "update_ms5607", 256, NULL, SENSOR_SAMPLE_PRIORITY, &ms5607_handle);
         xTaskCreate(update_adxl375_task, "update_adxl375", 256, NULL, SENSOR_SAMPLE_PRIORITY, &adxl375_handle);
-        // xTaskCreate(update_iim42653_task, "update_iim42653", 256, NULL, SENSOR_SAMPLE_PRIORITY, &iim42653_handle);
-        // xTaskCreate(update_mmc5883_task, "update_mmc5883", 256, NULL, SENSOR_SAMPLE_PRIORITY, &mmc5883_handle);
 
         xTaskCreate(altimeter::ms5607_sample_handler, "ms5607_sample_handler", 256, &alt, EVENT_HANDLER_PRIORITY, &(alt.sample_handler_task));
 
         vTaskCoreAffinitySet( ms5607_handle, 0x01 );
         vTaskCoreAffinitySet( adxl375_handle, 0x01 );
-        // vTaskCoreAffinitySet( iim42653_handle, 0x01 );
-        // vTaskCoreAffinitySet( mmc5883_handle, 0x01 );
 
         vTaskCoreAffinitySet( alt.sample_handler_task, 0x01 );
         sampling = true;
@@ -307,8 +189,6 @@ static void sample_cmd_func() {
 
         vTaskDelete(ms5607_handle);
         vTaskDelete(adxl375_handle);
-        // vTaskDelete(iim42653_handle);
-        // vTaskDelete(mmc5883_handle);
 
         vTaskDelete(alt.sample_handler_task);
 

@@ -1,4 +1,4 @@
-#include "altimeter.hpp"
+#include "ms5607.hpp"
 
 static const int32_t altitude_table[] = {
 #include "altitude-pa.h"

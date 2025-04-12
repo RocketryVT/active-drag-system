@@ -5,7 +5,7 @@
 #include "pico/stdio.h"
 #include "pico/time.h"
 
-#include "altimeter.hpp"
+#include "ms5607.hpp"
 #include "heartbeat.hpp"
 #include "rp2040_micro.h"
 
