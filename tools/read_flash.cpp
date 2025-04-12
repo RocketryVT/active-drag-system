@@ -25,6 +25,7 @@
 
 #include "adxl375.hpp"
 #include "ms5607.hpp"
+#include "iim42653.hpp"
 #include "serial.hpp"
 
 /* Priorities at which the tasks are created. */
@@ -48,6 +49,7 @@ static void heartbeat_task( void *pvParameters );
 static void update_ms5607_task( void *pvParameters );
 
 static void update_adxl375_task( void *pvParameters );
+static void update_iim42653_task( void *pvParameters );
 
 void vApplicationTickHook(void) { /* optional */ }
 void vApplicationMallocFailedHook(void) { /* optional */ }
@@ -66,6 +68,7 @@ volatile bool serial_data_output = false;
 
 altimeter alt(i2c_default);
 ADXL375 adxl375(i2c_default);
+IIM42653 iim42653(i2c_default);
 
 int main() {
     stdio_init_all();
@@ -113,14 +116,37 @@ static void update_ms5607_task(void * unused_arg) {
 
 static void update_adxl375_task(void * unused_arg) {
     TickType_t xLastWakeTime;
-    const TickType_t xFrequency = pdMS_TO_TICKS(1000 / 100);
+    const TickType_t xFrequency = pdMS_TO_TICKS(1000 / 500);
 
     adxl375.initialize();
 
     xLastWakeTime = xTaskGetTickCount();
     while (1) {
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
+        taskENTER_CRITICAL();
         adxl375.sample();
+        taskEXIT_CRITICAL();
+        if ((xLastWakeTime + xFrequency) < xTaskGetTickCount()) {
+            xLastWakeTime = xTaskGetTickCount();
+        }
+    }
+}
+
+static void update_iim42653_task(void * unused_arg) {
+    TickType_t xLastWakeTime;
+    const TickType_t xFrequency = pdMS_TO_TICKS(1000 / 500);
+
+    iim42653.initialize();
+
+    xLastWakeTime = xTaskGetTickCount();
+    while (1) {
+        vTaskDelayUntil(&xLastWakeTime, xFrequency);
+        taskENTER_CRITICAL();
+        iim42653.sample();
+        taskEXIT_CRITICAL();
+        if ((xLastWakeTime + xFrequency) < xTaskGetTickCount()) {
+            xLastWakeTime = xTaskGetTickCount();
+        }
     }
 }
 
@@ -129,7 +155,7 @@ static void logging_task(void * unused_arg) {
     const TickType_t xFrequency = pdMS_TO_TICKS(1000 / 10);
 
     xLastWakeTime = xTaskGetTickCount();
-    printf("Time,Pressure,Altitude,Temperature,ax,ay,az\n");
+    printf("Time,Pressure,Altitude,Temperature,ax,ay,az,ax,ay,az,gx,gy,gz\n");
     while (1) {
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
         printf("%" PRIu64 ",", time_us_64());
@@ -138,7 +164,13 @@ static void logging_task(void * unused_arg) {
         printf("%4.2f,", ((float) alt.get_temperature()) / TEMPERATURE_SCALE_F);
         printf("%4.2f,", adxl375.scale(adxl375.get_ax()));
         printf("%4.2f,", adxl375.scale(adxl375.get_ay()));
-        printf("%4.2f", adxl375.scale(adxl375.get_az()));
+        printf("%4.2f,", adxl375.scale(adxl375.get_az()));
+        printf("%4.2f,", iim42653.scale_accel(iim42653.get_ax()));
+        printf("%4.2f,", iim42653.scale_accel(iim42653.get_ay()));
+        printf("%4.2f,", iim42653.scale_accel(iim42653.get_az()));
+        printf("%4.2f,", iim42653.scale_gyro(iim42653.get_gx()));
+        printf("%4.2f,", iim42653.scale_gyro(iim42653.get_gy()));
+        printf("%4.2f", iim42653.scale_gyro(iim42653.get_gz()));
         printf("\r\n");
         stdio_flush();
     }
@@ -174,11 +206,13 @@ static void sample_cmd_func() {
 
         xTaskCreate(update_ms5607_task, "update_ms5607", 256, NULL, SENSOR_SAMPLE_PRIORITY, &ms5607_handle);
         xTaskCreate(update_adxl375_task, "update_adxl375", 256, NULL, SENSOR_SAMPLE_PRIORITY, &adxl375_handle);
+        xTaskCreate(update_iim42653_task, "update_iim42653", 256, NULL, SENSOR_SAMPLE_PRIORITY, &iim42653_handle);
 
         xTaskCreate(altimeter::ms5607_sample_handler, "ms5607_sample_handler", 256, &alt, EVENT_HANDLER_PRIORITY, &(alt.sample_handler_task));
 
         vTaskCoreAffinitySet( ms5607_handle, 0x01 );
         vTaskCoreAffinitySet( adxl375_handle, 0x01 );
+        vTaskCoreAffinitySet( iim42653_handle, 0x01 );
 
         vTaskCoreAffinitySet( alt.sample_handler_task, 0x01 );
         sampling = true;
@@ -189,6 +223,7 @@ static void sample_cmd_func() {
 
         vTaskDelete(ms5607_handle);
         vTaskDelete(adxl375_handle);
+        vTaskDelete(iim42653_handle);
 
         vTaskDelete(alt.sample_handler_task);
 
