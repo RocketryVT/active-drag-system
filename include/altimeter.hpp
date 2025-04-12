@@ -71,9 +71,9 @@ typedef enum {
     COMPENSATE
 } sample_state_t;
 
-class altimeter : SensorI2C {
+class altimeter {
     public:
-        altimeter(i2c_inst_t* i2c) : SensorI2C {i2c, MS5607_I2C_ADDRESS} {};
+        altimeter(i2c_inst_t* i2c) : i2c {i2c} {};
 
         void initialize();
 
@@ -124,4 +124,7 @@ class altimeter : SensorI2C {
         alarm_callback_t threshold_callback  = NULL;
 
         bool positive_crossing;
+
+        i2c_inst_t* i2c;
+        const uint8_t addr = MS5607_I2C_ADDRESS;
 };
