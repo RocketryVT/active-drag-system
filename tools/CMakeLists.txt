@@ -1,11 +1,10 @@
 if (COMPILE_TOOLS)
     add_executable(read_flash
                    read_flash.cpp
-                   ${PROJECT_SOURCE_DIR}/src/high_accel.cpp
-                   ${PROJECT_SOURCE_DIR}/src/magnetometer.cpp
-                   ${PROJECT_SOURCE_DIR}/src/mid_imu.cpp
-                   ${PROJECT_SOURCE_DIR}/src/altimeter.cpp
-                   ${PROJECT_SOURCE_DIR}/src/log_format.cpp
+                   ${PROJECT_SOURCE_DIR}/src/ms5607.cpp
+                   ${PROJECT_SOURCE_DIR}/src/adxl375.cpp
+                   ${PROJECT_SOURCE_DIR}/src/iim42653.cpp
+                   ${PROJECT_SOURCE_DIR}/src/mmc5983ma.cpp
                    ${PROJECT_SOURCE_DIR}/src/serial.cpp
     )
 
@@ -16,7 +15,7 @@ if (COMPILE_TOOLS)
 
     add_executable(alt_test
                    alt_test.cpp
-                   ${PROJECT_SOURCE_DIR}/src/altimeter.cpp
+                   ${PROJECT_SOURCE_DIR}/src/ms5607.cpp
                    ${PROJECT_SOURCE_DIR}/src/heartbeat.cpp
     )
 
@@ -26,6 +25,7 @@ if (COMPILE_TOOLS)
     target_include_directories(read_flash PUBLIC ${PROJECT_SOURCE_DIR}/include)
     target_compile_definitions(read_flash PRIVATE
             USE_FREERTOS=1
+            DEBUG=1
             PICO_STDIO_STACK_BUFFER_SIZE=64 # use a small printf on stack buffer
     )
     pico_set_binary_type(read_flash copy_to_ram)

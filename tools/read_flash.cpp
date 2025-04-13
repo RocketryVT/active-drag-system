@@ -26,6 +26,7 @@
 #include "adxl375.hpp"
 #include "ms5607.hpp"
 #include "iim42653.hpp"
+#include "mmc5983ma.hpp"
 #include "serial.hpp"
 
 /* Priorities at which the tasks are created. */
@@ -36,7 +37,7 @@
 #define	SERIAL_TASK_PRIORITY		( tskIDLE_PRIORITY + 1 )
 
 #define HEARTBEAT_RATE_HZ 5
-#define DATA_UPDATE_RATE_HZ 100
+#define SENSOR_SAMPLE_RATE_HZ 500
 
 #define MAX_SCL 400000
 
@@ -50,6 +51,7 @@ static void update_ms5607_task( void *pvParameters );
 
 static void update_adxl375_task( void *pvParameters );
 static void update_iim42653_task( void *pvParameters );
+static void update_mmc5983ma_task( void *pvParameters );
 
 void vApplicationTickHook(void) { /* optional */ }
 void vApplicationMallocFailedHook(void) { /* optional */ }
@@ -69,6 +71,7 @@ volatile bool serial_data_output = false;
 altimeter alt(i2c_default);
 ADXL375 adxl375(i2c_default);
 IIM42653 iim42653(i2c_default);
+MMC5983MA mmc5983ma(i2c_default);
 
 int main() {
     stdio_init_all();
@@ -103,7 +106,7 @@ int main() {
 
 static void update_ms5607_task(void * unused_arg) {
     TickType_t xLastWakeTime;
-    const TickType_t xFrequency = pdMS_TO_TICKS(1000 / 500);
+    const TickType_t xFrequency = pdMS_TO_TICKS(1000 / SENSOR_SAMPLE_RATE_HZ);
 
     alt.initialize();
 
@@ -116,7 +119,7 @@ static void update_ms5607_task(void * unused_arg) {
 
 static void update_adxl375_task(void * unused_arg) {
     TickType_t xLastWakeTime;
-    const TickType_t xFrequency = pdMS_TO_TICKS(1000 / 500);
+    const TickType_t xFrequency = pdMS_TO_TICKS(1000 / SENSOR_SAMPLE_RATE_HZ);
 
     adxl375.initialize();
 
@@ -134,7 +137,7 @@ static void update_adxl375_task(void * unused_arg) {
 
 static void update_iim42653_task(void * unused_arg) {
     TickType_t xLastWakeTime;
-    const TickType_t xFrequency = pdMS_TO_TICKS(1000 / 500);
+    const TickType_t xFrequency = pdMS_TO_TICKS(1000 / SENSOR_SAMPLE_RATE_HZ);
 
     iim42653.initialize();
 
@@ -150,12 +153,31 @@ static void update_iim42653_task(void * unused_arg) {
     }
 }
 
+static void update_mmc5983ma_task(void * unused_arg) {
+    TickType_t xLastWakeTime;
+    const TickType_t xFrequency = pdMS_TO_TICKS(1000 / 200);
+
+    mmc5983ma.initialize();
+
+    xLastWakeTime = xTaskGetTickCount();
+    while (1) {
+        vTaskDelayUntil(&xLastWakeTime, xFrequency);
+        taskENTER_CRITICAL();
+        mmc5983ma.sample();
+        mmc5983ma.apply_offset();
+        taskEXIT_CRITICAL();
+        if ((xLastWakeTime + xFrequency) < xTaskGetTickCount()) {
+            xLastWakeTime = xTaskGetTickCount();
+        }
+    }
+}
+
 static void logging_task(void * unused_arg) {
     TickType_t xLastWakeTime;
     const TickType_t xFrequency = pdMS_TO_TICKS(1000 / 10);
 
     xLastWakeTime = xTaskGetTickCount();
-    printf("Time,Pressure,Altitude,Temperature,ax,ay,az,ax,ay,az,gx,gy,gz\n");
+    printf("Time,Pressure,Altitude,Temperature,ax,ay,az,ax,ay,az,gx,gy,gz,ax,ay,az\n");
     while (1) {
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
         printf("%" PRIu64 ",", time_us_64());
@@ -170,7 +192,10 @@ static void logging_task(void * unused_arg) {
         printf("%4.2f,", iim42653.scale_accel(iim42653.get_az()));
         printf("%4.2f,", iim42653.scale_gyro(iim42653.get_gx()));
         printf("%4.2f,", iim42653.scale_gyro(iim42653.get_gy()));
-        printf("%4.2f", iim42653.scale_gyro(iim42653.get_gz()));
+        printf("%4.2f,", iim42653.scale_gyro(iim42653.get_gz()));
+        printf("%" PRIi16 ",", mmc5983ma.get_ax());
+        printf("%" PRIi16 ",", mmc5983ma.get_ay());
+        printf("%" PRIi16 ",", mmc5983ma.get_az());
         printf("\r\n");
         stdio_flush();
     }
@@ -198,7 +223,7 @@ static void sample_cmd_func() {
     static TaskHandle_t ms5607_handle   = NULL;
     static TaskHandle_t adxl375_handle  = NULL;
     static TaskHandle_t iim42653_handle = NULL;
-    static TaskHandle_t mmc5883_handle  = NULL;
+    static TaskHandle_t mmc5983ma_handle  = NULL;
     static bool sampling = false;
 
     if (sampling == false) {
@@ -207,12 +232,14 @@ static void sample_cmd_func() {
         xTaskCreate(update_ms5607_task, "update_ms5607", 256, NULL, SENSOR_SAMPLE_PRIORITY, &ms5607_handle);
         xTaskCreate(update_adxl375_task, "update_adxl375", 256, NULL, SENSOR_SAMPLE_PRIORITY, &adxl375_handle);
         xTaskCreate(update_iim42653_task, "update_iim42653", 256, NULL, SENSOR_SAMPLE_PRIORITY, &iim42653_handle);
+        xTaskCreate(update_mmc5983ma_task, "update_mmc5983ma", 256, NULL, SENSOR_SAMPLE_PRIORITY, &mmc5983ma_handle);
 
         xTaskCreate(altimeter::ms5607_sample_handler, "ms5607_sample_handler", 256, &alt, EVENT_HANDLER_PRIORITY, &(alt.sample_handler_task));
 
         vTaskCoreAffinitySet( ms5607_handle, 0x01 );
         vTaskCoreAffinitySet( adxl375_handle, 0x01 );
         vTaskCoreAffinitySet( iim42653_handle, 0x01 );
+        vTaskCoreAffinitySet( mmc5983ma_handle, 0x01 );
 
         vTaskCoreAffinitySet( alt.sample_handler_task, 0x01 );
         sampling = true;
@@ -224,13 +251,14 @@ static void sample_cmd_func() {
         vTaskDelete(ms5607_handle);
         vTaskDelete(adxl375_handle);
         vTaskDelete(iim42653_handle);
+        vTaskDelete(mmc5983ma_handle);
 
         vTaskDelete(alt.sample_handler_task);
 
         ms5607_handle = NULL;
         adxl375_handle = NULL;
         iim42653_handle = NULL;
-        mmc5883_handle = NULL;
+        mmc5983ma_handle = NULL;
 
         alt.sample_handler_task = NULL;
 
