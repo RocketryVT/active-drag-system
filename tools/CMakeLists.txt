@@ -5,6 +5,7 @@ if (COMPILE_TOOLS)
                    ${PROJECT_SOURCE_DIR}/src/adxl375.cpp
                    ${PROJECT_SOURCE_DIR}/src/iim42653.cpp
                    ${PROJECT_SOURCE_DIR}/src/mmc5983ma.cpp
+                   ${PROJECT_SOURCE_DIR}/src/log_format.cpp
                    ${PROJECT_SOURCE_DIR}/src/serial.cpp
     )
 
@@ -21,7 +22,7 @@ if (COMPILE_TOOLS)
 
 
     # pull in common dependencies
-    target_link_libraries(read_flash pico_stdlib pico_multicore pico_sync hardware_i2c hardware_adc hardware_timer FreeRTOS-Kernel FreeRTOS-Kernel-Heap4)
+    target_link_libraries(read_flash pico_stdlib pico_logger pico_flash pico_rand pico_multicore pico_sync hardware_i2c hardware_adc hardware_timer FreeRTOS-Kernel FreeRTOS-Kernel-Heap4)
     target_include_directories(read_flash PUBLIC ${PROJECT_SOURCE_DIR}/include)
     target_compile_definitions(read_flash PRIVATE
             USE_FREERTOS=1
