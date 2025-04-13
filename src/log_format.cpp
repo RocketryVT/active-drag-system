@@ -1,9 +1,5 @@
 #include "log_format.hpp"
 
-MidIMU* log_mid = NULL;
-HighAccel* log_high = NULL;
-Magnetometer* log_mag = NULL;
-
 void print_log_entry(const uint8_t* entry) {
     static bool first_call = true;
 
@@ -44,21 +40,25 @@ void print_log_entry(const uint8_t* entry) {
     printf("%4.2f,", ((float) packet->altitude) / ALTITUDE_SCALE_F);
     printf("%4.2f,", ((float) packet->temperature_alt) / TEMPERATURE_SCALE_F);
 
-    printf("%4.2f,", log_mid->scale_accel(packet->ax));
-    printf("%4.2f,", log_mid->scale_accel(packet->ay));
-    printf("%4.2f,", log_mid->scale_accel(packet->az));
+    printf("%4.2f,", IIM42653::scale_accel(packet->ax));
+    printf("%4.2f,", IIM42653::scale_accel(packet->ay));
+    printf("%4.2f,", IIM42653::scale_accel(packet->az));
     
-    printf("%4.2f,", log_mid->scale_gyro(packet->gx));
-    printf("%4.2f,", log_mid->scale_gyro(packet->gy));
-    printf("%4.2f,", log_mid->scale_gyro(packet->gz));
+    printf("%4.2f,", IIM42653::scale_gyro(packet->gx));
+    printf("%4.2f,", IIM42653::scale_gyro(packet->gy));
+    printf("%4.2f,", IIM42653::scale_gyro(packet->gz));
     
-    printf("%4.2f,", log_mag->scale(packet->mag_x));
-    printf("%4.2f,", log_mag->scale(packet->mag_y));
-    printf("%4.2f,", log_mag->scale(packet->mag_z));
+    printf("%" PRIi16 ",", packet->mag_x);
+    printf("%" PRIi16 ",", packet->mag_y);
+    printf("%" PRIi16 ",", packet->mag_z);
     
-    printf("%4.2f,", log_high->scale(packet->high_g_x));
-    printf("%4.2f,", log_high->scale(packet->high_g_y));
-    printf("%4.2f", log_high->scale(packet->high_g_z));
+    printf("%4.2f,", ADXL375::scale(packet->high_g_x));
+    printf("%4.2f,", ADXL375::scale(packet->high_g_y));
+    printf("%4.2f,", ADXL375::scale(packet->high_g_z));
+    printf("%" PRIu64 ",", packet->data0);
+    printf("%" PRIu64 ",", packet->data1);
+    printf("%" PRIu32 ",", packet->data2);
+    printf("%" PRIu8 "", packet->data3);
     printf("\r\n");
     stdio_flush();
 }
