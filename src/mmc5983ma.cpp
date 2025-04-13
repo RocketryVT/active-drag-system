@@ -1,69 +1,125 @@
-#include "magnetometer.hpp"
-#include "hardware/i2c.h"
+#include "mmc5983ma.hpp"
 
-//Startup routine, initialize necessary values and reset
-void Magnetometer::initialize() {
-	//Configure decimation filter bandwidth
-	buffer[0] = B_MAG_INTERNAL_CONTROL_1_FLT_BW_800HZ;
-	write_buffer(R_MAG_INTERNAL_CONTROL_1, buffer, 1);
+int16_t MMC5983MA::sat_sub(int16_t a, int16_t b) {
+    int32_t result = (int32_t) a - (int32_t) b;
+    if (result < INT16_MIN) {
+        result = INT16_MIN;
+    }
+    if (result > INT16_MAX) {
+        result = INT16_MAX;
+    }
+    return (int16_t) result;
+};
 
-	//Configure and enable continuous measurement mode
-    buffer[0] = R_MAG_INTERNAL_CONTROL_2;
-	buffer[1] = (B_MAG_INTERNAL_CONTROL_2_CM_FREQ_1000HZ | 
-				 b_MAG_INTERNAL_CONTROL_2_CMM_EN);
-	write_buffer(R_MAG_INTERNAL_CONTROL_2, buffer, 1);
-	
-	//TODO: Figure out what amount of calibration the bridge offset actually adds/if it's necessary
-	//Initial calibration of bridge offset on startup
-	//calibrateBridgeOffset();
+void MMC5983MA::initialize() {
+    // Restart device prior to configuration
+    buffer[0] = R_MMC5983MA_INTERNAL_CTL1;
+    internal_ctl1.fields.RESTART = true;
+    buffer[1] = internal_ctl1.data;
+    i2c_write_blocking(i2c, addr, buffer, 2, false);
+    internal_ctl1.data = 0;
+
+    sleep_ms(100);
+
+    calibrate();
+
+    //Configure decimation filter bandwidth for 200 Hz
+    buffer[0] = R_MMC5983MA_INTERNAL_CTL1;
+    internal_ctl1.fields.BANDWIDTH = B_MMC5983MA_BANDWIDTH_200HZ;
+    buffer[1] = internal_ctl1.data;
+    i2c_write_blocking(i2c, addr, buffer, 2, false);
+
+    //Configure and enable continuous measurement mode for 200 Hz
+    buffer[0] = R_MMC5983MA_INTERNAL_CTL2;
+    internal_ctl2.fields.CONTINUOUS_MODE_ENABLE = true;
+    internal_ctl2.fields.CONTINUOUS_MODE_FREQ = B_MMC5983_CONTINUOUS_MODE_FREQ_200HZ;
+    internal_ctl2.fields.PERIODIC_SET_ENABLE = false;
+    internal_ctl2.fields.PERIODIC_SET_RATE = B_MMC5983_PERIODIC_SET_RATE_MEAS_TIMES_1000;
+    buffer[1] = internal_ctl2.data;
+    i2c_write_blocking(i2c, addr, buffer, 2, false);
 }
 
-//Read product ID register and return whether result matches expected (default) response
-bool Magnetometer::validate() {
-	read_buffer(R_MAG_PRODUCT_ID, buffer, 1);
-	return (buffer[0] == B_MAG_PRODUCT_ID_VALUE);	
+void MMC5983MA::sample() {
+    buffer[0] = R_MMC5983MA_XOUT0;
+    i2c_write_blocking(i2c, addr, buffer, 1, true);
+    i2c_read_blocking(i2c, addr, buffer, 6, false);
+
+    raw_x = (int16_t) ((((uint16_t) buffer[0] << 8) | buffer[1]) - 32768);
+    raw_y = (int16_t) ((((uint16_t) buffer[2] << 8) | buffer[3]) - 32768);
+    raw_z = (int16_t) ((((uint16_t) buffer[4] << 8) | buffer[5]) - 32768);
 }
 
-//Read all 7 data registers, split them, and scale them properly to return as Eigen 3-vector
-Eigen::Vector3f Magnetometer::getData() {
-	//TODO: Refactor as update function that dumps to internal fields
-	
-	//Read Xout1 - XYZout2 as a block
-    read_buffer(R_MAG_XOUT0, buffer, 7);
-
-	//Split into fields
-	ax = ((int32_t)buffer[0] << 10) | ((int32_t)buffer[1] << 2) | ((int32_t)(buffer[6] & 0xC0) >> 6);
-	ay = ((int32_t)buffer[2] << 10) | ((int32_t)buffer[3] << 2) | ((int32_t)(buffer[6] & 0x30) >> 4);
-	az = ((int32_t)buffer[4] << 10) | ((int32_t)buffer[5] << 2) | ((int32_t)(buffer[6] & 0x0C) >> 2);
-
-	//Divide by scale factor to format as float for output
-	Eigen::Vector3f output;
-	output[0] = ((float)ax) / S_MAG_SENSITIVITY_FACTOR;
-	output[1] = ((float)ay) / S_MAG_SENSITIVITY_FACTOR;
-	output[2] = ((float)az) / S_MAG_SENSITIVITY_FACTOR;
-	
-	//Subtract bridge offset from output and return
-	output -= bridgeOffset;
-	return output;
+void MMC5983MA::apply_offset() {
+    ax = sat_sub(raw_x, offset_x);
+    ay = sat_sub(raw_y, offset_y);
+    az = sat_sub(raw_z, offset_z);
 }
 
-//Perform set/reset to calibrate for temperature changes
-void Magnetometer::calibrateBridgeOffset() {
-	//Perform set operation and take measurementi
-	buffer[0] = b_MAG_INTERNAL_CONTROL_0_SET;
-	write_buffer(R_MAG_INTERNAL_CONTROL_0, buffer, 1);
-	//TODO: Confirm 500ns delay requested by datasheet isn't explicitly necessary in function call
-	Vector3f setOutput = getData();
+void MMC5983MA::calibrate() {
+    sleep_ms(100);
 
-	//Perform reset operation and take measurement
-	buffer[0] = b_MAG_INTERNAL_CONTROL_0_RESET;
-	write_buffer(R_MAG_INTERNAL_CONTROL_0, buffer, 1);
-	Vector3f resetOutput = getData();
+    // Take measurement after SET command completes
+    buffer[0] = R_MMC5983MA_INTERNAL_CTL0;
+    internal_ctl0.fields.SET_CMD = true;
+    buffer[1] = internal_ctl0.data;
+    i2c_write_blocking(i2c, addr, buffer, 2, false);
+    internal_ctl0.data = 0;
 
-	//Calculate offset and store as per datasheet instructions, and perform second set operation
-	bridgeOffset = (setOutput + resetOutput) / 2;
+    sleep_ms(100);
 
-	//Perform second set operation to return sensor to normal polarity
-	buffer[0] = b_MAG_INTERNAL_CONTROL_0_SET;
-	write_buffer(R_MAG_INTERNAL_CONTROL_0, buffer, 1);
+    buffer[0] = R_MMC5983MA_INTERNAL_CTL0;
+    internal_ctl0.fields.TAKE_MAG_MEAS = true;
+    buffer[1] = internal_ctl0.data;
+    i2c_write_blocking(i2c, addr, buffer, 2, false);
+    internal_ctl0.data = 0;
+
+    while (!dev_status.fields.MEAS_M_DONE) {
+        sleep_ms(1);
+        buffer[0] = R_MMC5983MA_DEV_STATUS;
+        i2c_write_blocking(i2c, addr, buffer, 1, true);
+        i2c_read_blocking(i2c, addr, buffer, 1, false);
+        dev_status.data = buffer[0];
+    }
+
+    sample();
+
+    int16_t set_ax = raw_x, set_ay = raw_y, set_az = raw_z;
+
+    // Take measurement after RESET command completes
+    buffer[0] = R_MMC5983MA_INTERNAL_CTL0;
+    internal_ctl0.fields.RESET_CMD = true;
+    buffer[1] = internal_ctl0.data;
+    i2c_write_blocking(i2c, addr, buffer, 2, false);
+    internal_ctl0.data = 0;
+
+    sleep_ms(100);
+
+    buffer[0] = R_MMC5983MA_INTERNAL_CTL0;
+    internal_ctl0.fields.TAKE_MAG_MEAS = true;
+    buffer[1] = internal_ctl0.data;
+    i2c_write_blocking(i2c, addr, buffer, 2, false);
+    internal_ctl0.data = 0;
+
+    while (!dev_status.fields.MEAS_M_DONE) {
+        sleep_ms(1);
+        buffer[0] = R_MMC5983MA_DEV_STATUS;
+        i2c_write_blocking(i2c, addr, buffer, 1, true);
+        i2c_read_blocking(i2c, addr, buffer, 1, false);
+        dev_status.data = buffer[0];
+    }
+
+    sample();
+
+    int16_t reset_ax = raw_x, reset_ay = raw_y, reset_az = raw_z;
+
+    sleep_ms(100);
+
+    // Average the two measurements taken and assign them as offsets
+    offset_x = (int16_t) (((int32_t) set_ax + (int32_t) reset_ax) / 2);
+    offset_y = (int16_t) (((int32_t) set_ay + (int32_t) reset_ay) / 2);
+    offset_z = (int16_t) (((int32_t) set_az + (int32_t) reset_az) / 2);
+
+#if ( DEBUG == 1 )
+    printf("MMC5983MA: Calibrated!\n\toffset_x: %" PRIi16 "\n\toffset_y: %" PRIi16 "\n\toffset_z: %" PRIi16 "\n", offset_x, offset_y, offset_z);
+#endif
 }
