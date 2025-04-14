@@ -20,7 +20,6 @@ if (COMPILE_TOOLS)
                    ${PROJECT_SOURCE_DIR}/src/heartbeat.cpp
     )
 
-
     # pull in common dependencies
     target_link_libraries(read_flash pico_stdlib pico_logger pico_flash pico_rand pico_multicore pico_sync hardware_i2c hardware_adc hardware_timer FreeRTOS-Kernel FreeRTOS-Kernel-Heap4)
     target_include_directories(read_flash PUBLIC ${PROJECT_SOURCE_DIR}/include)
@@ -36,7 +35,7 @@ if (COMPILE_TOOLS)
 
     target_link_libraries(alt_test pico_stdlib hardware_i2c hardware_gpio)
     target_include_directories(alt_test PUBLIC ${PROJECT_SOURCE_DIR}/include)
-
+    
     pico_enable_stdio_usb(read_flash 1)
     pico_enable_stdio_uart(read_flash 0)
 
@@ -45,7 +44,7 @@ if (COMPILE_TOOLS)
 
     pico_enable_stdio_usb(alt_test 1)
     pico_enable_stdio_uart(alt_test 0)
-
+    
     # create map/bin/hex file etc.
     pico_add_extra_outputs(read_flash)
     pico_add_extra_outputs(servo_test)

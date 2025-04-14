@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <inttypes.h>
+#include <cmath>    //TODO: Reimplement math properly using Eigen functions
 
 #include "hardware/gpio.h"
 #include "hardware/i2c.h"
@@ -51,6 +52,7 @@ static void circular_cmd_func();
 static void read_cmd_func();
 static void write_cmd_func();
 static void erase_cmd_func();
+static void orient_cmd_func();
 static void logging_task(void * unused_arg);
 static void update_data_task( void *pvParameters );
 static void heartbeat_task( void *pvParameters );
@@ -66,7 +68,7 @@ void vApplicationMallocFailedHook(void) { /* optional */ }
 void vApplicationStackOverflowHook(TaskHandle_t xTask, char *pcTaskName) { for( ;; ); }
 
 const char* executeable_name = "read_flash.uf2";
-const size_t num_user_cmds = 6;
+const size_t num_user_cmds = 7;
 const command_t user_commands[] = { {.name = "sample",
                                      .len = 6,
                                      .function = &sample_cmd_func},
@@ -84,7 +86,10 @@ const command_t user_commands[] = { {.name = "sample",
                                      .function = &write_cmd_func},
                                     {.name = "erase",
                                      .len = 5,
-                                     .function = &erase_cmd_func} };
+                                     .function = &erase_cmd_func},
+                                    {.name = "orient",
+                                     .len = 6,
+                                     .function = &orient_cmd_func} };
 
 volatile bool serial_data_output = false;
 volatile bool use_circular_buffer = false;
@@ -417,3 +422,25 @@ static void erase_cmd_func() {
         vTaskResume(logging_handle);
     }
 }
+
+static void orient_cmd_func() {
+    float imu_ax = -IIM42653::scale_accel(iim42653.get_ay());
+    float imu_ay = -IIM42653::scale_accel(iim42653.get_ax());
+    float imu_az = IIM42653::scale_accel(iim42653.get_az());
+    
+    //TODO: Confirm orientation of mag
+    float mag_x = mmc5983ma.get_ax();
+    float mag_y = mmc5983ma.get_ay();
+    float mag_z = mmc5983ma.get_az();
+
+    float pitch_rad = std::atan(imu_ay/std::sqrt(std::pow(imu_ax, 2) + std::pow(imu_az, 2)));
+    float roll_rad = std::atan(imu_ax/std::sqrt(std::pow(imu_ay, 2) + std::pow(imu_az, 2)));
+    float yaw_rad = std::atan2(-mag_y*std::cos(roll_rad) + mag_z*std::sin(roll_rad), 
+            mag_x*std::cos(pitch_rad) + mag_y*std::sin(pitch_rad)*std::sin(roll_rad) + mag_z*std::cos(roll_rad) * std::sin(pitch_rad));
+
+    printf("==== IMU ACCEL MEASUREMENTS ====\n");
+    printf("[%4.2f, %4.2f, %4.2f]\n", imu_ax, imu_ay, imu_az);
+    printf("==== CALCULATED PITCH/ROLL/YAW =====\n");
+    printf("[%4.2f, %4.2f, %4.2f]\n\n", pitch_rad * 180.0f / M_PI, roll_rad * 180.0f / M_PI, yaw_rad * 180.0f / M_PI);
+}
+
