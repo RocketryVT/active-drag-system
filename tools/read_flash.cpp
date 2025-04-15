@@ -290,15 +290,18 @@ static void pose_estimation_task(void * unused_arg) {
     
     Matrix4f F_k;                           //State Transition Matrix
     Matrix4f H_k;                           //Observation Matrix
+    Matrix4f K_k;                           //Kalman Gain Matrix
     Matrix<float, 4, 3> J_process_k;        //Jacobian for process (gyro) covariance transformation
     Matrix<float, 4, 6> J_observation_k;    //Jacobian for observation (accel/mag) covariance transformation
     Matrix4f process_noise_transformed;     //Matrix of transformed process noise
     Matrix4f observation_noise_transformed; //Matrix of transformed observation noise
+    Matrix<float, 4, 1> z_k;                //Measurement vector
+    Matrix<float, 4, 1> z_k_est;            //Estimated measurement vector, used for Kalman filter calculation
 
     while (1) {
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
 
-        //Get all required sensor values
+        //Get all required sensor values and compute intermediate values
         float imu_ax = -IIM42653::scale_accel(iim42653.get_ay());
         float imu_ay = -IIM42653::scale_accel(iim42653.get_ax());
         float imu_az = IIM42653::scale_accel(iim42653.get_az());
@@ -308,6 +311,9 @@ static void pose_estimation_task(void * unused_arg) {
         float mag_y = mmc5983ma.get_ax();   //TODO: Not convinced mag axes are correct, needs testing
         float mag_x = mmc5983ma.get_ay();
         float mag_z = mmc5983ma.get_az();
+        
+        float mag_D = imu_ax*mag_x + imu_ay*mag_y + imu_az*mag_z;
+        float mag_N = std::sqrt(1.0f - std::pow(mag_D, 2));
 
         //Predict next state based on gyroscope measurements
         q_k_prev = q_k;
@@ -328,11 +334,49 @@ static void pose_estimation_task(void * unused_arg) {
         P_k = F_k*P_k*F_k.transpose() + process_noise_transformed;
 
         //Calculate Kalman gain
+        //TODO: This Jacobian calculation is FUGLY, and very computationally intensive
+        //   Separate out common math, vectorize, and put it in a function somewhere?
+        float pd_mD_ax = mag_x/(2*mag_D);
+        float pd_mD_ay = mag_y/(2*mag_D);
+        float pd_mD_az = mag_z/(2*mag_D);
+        float pd_mD_mx = imu_ax/(2*mag_D);
+        float pd_mD_my = imu_ay/(2*mag_D);
+        float pd_mD_mz = imu_az/(2*mag_D);
+        float pd_mN_ax = -mag_D/mag_N*pd_mD_ax;
+        float pd_mN_ay = -mag_D/mag_N*pd_mD_ay;
+        float pd_mN_az = -mag_D/mag_N*pd_mD_az;
+        float pd_mN_mx = -mag_D/mag_N*pd_mD_mx;
+        float pd_mN_my = -mag_D/mag_N*pd_mD_my;
+        float pd_mN_mz = -mag_D/mag_N*pd_mD_mz;
+        float common_num = (imu_ay*mag_z - imu_az*mag_y);
+        float common_denom = std::pow(mag_N, 2);
+
+        float J_o_4_1 = (-pd_mN_ax*common_num)/common_denom;
+        float J_o_4_2 = (mag_z*mag_N - pd_mN_ay*common_num)/common_denom;
+        float J_o_4_3 = (-mag_y*mag_N - pd_mN_az*common_num)/common_denom;
+        float J_o_4_4 = (-pd_mN_mx*common_num)/common_denom;
+        float J_o_4_5 = (-imu_az*mag_N - pd_mN_my*common_num)/common_denom;
+        float J_o_4_6 = (imu_ay*mag_N - pd_mN_mz*common_num)/common_denom;
+        J_observation_k << 1.0f, 0, 0, 0, 0, 0,
+                           0, 1.0f, 0, 0, 0, 0,
+                           0, 0, 1.0f, 0, 0, 0,
+                           J_o_4_1, J_o_4_2, J_o_4_3, J_o_4_4, J_o_4_5, J_o_4_6;
+        observation_noise_transformed = J_observation_k*accel_mag_covariance*J_observation_k.transpose();
+        H_k << -q_k.y(), q_k.z(), -q_k.w(), q_k.x(),
+               q_k.x(), q_k.w(), q_k.z(), q_k.y(),
+               q_k.w(), -q_k.x(), -q_k.y(), q_k.z(),
+               q_k.z(), q_k.y(), q_k.x(), q_k.w();
+        H_k *= 2;
+        K_k = P_k*H_k.transpose()*(H_k*P_k*H_k.transpose() + observation_noise_transformed).inverse();
         
         //Update state estimate based on accel/mag measurements
+        z_k << imu_ax, imu_ay, imu_az, ((imu_ay*mag_z - imu_az*mag_y)/mag_N);
+        //z_k_est = H_k*q_k;                //TODO: This calculation needs to be done manually like the q_k crunch above
+        //q_k = q_k + K_k*(z_k - z_k_est);  //TODO: Same here, these may need a typecast to make quaternions play nice
+        q_k.normalize();    //Ensure state output is a proper rotation quaternion
 
         //Update covariance based on accel/mag measurements
-
+        P_k = (I_4 - K_k*H_k)*P_k;
     }
 }
 
