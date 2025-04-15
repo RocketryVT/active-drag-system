@@ -3,6 +3,8 @@
 #include <string.h>
 #include <inttypes.h>
 #include <cmath>    //TODO: Reimplement math properly using Eigen functions
+#include <Eigen/Dense>
+using namespace Eigen;  //TODO: Limit scope to necessary components once implemented
 
 #include "hardware/gpio.h"
 #include "hardware/i2c.h"
@@ -42,6 +44,7 @@
 
 #define HEARTBEAT_RATE_HZ 5
 #define SENSOR_SAMPLE_RATE_HZ 500
+#define ORIENTATION_ESTIMATION_RATE_HZ 10
 
 #define MAX_SCL 400000
 
@@ -269,6 +272,70 @@ static void heartbeat_task( void *pvParameters ) {
     }
 }
 
+static void pose_estimation_task(void * unused_arg) {
+    TickType_t xLastWakeTime;
+    const TickType_t xFrequency = pdMS_TO_TICKS(1000 / ORIENTATION_ESTIMATION_RATE_HZ);
+    xLastWakeTime = xTaskGetTickCount();
+    
+    Quaternionf q_k(1, 0, 0, 0);     //Initialize to straight upright
+    Quaternionf q_k_prev(1, 0, 0, 0);
+    Matrix4f P_k;                   //TODO: Initialize properly with reasonable transformed values
+    
+    Matrix3f gyro_covariance;                   //TODO: Initialize with gyro RMSE
+    Matrix<float, 6, 6> accel_mag_covariance;   //TODO: Initialize with accel/mag RMSE
+
+    //Stored intermediate equation matrices
+    Matrix4f gyro_skew;                     //Skew-symmetric matrix equivalent of gyroscope output
+    Matrix4f I_4 = Matrix4f::Identity();    //4x4 Identity matrix, used for F_k calculation
+    
+    Matrix4f F_k;                           //State Transition Matrix
+    Matrix4f H_k;                           //Observation Matrix
+    Matrix<float, 4, 3> J_process_k;        //Jacobian for process (gyro) covariance transformation
+    Matrix<float, 4, 6> J_observation_k;    //Jacobian for observation (accel/mag) covariance transformation
+    Matrix4f process_noise_transformed;     //Matrix of transformed process noise
+    Matrix4f observation_noise_transformed; //Matrix of transformed observation noise
+
+    while (1) {
+        vTaskDelayUntil(&xLastWakeTime, xFrequency);
+
+        //Get all required sensor values
+        float imu_ax = -IIM42653::scale_accel(iim42653.get_ay());
+        float imu_ay = -IIM42653::scale_accel(iim42653.get_ax());
+        float imu_az = IIM42653::scale_accel(iim42653.get_az());
+        float imu_gx = -IIM42653::scale_gyro(iim42653.get_gy());
+        float imu_gy = -IIM42653::scale_gyro(iim42653.get_gx());
+        float imu_gz = IIM42653::scale_gyro(iim42653.get_gz());
+        float mag_y = mmc5983ma.get_ax();   //TODO: Not convinced mag axes are correct, needs testing
+        float mag_x = mmc5983ma.get_ay();
+        float mag_z = mmc5983ma.get_az();
+
+        //Predict next state based on gyroscope measurements
+        q_k_prev = q_k;
+        gyro_skew << 0, -imu_gx, -imu_gy, -imu_gz,
+                     imu_gx, 0, imu_gz, -imu_gy,
+                     imu_gy, -imu_gz, 0, imu_gx,
+                     imu_gz, imu_gy, -imu_gx, 0;
+        F_k = I_4 + 0.5f/ORIENTATION_ESTIMATION_RATE_HZ*gyro_skew;
+        //q_k = F_k*q_k_prev;   //TODO: This calculation needs to be done manually, need to confirm quat-vect operations
+
+        //Predict next covariance based on gyroscope measurements + Jacobian-transformed measurement variance
+        J_process_k << q_k_prev.x(), q_k_prev.y(), q_k_prev.z(),
+                       -1.0f*q_k_prev.w(), q_k_prev.z(), -1.0f*q_k_prev.y(),
+                       -1.0f*q_k_prev.z(), -1.0f*q_k_prev.w(), q_k_prev.x(),
+                       q_k_prev.y(), -1.0f*q_k_prev.x(), -1.0f*q_k_prev.w();
+        process_noise_transformed = std::pow(0.5f/ORIENTATION_ESTIMATION_RATE_HZ, 2) *
+                                    J_process_k*gyro_covariance*J_process_k.transpose();
+        P_k = F_k*P_k*F_k.transpose() + process_noise_transformed;
+
+        //Calculate Kalman gain
+        
+        //Update state estimate based on accel/mag measurements
+
+        //Update covariance based on accel/mag measurements
+
+    }
+}
+
 static void sample_cmd_func() {
     static TaskHandle_t ms5607_handle   = NULL;
     static TaskHandle_t adxl375_handle  = NULL;
@@ -429,8 +496,8 @@ static void orient_cmd_func() {
     float imu_az = IIM42653::scale_accel(iim42653.get_az());
     
     //TODO: Confirm orientation of mag
-    float mag_x = mmc5983ma.get_ax();
-    float mag_y = mmc5983ma.get_ay();
+    float mag_y = mmc5983ma.get_ax();
+    float mag_x = mmc5983ma.get_ay();
     float mag_z = mmc5983ma.get_az();
 
     float pitch_rad = std::atan(imu_ay/std::sqrt(std::pow(imu_ax, 2) + std::pow(imu_az, 2)));
@@ -442,5 +509,7 @@ static void orient_cmd_func() {
     printf("[%4.2f, %4.2f, %4.2f]\n", imu_ax, imu_ay, imu_az);
     printf("==== CALCULATED PITCH/ROLL/YAW =====\n");
     printf("[%4.2f, %4.2f, %4.2f]\n\n", pitch_rad * 180.0f / M_PI, roll_rad * 180.0f / M_PI, yaw_rad * 180.0f / M_PI);
+
+    //TODO: Reimplement this command as a scheduler requester for pose_estimation_task
 }
 
