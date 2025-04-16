@@ -44,7 +44,7 @@ using namespace Eigen;  //TODO: Limit scope to necessary components once impleme
 
 #define HEARTBEAT_RATE_HZ 5
 #define SENSOR_SAMPLE_RATE_HZ 500
-#define ORIENTATION_ESTIMATION_RATE_HZ 10
+#define ORIENTATION_ESTIMATION_RATE_HZ 2
 
 #define MAX_SCL 400000
 
@@ -272,17 +272,26 @@ static void heartbeat_task( void *pvParameters ) {
     }
 }
 
+//TODO: This task is getting increasingly complex and involved, it may be worth migrating to a class of its own
 static void pose_estimation_task(void * unused_arg) {
+    printf("--POSE: INITIALIZING DATA MEMBERS\n");
     TickType_t xLastWakeTime;
     const TickType_t xFrequency = pdMS_TO_TICKS(1000 / ORIENTATION_ESTIMATION_RATE_HZ);
     xLastWakeTime = xTaskGetTickCount();
     
     Quaternionf q_k(1, 0, 0, 0);     //Initialize to straight upright
     Quaternionf q_k_prev(1, 0, 0, 0);
-    Matrix4f P_k;                   //TODO: Initialize properly with reasonable transformed values
+    Matrix4f P_k = Matrix4f::Identity()*0.01f;  //TODO: Tune this initialization value
     
-    Matrix3f gyro_covariance;                   //TODO: Initialize with gyro RMSE
-    Matrix<float, 6, 6> accel_mag_covariance;   //TODO: Initialize with accel/mag RMSE
+    //TODO: Store covariance values somewhere reasonable instead of hardcoding them
+    Matrix3f gyro_covariance = Matrix3f::Identity()*0.05;   //0.05deg/s RMSE @ 100HZ Bandwidth
+    Matrix<float, 6, 6> accel_mag_covariance;
+    accel_mag_covariance << 0.00065f, 0, 0, 0, 0, 0,
+                            0, 0.00065f, 0, 0, 0, 0,
+                            0, 0, 0.00070f, 0, 0, 0,
+                            0, 0, 0, 0.00120f, 0, 0,
+                            0, 0, 0, 0, 0.00120f, 0,
+                            0, 0, 0, 0, 0, 0.00120f;
 
     //Stored intermediate equation matrices
     Matrix4f gyro_skew;                     //Skew-symmetric matrix equivalent of gyroscope output
@@ -297,10 +306,11 @@ static void pose_estimation_task(void * unused_arg) {
     Matrix4f observation_noise_transformed; //Matrix of transformed observation noise
     Matrix<float, 4, 1> z_k;                //Measurement vector
     Matrix<float, 4, 1> z_k_est;            //Estimated measurement vector, used for Kalman filter calculation
-
+    
     while (1) {
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
-
+        
+        printf("BEGINNING POSE COMPUTATION...\n");
         //Get all required sensor values and compute intermediate values
         float imu_ax = -IIM42653::scale_accel(iim42653.get_ay());
         float imu_ay = -IIM42653::scale_accel(iim42653.get_ax());
@@ -322,7 +332,7 @@ static void pose_estimation_task(void * unused_arg) {
                      imu_gy, -imu_gz, 0, imu_gx,
                      imu_gz, imu_gy, -imu_gx, 0;
         F_k = I_4 + 0.5f/ORIENTATION_ESTIMATION_RATE_HZ*gyro_skew;
-        //q_k = F_k*q_k_prev;   //TODO: This calculation needs to be done manually, need to confirm quat-vect operations
+        q_k = F_k*q_k_prev.coeffs();   //TODO: Confirm the vector conversion of this, output and check
 
         //Predict next covariance based on gyroscope measurements + Jacobian-transformed measurement variance
         J_process_k << q_k_prev.x(), q_k_prev.y(), q_k_prev.z(),
@@ -371,20 +381,25 @@ static void pose_estimation_task(void * unused_arg) {
         
         //Update state estimate based on accel/mag measurements
         z_k << imu_ax, imu_ay, imu_az, ((imu_ay*mag_z - imu_az*mag_y)/mag_N);
-        //z_k_est = H_k*q_k;                //TODO: This calculation needs to be done manually like the q_k crunch above
-        //q_k = q_k + K_k*(z_k - z_k_est);  //TODO: Same here, these may need a typecast to make quaternions play nice
+        z_k_est = H_k*q_k.coeffs();;                //TODO: Confirm quaternion multiplication, output and check
+        q_k = q_k.coeffs() + K_k*(z_k - z_k_est);   //TODO: Confirm quaternion arithmetic, output and check
         q_k.normalize();    //Ensure state output is a proper rotation quaternion
 
         //Update covariance based on accel/mag measurements
         P_k = (I_4 - K_k*H_k)*P_k;
+        printf("COMPLETED COMPUTATION!\n");
+        
+        printf("Estimate (q_k) Coefficients [w, x, y, z]: [%4.2f, %4.2f, %4.2f, %4.2f]\n", q_k.w(), q_k.x(), q_k.y(), q_k.z());
+        Vector3f testVect = q_k._transformVector(Vector3f::UnitZ());
+        printf("Estimate (q_k) Rotated [X, Y, Z]: [%4.2f, %4.2f, %4.2f]\n\n", testVect[0], testVect[1], testVect[2]);
     }
 }
 
 static void sample_cmd_func() {
-    static TaskHandle_t ms5607_handle   = NULL;
-    static TaskHandle_t adxl375_handle  = NULL;
-    static TaskHandle_t iim42653_handle = NULL;
-    static TaskHandle_t mmc5983ma_handle  = NULL;
+    static TaskHandle_t ms5607_handle    = NULL;
+    static TaskHandle_t adxl375_handle   = NULL;
+    static TaskHandle_t iim42653_handle  = NULL;
+    static TaskHandle_t mmc5983ma_handle = NULL;
     static bool sampling = false;
 
     if (sampling == false) {
@@ -535,25 +550,36 @@ static void erase_cmd_func() {
 }
 
 static void orient_cmd_func() {
-    float imu_ax = -IIM42653::scale_accel(iim42653.get_ay());
-    float imu_ay = -IIM42653::scale_accel(iim42653.get_ax());
-    float imu_az = IIM42653::scale_accel(iim42653.get_az());
-    
-    //TODO: Confirm orientation of mag
-    float mag_y = mmc5983ma.get_ax();
-    float mag_x = mmc5983ma.get_ay();
-    float mag_z = mmc5983ma.get_az();
-
+    /*
     float pitch_rad = std::atan(imu_ay/std::sqrt(std::pow(imu_ax, 2) + std::pow(imu_az, 2)));
     float roll_rad = std::atan(imu_ax/std::sqrt(std::pow(imu_ay, 2) + std::pow(imu_az, 2)));
     float yaw_rad = std::atan2(-mag_y*std::cos(roll_rad) + mag_z*std::sin(roll_rad), 
             mag_x*std::cos(pitch_rad) + mag_y*std::sin(pitch_rad)*std::sin(roll_rad) + mag_z*std::cos(roll_rad) * std::sin(pitch_rad));
+    */
 
-    printf("==== IMU ACCEL MEASUREMENTS ====\n");
-    printf("[%4.2f, %4.2f, %4.2f]\n", imu_ax, imu_ay, imu_az);
-    printf("==== CALCULATED PITCH/ROLL/YAW =====\n");
-    printf("[%4.2f, %4.2f, %4.2f]\n\n", pitch_rad * 180.0f / M_PI, roll_rad * 180.0f / M_PI, yaw_rad * 180.0f / M_PI);
+    static TaskHandle_t pose_estimation_handle = NULL;
+    static bool estimating = false;
 
-    //TODO: Reimplement this command as a scheduler requester for pose_estimation_task
+    if (!estimating) {
+        printf("======== BEGINNING STATE ESTIMATION ========\n");
+        vTaskSuspendAll();
+        
+        //TODO: Assign pose estimation unique priority?
+        xTaskCreate(pose_estimation_task, "pose_estimation", 1024, NULL, 
+                    SENSOR_SAMPLE_PRIORITY, &pose_estimation_handle);
+        vTaskCoreAffinitySet( pose_estimation_handle, 0x01 );
+
+        estimating = true;
+        xTaskResumeAll();
+    } else {
+        printf("======== ENDING STATE ESTIMATION ========\n");
+        vTaskSuspendAll();
+
+        vTaskDelete(pose_estimation_handle);
+        pose_estimation_handle = NULL;
+
+        estimating = false;
+        xTaskResumeAll();
+    }   
 }
 
