@@ -2,7 +2,9 @@
 #include <stdio.h>
 #include <string.h>
 #include <inttypes.h>
+
 #include <cmath>    //TODO: Reimplement math properly using Eigen functions
+#include <sstream>  //TODO: This is for debug purposes, remove when implemented
 #include <Eigen/Dense>
 using namespace Eigen;  //TODO: Limit scope to necessary components once implemented
 
@@ -44,7 +46,7 @@ using namespace Eigen;  //TODO: Limit scope to necessary components once impleme
 
 #define HEARTBEAT_RATE_HZ 5
 #define SENSOR_SAMPLE_RATE_HZ 500
-#define ORIENTATION_ESTIMATION_RATE_HZ 2
+#define ORIENTATION_ESTIMATION_RATE_HZ 1
 
 #define MAX_SCL 400000
 
@@ -272,6 +274,13 @@ static void heartbeat_task( void *pvParameters ) {
     }
 }
 
+//HELPER FUNCTION FOR DEBUG, REMOVE WHEN IMPLEMENTED
+/*std::string matrix2string(const Eigen::MatrixXf &mat) {
+    std::stringstream ss;
+    ss << mat;
+    return ss.str();
+}*/
+
 //TODO: This task is getting increasingly complex and involved, it may be worth migrating to a class of its own
 static void pose_estimation_task(void * unused_arg) {
     printf("--POSE: INITIALIZING DATA MEMBERS\n");
@@ -282,9 +291,9 @@ static void pose_estimation_task(void * unused_arg) {
     Quaternionf q_k(1, 0, 0, 0);     //Initialize to straight upright
     Quaternionf q_k_prev(1, 0, 0, 0);
     Matrix4f P_k = Matrix4f::Identity()*0.01f;  //TODO: Tune this initialization value
-    
+
     //TODO: Store covariance values somewhere reasonable instead of hardcoding them
-    Matrix3f gyro_covariance = Matrix3f::Identity()*0.05;   //0.05deg/s RMSE @ 100HZ Bandwidth
+    Matrix3f gyro_covariance = Matrix3f::Identity()*0.05f;   //0.05deg/s RMSE @ 100HZ Bandwidth
     Matrix<float, 6, 6> accel_mag_covariance;
     accel_mag_covariance << 0.00065f, 0, 0, 0, 0, 0,
                             0, 0.00065f, 0, 0, 0, 0,
@@ -310,7 +319,7 @@ static void pose_estimation_task(void * unused_arg) {
     while (1) {
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
         
-        printf("BEGINNING POSE COMPUTATION...\n");
+        printf("-------- BEGINNING POSE COMPUTATION --------\n");
         //Get all required sensor values and compute intermediate values
         float imu_ax = -IIM42653::scale_accel(iim42653.get_ay());
         float imu_ay = -IIM42653::scale_accel(iim42653.get_ax());
@@ -318,8 +327,8 @@ static void pose_estimation_task(void * unused_arg) {
         float imu_gx = -IIM42653::scale_gyro(iim42653.get_gy());
         float imu_gy = -IIM42653::scale_gyro(iim42653.get_gx());
         float imu_gz = IIM42653::scale_gyro(iim42653.get_gz());
-        float mag_y = mmc5983ma.get_ax();   //TODO: Not convinced mag axes are correct, needs testing
-        float mag_x = mmc5983ma.get_ay();
+        float mag_x = mmc5983ma.get_ax();   //TODO: Not convinced mag axes are correct, needs testing
+        float mag_y = mmc5983ma.get_ay();
         float mag_z = mmc5983ma.get_az();
         
         float mag_D = imu_ax*mag_x + imu_ay*mag_y + imu_az*mag_z;
@@ -327,21 +336,28 @@ static void pose_estimation_task(void * unused_arg) {
 
         //Predict next state based on gyroscope measurements
         q_k_prev = q_k;
+        printf("- PREDICT STATE | First item of q_k_prev after initial set: [%4.2f]\n", q_k_prev.y());
         gyro_skew << 0, -imu_gx, -imu_gy, -imu_gz,
                      imu_gx, 0, imu_gz, -imu_gy,
                      imu_gy, -imu_gz, 0, imu_gx,
                      imu_gz, imu_gy, -imu_gx, 0;
+        printf("- PREDICT STATE | Top left element of gyro_skew after set: [%4.2f]\n", gyro_skew(0, 0));
         F_k = I_4 + 0.5f/ORIENTATION_ESTIMATION_RATE_HZ*gyro_skew;
+        printf("- PREDICT STATE | Top left element of F_k after set: [%4.2f]\n", F_k(0, 0));
         q_k = F_k*q_k_prev.coeffs();   //TODO: Confirm the vector conversion of this, output and check
+        printf("- PREDICT STATE | First coefficient of q_k after predict step: [%4.2f]\n", q_k.w());
 
         //Predict next covariance based on gyroscope measurements + Jacobian-transformed measurement variance
         J_process_k << q_k_prev.x(), q_k_prev.y(), q_k_prev.z(),
                        -1.0f*q_k_prev.w(), q_k_prev.z(), -1.0f*q_k_prev.y(),
                        -1.0f*q_k_prev.z(), -1.0f*q_k_prev.w(), q_k_prev.x(),
                        q_k_prev.y(), -1.0f*q_k_prev.x(), -1.0f*q_k_prev.w();
+        printf("- PREDICT COVAR | Top left element of J_process_k after computation: [%4.2f]\n", J_process_k(0, 0));
         process_noise_transformed = std::pow(0.5f/ORIENTATION_ESTIMATION_RATE_HZ, 2) *
                                     J_process_k*gyro_covariance*J_process_k.transpose();
+        printf("- PREDICT COVAR | Top left element of process_noise_transformed after transformation: [%4.2f]\n", process_noise_transformed(0, 0));
         P_k = F_k*P_k*F_k.transpose() + process_noise_transformed;
+        printf("- PREDICT COVAR | Top left element of P_k after computation: [%4.2f]\n", P_k(0, 0));
 
         //Calculate Kalman gain
         //TODO: This Jacobian calculation is FUGLY, and very computationally intensive
@@ -371,17 +387,21 @@ static void pose_estimation_task(void * unused_arg) {
                            0, 1.0f, 0, 0, 0, 0,
                            0, 0, 1.0f, 0, 0, 0,
                            J_o_4_1, J_o_4_2, J_o_4_3, J_o_4_4, J_o_4_5, J_o_4_6;
+        printf("- CALC KALMAN GAIN | [J_o_4_1 - J_o_4_6] after calculation, from J_observation_k: [%4.2f | %4.2f | %4.2f | %4.2f | %4.2f | %4.2f]\n", J_observation_k(3, 0), J_observation_k(3, 1), J_observation_k(3, 2), J_observation_k(3, 3), J_observation_k(3, 4), J_observation_k(3, 5));
         observation_noise_transformed = J_observation_k*accel_mag_covariance*J_observation_k.transpose();
+        printf("- CALC KALMAN GAIN | Top left element of observation_noise_transformed after computation: [%4.2f]\n", observation_noise_transformed(0, 0));
         H_k << -q_k.y(), q_k.z(), -q_k.w(), q_k.x(),
                q_k.x(), q_k.w(), q_k.z(), q_k.y(),
                q_k.w(), -q_k.x(), -q_k.y(), q_k.z(),
                q_k.z(), q_k.y(), q_k.x(), q_k.w();
         H_k *= 2;
+        printf("- CALC KALMAN GAIN | Top left element of H_k after computation: [%4.2f]\n", H_k(0, 0));
         K_k = P_k*H_k.transpose()*(H_k*P_k*H_k.transpose() + observation_noise_transformed).inverse();
-        
+        printf("- CALC KALMAN GAIN | Top left element of K_k after computation: [%4.2f]\n", K_k(0, 0));
+
         //Update state estimate based on accel/mag measurements
         z_k << imu_ax, imu_ay, imu_az, ((imu_ay*mag_z - imu_az*mag_y)/mag_N);
-        z_k_est = H_k*q_k.coeffs();;                //TODO: Confirm quaternion multiplication, output and check
+        z_k_est = H_k*q_k.coeffs();                 //TODO: Confirm quaternion multiplication, output and check
         q_k = q_k.coeffs() + K_k*(z_k - z_k_est);   //TODO: Confirm quaternion arithmetic, output and check
         q_k.normalize();    //Ensure state output is a proper rotation quaternion
 
