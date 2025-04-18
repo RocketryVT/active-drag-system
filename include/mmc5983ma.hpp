@@ -19,6 +19,8 @@
 #define R_MMC5983MA_ZOUT1 0x05
 #define R_MMC5983MA_XYZOUT2 0x06
 #define R_MMC5983MA_TEMPERATURE_OUT 0x07
+#define S_MMC5983MA_SCALE_FACTOR_16BIT 4096
+#define S_MMC5983MA_SCALE_FACTOR_18BIT 16384
 
 #define R_MMC5983MA_DEV_STATUS 0x08
 typedef union {
@@ -124,6 +126,7 @@ class MMC5983MA {
         int16_t get_ay() { return ay; }
         int16_t get_az() { return az; }
 
+        static float scale_mag(int16_t unscaled) { return ((float) unscaled) / S_MMC5983MA_SCALE_FACTOR_16BIT; }
 
     private:
         static int16_t sat_sub(int16_t a, int16_t b);

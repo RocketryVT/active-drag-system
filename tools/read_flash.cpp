@@ -46,7 +46,7 @@ using namespace Eigen;  //TODO: Limit scope to necessary components once impleme
 
 #define HEARTBEAT_RATE_HZ 5
 #define SENSOR_SAMPLE_RATE_HZ 500
-#define ORIENTATION_ESTIMATION_RATE_HZ 1
+#define ORIENTATION_ESTIMATION_RATE_HZ 10
 
 #define MAX_SCL 400000
 
@@ -274,13 +274,6 @@ static void heartbeat_task( void *pvParameters ) {
     }
 }
 
-//HELPER FUNCTION FOR DEBUG, REMOVE WHEN IMPLEMENTED
-/*std::string matrix2string(const Eigen::MatrixXf &mat) {
-    std::stringstream ss;
-    ss << mat;
-    return ss.str();
-}*/
-
 //TODO: This task is getting increasingly complex and involved, it may be worth migrating to a class of its own
 static void pose_estimation_task(void * unused_arg) {
     printf("--POSE: INITIALIZING DATA MEMBERS\n");
@@ -290,7 +283,7 @@ static void pose_estimation_task(void * unused_arg) {
     
     Quaternionf q_k(1, 0, 0, 0);     //Initialize to straight upright
     Quaternionf q_k_prev(1, 0, 0, 0);
-    Matrix4f P_k = Matrix4f::Identity()*0.01f;  //TODO: Tune this initialization value
+    Matrix4f P_k = Matrix4f::Identity()*0.001f;  //TODO: Tune this initialization value
 
     //TODO: Store covariance values somewhere reasonable instead of hardcoding them
     Matrix3f gyro_covariance = Matrix3f::Identity()*0.05f;   //0.05deg/s RMSE @ 100HZ Bandwidth
@@ -321,18 +314,32 @@ static void pose_estimation_task(void * unused_arg) {
         
         printf("-------- BEGINNING POSE COMPUTATION --------\n");
         //Get all required sensor values and compute intermediate values
-        float imu_ax = -IIM42653::scale_accel(iim42653.get_ay());
-        float imu_ay = -IIM42653::scale_accel(iim42653.get_ax());
+        float imu_ax = -IIM42653::scale_accel(iim42653.get_ax());
+        float imu_ay = -IIM42653::scale_accel(iim42653.get_ay());
         float imu_az = IIM42653::scale_accel(iim42653.get_az());
-        float imu_gx = -IIM42653::scale_gyro(iim42653.get_gy());
-        float imu_gy = -IIM42653::scale_gyro(iim42653.get_gx());
+        float imu_gx = -IIM42653::scale_gyro(iim42653.get_gx());
+        float imu_gy = -IIM42653::scale_gyro(iim42653.get_gy());
         float imu_gz = IIM42653::scale_gyro(iim42653.get_gz());
-        float mag_x = mmc5983ma.get_ax();   //TODO: Not convinced mag axes are correct, needs testing
-        float mag_y = mmc5983ma.get_ay();
-        float mag_z = mmc5983ma.get_az();
-        
+        float mag_y = MMC5983MA::scale_mag(mmc5983ma.get_ax());   //TODO: Not convinced mag axes are correct
+        float mag_x = MMC5983MA::scale_mag(mmc5983ma.get_ay());
+        float mag_z = MMC5983MA::scale_mag(mmc5983ma.get_az());
+
+        //Normalize accelerometer and magnetometer measurements
+        float imu_a_mag = std::sqrt(std::pow(imu_ax, 2) + std::pow(imu_ay, 2) + std::pow(imu_az, 2));
+        float mag_mag = std::sqrt(std::pow(mag_x, 2) + std::pow(mag_y, 2) + std::pow(mag_z, 2));
+        imu_ax /= imu_a_mag;
+        imu_ay /= imu_a_mag;
+        imu_az /= imu_a_mag;
+        mag_x /= mag_mag;
+        mag_y /= mag_mag;
+        mag_z /= mag_mag;
+
+        printf("--- INITIALIZATION | IMU Accel direct outputs (x, y, z): [%4.2f, %4.2f, %4.2f]\n", imu_ax, imu_ay, imu_az);
+        printf("--- INITIALIZATION | Magnetometer direct outputs (x, y, z): [%4.2f, %4.2f, %4.2f]\n", mag_x, mag_y, mag_z);
+
         float mag_D = imu_ax*mag_x + imu_ay*mag_y + imu_az*mag_z;
         float mag_N = std::sqrt(1.0f - std::pow(mag_D, 2));
+        printf("--- INITIALIZATION | Magnetometer values (mag_D, mag_N): [%4.2f, %4.2f]\n", mag_D, mag_N);
 
         //Predict next state based on gyroscope measurements
         q_k_prev = q_k;
@@ -407,7 +414,7 @@ static void pose_estimation_task(void * unused_arg) {
 
         //Update covariance based on accel/mag measurements
         P_k = (I_4 - K_k*H_k)*P_k;
-        printf("COMPLETED COMPUTATION!\n");
+        printf("-------- COMPLETED COMPUTATION! --------\n");
         
         printf("Estimate (q_k) Coefficients [w, x, y, z]: [%4.2f, %4.2f, %4.2f, %4.2f]\n", q_k.w(), q_k.x(), q_k.y(), q_k.z());
         Vector3f testVect = q_k._transformVector(Vector3f::UnitZ());
@@ -581,7 +588,7 @@ static void orient_cmd_func() {
     static bool estimating = false;
 
     if (!estimating) {
-        printf("======== BEGINNING STATE ESTIMATION ========\n");
+        printf("================ BEGINNING STATE ESTIMATION ================\n");
         vTaskSuspendAll();
         
         //TODO: Assign pose estimation unique priority?
@@ -592,7 +599,7 @@ static void orient_cmd_func() {
         estimating = true;
         xTaskResumeAll();
     } else {
-        printf("======== ENDING STATE ESTIMATION ========\n");
+        printf("================= ENDING STATE ESTIMATION ================\n");
         vTaskSuspendAll();
 
         vTaskDelete(pose_estimation_handle);
