@@ -117,8 +117,12 @@ class IIM42653 {
         IIM42653(i2c_inst_t* i2c) : i2c {i2c} {};
 
         void initialize();
+        
+        void calibrate_gyro();
 
         void sample();
+        
+        void apply_gyro_offset();
 
         int16_t get_ax() { return ax; }
         int16_t get_ay() { return ay; }
@@ -128,10 +132,11 @@ class IIM42653 {
         int16_t get_gz() { return gz; }
 
         static float scale_accel(int16_t unscaled) { return ((float) unscaled) / S_IIM42653_ACCEL_SENSITIVITY_FACTOR; }
-
         static float scale_gyro(int16_t unscaled) { return ((float) unscaled) / S_IIM42653_GYRO_SENSITIVITY_FACTOR; }
 
 	private:
+        static int16_t sat_sub(int16_t a, int16_t b);
+        
         const uint8_t addr = IIM42653_I2C_ADDR;
 
         i2c_inst_t* i2c;
@@ -145,5 +150,9 @@ class IIM42653 {
         IIM42653_ACCEL_CONFIG0 accel_config0;
 
         //Internal data fields
+        int16_t bias_gx = 0, bias_gy = 0, bias_gz = 0;
+        int16_t raw_gx = 0, raw_gy = 0, raw_gz = 0;
         int16_t ax, ay, az, gx, gy, gz;
+
+        const int64_t n_gyro_bias_readings = 50;
 };
