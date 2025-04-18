@@ -99,7 +99,7 @@ void MMC5983MA::calibrate() {
     buffer[1] = internal_ctl0.data;
     i2c_write_blocking(i2c, addr, buffer, 2, false);
     internal_ctl0.data = 0;
-
+    
     while (!dev_status.fields.MEAS_M_DONE) {
         sleep_ms(1);
         buffer[0] = R_MMC5983MA_DEV_STATUS;
