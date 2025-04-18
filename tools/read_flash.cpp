@@ -46,7 +46,7 @@ using namespace Eigen;  //TODO: Limit scope to necessary components once impleme
 
 #define HEARTBEAT_RATE_HZ 5
 #define SENSOR_SAMPLE_RATE_HZ 500
-#define ORIENTATION_ESTIMATION_RATE_HZ 10
+#define ORIENTATION_ESTIMATION_RATE_HZ 5
 
 #define MAX_SCL 400000
 
@@ -192,6 +192,7 @@ static void update_iim42653_task(void * unused_arg) {
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
         taskENTER_CRITICAL();
         iim42653.sample();
+        iim42653.apply_gyro_offset();
         taskEXIT_CRITICAL();
         if ((xLastWakeTime + xFrequency) < xTaskGetTickCount()) {
             xLastWakeTime = xTaskGetTickCount();
@@ -283,10 +284,10 @@ static void pose_estimation_task(void * unused_arg) {
     
     Quaternionf q_k(1, 0, 0, 0);     //Initialize to straight upright
     Quaternionf q_k_prev(1, 0, 0, 0);
-    Matrix4f P_k = Matrix4f::Identity()*0.001f;  //TODO: Tune this initialization value
+    Matrix4f P_k = Matrix4f::Identity()*0.0001f;  //TODO: Tune this initialization value
 
     //TODO: Store covariance values somewhere reasonable instead of hardcoding them
-    Matrix3f gyro_covariance = Matrix3f::Identity()*0.05f;   //0.05deg/s RMSE @ 100HZ Bandwidth
+    Matrix3f gyro_covariance = Matrix3f::Identity()*0.05f*M_PI/180.0f;   //0.05deg/s RMSE @ 100HZ Bandwidth
     Matrix<float, 6, 6> accel_mag_covariance;
     accel_mag_covariance << 0.00065f, 0, 0, 0, 0, 0,
                             0, 0.00065f, 0, 0, 0, 0,
@@ -317,9 +318,9 @@ static void pose_estimation_task(void * unused_arg) {
         float imu_ax = -IIM42653::scale_accel(iim42653.get_ax());
         float imu_ay = -IIM42653::scale_accel(iim42653.get_ay());
         float imu_az = IIM42653::scale_accel(iim42653.get_az());
-        float imu_gx = -IIM42653::scale_gyro(iim42653.get_gx());
-        float imu_gy = -IIM42653::scale_gyro(iim42653.get_gy());
-        float imu_gz = IIM42653::scale_gyro(iim42653.get_gz());
+        float imu_gx = -IIM42653::scale_gyro(iim42653.get_gx())/180.0f*M_PI;
+        float imu_gy = -IIM42653::scale_gyro(iim42653.get_gy())/180.0f*M_PI;
+        float imu_gz = IIM42653::scale_gyro(iim42653.get_gz())/180.0f*M_PI;
         float mag_y = MMC5983MA::scale_mag(mmc5983ma.get_ax());   //TODO: Not convinced mag axes are correct
         float mag_x = MMC5983MA::scale_mag(mmc5983ma.get_ay());
         float mag_z = MMC5983MA::scale_mag(mmc5983ma.get_az());
@@ -334,24 +335,29 @@ static void pose_estimation_task(void * unused_arg) {
         mag_y /= mag_mag;
         mag_z /= mag_mag;
 
-        printf("--- INITIALIZATION | IMU Accel direct outputs (x, y, z): [%4.2f, %4.2f, %4.2f]\n", imu_ax, imu_ay, imu_az);
-        printf("--- INITIALIZATION | Magnetometer direct outputs (x, y, z): [%4.2f, %4.2f, %4.2f]\n", mag_x, mag_y, mag_z);
+        printf("--- INITIALIZATION | IMU Accel direct outputs (x, y, z): [%4.3f, %4.3f, %4.3f]\n", imu_ax, imu_ay, imu_az);
+        printf("--- INITIALIZATION | IMU Gyro direct outputs (x, y, z): [%4.3f, %4.3f, %4.3f]\n", imu_gx, imu_gy, imu_gz);
+        printf("--- INITIALIZATION | Magnetometer direct outputs (x, y, z): [%4.3f, %4.3f, %4.3f]\n", mag_x, mag_y, mag_z);
 
         float mag_D = imu_ax*mag_x + imu_ay*mag_y + imu_az*mag_z;
         float mag_N = std::sqrt(1.0f - std::pow(mag_D, 2));
-        printf("--- INITIALIZATION | Magnetometer values (mag_D, mag_N): [%4.2f, %4.2f]\n", mag_D, mag_N);
+        printf("--- INITIALIZATION | Magnetometer values (mag_D, mag_N): [%4.4f, %4.4f]\n", mag_D, mag_N);
 
         //Predict next state based on gyroscope measurements
         q_k_prev = q_k;
-        printf("- PREDICT STATE | First item of q_k_prev after initial set: [%4.2f]\n", q_k_prev.y());
+        printf("- PREDICT STATE | First item of q_k_prev after initial set: [%4.2f]\n", q_k_prev.w());
+        
         gyro_skew << 0, -imu_gx, -imu_gy, -imu_gz,
                      imu_gx, 0, imu_gz, -imu_gy,
                      imu_gy, -imu_gz, 0, imu_gx,
                      imu_gz, imu_gy, -imu_gx, 0;
-        printf("- PREDICT STATE | Top left element of gyro_skew after set: [%4.2f]\n", gyro_skew(0, 0));
+        printf("- PREDICT STATE | Top second element of gyro_skew after set: [%4.2f]\n", gyro_skew(0, 1));
+        
         F_k = I_4 + 0.5f/ORIENTATION_ESTIMATION_RATE_HZ*gyro_skew;
-        printf("- PREDICT STATE | Top left element of F_k after set: [%4.2f]\n", F_k(0, 0));
+        printf("- PREDICT STATE | First column of F_k after set: [%2.4f, %2.4f, %2.4f, %2.4f]\n", F_k(0, 0), F_k(1, 0), F_k(2, 0), F_k(3, 0));
+        
         q_k = F_k*q_k_prev.coeffs();   //TODO: Confirm the vector conversion of this, output and check
+        //q_k.normalize();    //TODO: CONFIRM normalization necessary at intermediary steps
         printf("- PREDICT STATE | First coefficient of q_k after predict step: [%4.2f]\n", q_k.w());
 
         //Predict next covariance based on gyroscope measurements + Jacobian-transformed measurement variance
@@ -360,11 +366,13 @@ static void pose_estimation_task(void * unused_arg) {
                        -1.0f*q_k_prev.z(), -1.0f*q_k_prev.w(), q_k_prev.x(),
                        q_k_prev.y(), -1.0f*q_k_prev.x(), -1.0f*q_k_prev.w();
         printf("- PREDICT COVAR | Top left element of J_process_k after computation: [%4.2f]\n", J_process_k(0, 0));
+        
         process_noise_transformed = std::pow(0.5f/ORIENTATION_ESTIMATION_RATE_HZ, 2) *
                                     J_process_k*gyro_covariance*J_process_k.transpose();
-        printf("- PREDICT COVAR | Top left element of process_noise_transformed after transformation: [%4.2f]\n", process_noise_transformed(0, 0));
+        printf("- PREDICT COVAR | Diagonal of process_noise_transformed after transformation: [%2.4f, %2.4f, %2.4f, %2.4f]\n", process_noise_transformed(0, 0), process_noise_transformed(1, 1), process_noise_transformed(2, 2), process_noise_transformed(3, 3));
+        
         P_k = F_k*P_k*F_k.transpose() + process_noise_transformed;
-        printf("- PREDICT COVAR | Top left element of P_k after computation: [%4.2f]\n", P_k(0, 0));
+        printf("- PREDICT COVAR | Diagonal of P_k after prediction computation: [%2.4f, %2.4f, %2.4f, %2.4f]\n", P_k(0, 0), P_k(1, 1), P_k(2, 2), P_k(3, 3));
 
         //Calculate Kalman gain
         //TODO: This Jacobian calculation is FUGLY, and very computationally intensive
@@ -395,16 +403,19 @@ static void pose_estimation_task(void * unused_arg) {
                            0, 0, 1.0f, 0, 0, 0,
                            J_o_4_1, J_o_4_2, J_o_4_3, J_o_4_4, J_o_4_5, J_o_4_6;
         printf("- CALC KALMAN GAIN | [J_o_4_1 - J_o_4_6] after calculation, from J_observation_k: [%4.2f | %4.2f | %4.2f | %4.2f | %4.2f | %4.2f]\n", J_observation_k(3, 0), J_observation_k(3, 1), J_observation_k(3, 2), J_observation_k(3, 3), J_observation_k(3, 4), J_observation_k(3, 5));
+        
         observation_noise_transformed = J_observation_k*accel_mag_covariance*J_observation_k.transpose();
-        printf("- CALC KALMAN GAIN | Top left element of observation_noise_transformed after computation: [%4.2f]\n", observation_noise_transformed(0, 0));
+        printf("- CALC KALMAN GAIN | Diagonal of observation_noise_transformed after transformation: [%2.4f, %2.4f, %2.4f, %2.4f]\n", observation_noise_transformed(0, 0), observation_noise_transformed(1, 1), observation_noise_transformed(2, 2), observation_noise_transformed(3, 3));
+        
         H_k << -q_k.y(), q_k.z(), -q_k.w(), q_k.x(),
                q_k.x(), q_k.w(), q_k.z(), q_k.y(),
                q_k.w(), -q_k.x(), -q_k.y(), q_k.z(),
                q_k.z(), q_k.y(), q_k.x(), q_k.w();
         H_k *= 2;
-        printf("- CALC KALMAN GAIN | Top left element of H_k after computation: [%4.2f]\n", H_k(0, 0));
+        printf("- CALC KALMAN GAIN | First column of H_k after computation: [%2.4f, %2.4f, %2.4f, %2.4f]\n", H_k(0, 0), H_k(1, 0), H_k(2, 0), H_k(3, 0));
+        
         K_k = P_k*H_k.transpose()*(H_k*P_k*H_k.transpose() + observation_noise_transformed).inverse();
-        printf("- CALC KALMAN GAIN | Top left element of K_k after computation: [%4.2f]\n", K_k(0, 0));
+        printf("- CALC KALMAN GAIN | First column of K_k after computation: [%2.4f, %2.4f, %2.4f, %2.4f]\n", K_k(0, 0), K_k(1, 0), K_k(2, 0), K_k(3, 0));
 
         //Update state estimate based on accel/mag measurements
         z_k << imu_ax, imu_ay, imu_az, ((imu_ay*mag_z - imu_az*mag_y)/mag_N);
@@ -416,9 +427,10 @@ static void pose_estimation_task(void * unused_arg) {
         P_k = (I_4 - K_k*H_k)*P_k;
         printf("-------- COMPLETED COMPUTATION! --------\n");
         
-        printf("Estimate (q_k) Coefficients [w, x, y, z]: [%4.2f, %4.2f, %4.2f, %4.2f]\n", q_k.w(), q_k.x(), q_k.y(), q_k.z());
-        Vector3f testVect = q_k._transformVector(Vector3f::UnitZ());
-        printf("Estimate (q_k) Rotated [X, Y, Z]: [%4.2f, %4.2f, %4.2f]\n\n", testVect[0], testVect[1], testVect[2]);
+        printf("Estimate (q_k) Coefficients [w, x, y, z]: [%1.4f, %1.4f, %1.4f, %1.4f]\n", q_k.w(), q_k.x(), q_k.y(), q_k.z());
+        Vector3f testVect = q_k.toRotationMatrix().eulerAngles(2, 1, 0)*180.0f/M_PI;
+        printf("Estimate (q_k) in Euler [Yaw, Pitch, Roll]: [%3.3f, %3.3f, %3.3f]\n\n", testVect[0], testVect[1], testVect[2]);
+    
     }
 }
 
