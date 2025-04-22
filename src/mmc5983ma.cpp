@@ -37,6 +37,7 @@ void MMC5983MA::initialize() {
     internal_ctl2.fields.PERIODIC_SET_RATE = B_MMC5983_PERIODIC_SET_RATE_MEAS_TIMES_1000;
     buffer[1] = internal_ctl2.data;
     i2c_write_blocking(i2c, addr, buffer, 2, false);
+    printf("MMC5983MA Initialized!\n");
 }
 
 void MMC5983MA::sample() {
@@ -57,7 +58,8 @@ void MMC5983MA::apply_offset() {
 
 void MMC5983MA::calibrate() {
     sleep_ms(100);
-
+    
+    printf("MMC5983MA Calibration | Set command");
     // Take measurement after SET command completes
     buffer[0] = R_MMC5983MA_INTERNAL_CTL0;
     internal_ctl0.fields.SET_CMD = true;
@@ -66,22 +68,33 @@ void MMC5983MA::calibrate() {
     internal_ctl0.data = 0;
 
     sleep_ms(100);
+    printf(" | Measurement Request");
 
     buffer[0] = R_MMC5983MA_INTERNAL_CTL0;
     internal_ctl0.fields.TAKE_MAG_MEAS = true;
     buffer[1] = internal_ctl0.data;
     i2c_write_blocking(i2c, addr, buffer, 2, false);
     internal_ctl0.data = 0;
-
+    printf(" | Request sent, awaiting completion...\n");
+    
+    size_t counter = 0;
     while (!dev_status.fields.MEAS_M_DONE) {
         sleep_ms(1);
         buffer[0] = R_MMC5983MA_DEV_STATUS;
         i2c_write_blocking(i2c, addr, buffer, 1, true);
         i2c_read_blocking(i2c, addr, buffer, 1, false);
         dev_status.data = buffer[0];
+        printf("W | ");
+        counter++;
+        if (counter == 20) {
+            printf("\n");
+            counter = 0;
+        }
     }
+    printf("\n\nMeasurement taken!");
 
     sample();
+    printf(" | Sample taken!");
 
     int16_t set_ax = raw_x, set_ay = raw_y, set_az = raw_z;
 

@@ -46,7 +46,7 @@ using namespace Eigen;  //TODO: Limit scope to necessary components once impleme
 #define	SERIAL_TASK_PRIORITY		( tskIDLE_PRIORITY + 1 )
 
 #define SENSOR_SAMPLE_RATE_HZ 500
-#define ORIENTATION_ESTIMATION_RATE_HZ 100
+#define ORIENTATION_ESTIMATION_RATE_HZ 5
 
 #define MAX_SCL 400000
 
@@ -244,13 +244,13 @@ static void pose_estimation_task(void * unused_arg) {
         mag_y /= mag_mag;
         mag_z /= mag_mag;
 
-        //printf("--- [I] INITIALIZATION | IMU Accel direct outputs (x, y, z): [%4.3f, %4.3f, %4.3f]\n", imu_ax, imu_ay, imu_az);
-        //printf("--- [I] INITIALIZATION | IMU Gyro direct outputs (x, y, z): [%4.3f, %4.3f, %4.3f]\n", imu_gx, imu_gy, imu_gz);
-        //printf("--- [I] INITIALIZATION | Magnetometer direct outputs (x, y, z): [%4.3f, %4.3f, %4.3f]\n", mag_x, mag_y, mag_z);
+        printf("--- [I] INITIALIZATION | IMU Accel direct outputs (x, y, z): [%4.3f, %4.3f, %4.3f]\n", imu_ax, imu_ay, imu_az);
+        printf("--- [I] INITIALIZATION | IMU Gyro direct outputs (x, y, z): [%4.3f, %4.3f, %4.3f]\n", imu_gx, imu_gy, imu_gz);
+        printf("--- [I] INITIALIZATION | Magnetometer direct outputs (x, y, z): [%4.3f, %4.3f, %4.3f]\n", mag_x, mag_y, mag_z);
 
         float mag_D = imu_ax*mag_x + imu_ay*mag_y + imu_az*mag_z;
         float mag_N = std::sqrt(1.0f - std::pow(mag_D, 2));
-        //printf("--- [I] INITIALIZATION | Magnetometer values (mag_D, mag_N): [%4.4f, %4.4f]\n", mag_D, mag_N);
+        printf("--- [I] INITIALIZATION | Magnetometer values (mag_mag, mag_D, mag_N): [%2.4f, %2.4f, %2.4f]\n", mag_mag, mag_D, mag_N);
         
         //UPDATE | Calculate Kalman gain
         //TODO: This Jacobian calculation is FUGLY, and very computationally intensive
@@ -307,7 +307,7 @@ static void pose_estimation_task(void * unused_arg) {
         //printf("- [U] CALC STATE COVAR | First column of P_k after computation: [%2.4f, %2.4f, %2.4f, %2.4f]\n", P_k(0, 0), P_k(1, 1), P_k(2, 2), P_k(3, 3));
 
         //printf("-------- COMPLETED UPDATE COMPUTATION! --------\n\n");
-        if (orient_count == ORIENTATION_ESTIMATION_RATE_HZ) {
+        //if (orient_count == ORIENTATION_ESTIMATION_RATE_HZ) {
             printf("~~> Estimate (q_k) Coefficients [w, x, y, z]: [%1.4f, %1.4f, %1.4f, %1.4f]\n", q_k.w(), q_k.x(), q_k.y(), q_k.z());
             Vector3f testVect = q_k.toRotationMatrix().eulerAngles(2, 1, 0)*180.0f/M_PI;
             printf("~~> Estimate (q_k) in Euler [Yaw, Pitch, Roll]: [%3.3f, %3.3f, %3.3f]\n", testVect[0], testVect[1], testVect[2]);
@@ -315,9 +315,9 @@ static void pose_estimation_task(void * unused_arg) {
             Vector3f testAccelVectRotated = q_k._transformVector(testAccelVect);
             printf("~~> Estimate (q_k) rotated accel magnitude vector: [%2.4f, %2.4f, %2.4f]\n\n", testAccelVectRotated[0], testAccelVectRotated[1], testAccelVectRotated[2]);
 
-            orient_count = 0;
-        }
-        orient_count++;
+        //    orient_count = 0;
+        //}
+        //orient_count++;
 
         //printf("-------- BEGINNING PREDICT COMPUTATION --------\n");
 
