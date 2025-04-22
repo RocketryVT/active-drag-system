@@ -87,4 +87,22 @@ void IIM42653::calibrate_gyro() {
     bias_gz = g_z/n_gyro_bias_readings;
 }
 
+#if ( USE_FREERTOS == 1 )
+void IIM42653::update_iim42653_task(void* pvParameters) {
+    TickType_t xLastWakeTime;
+    const TickType_t xFrequency = pdMS_TO_TICKS(1000 / IIM42653_SAMPLE_RATE_HZ);
 
+    xLastWakeTime = xTaskGetTickCount();
+    while (1) {
+        vTaskDelayUntil(&xLastWakeTime, xFrequency);
+        taskENTER_CRITICAL();
+        IIM42653* iim42653 = (IIM42653*) pvParameters;
+        iim42653->sample();
+        iim42653->apply_gyro_offset();
+        taskEXIT_CRITICAL();
+        if ((xLastWakeTime + xFrequency) < xTaskGetTickCount()) {
+            xLastWakeTime = xTaskGetTickCount();
+        }
+    }
+}
+#endif

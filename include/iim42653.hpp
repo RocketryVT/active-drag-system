@@ -1,9 +1,20 @@
 #pragma once
 
+#include "serial.hpp"
 #include <stdint.h>
 
 #include <hardware/i2c.h>
 #include <hardware/clocks.h>
+
+#if (USE_FREERTOS == 1)
+#include "FreeRTOS.h"
+#include "FreeRTOSConfig.h"
+#include "portmacro.h"
+#include "projdefs.h"
+#include "serial.hpp"
+#include "task.h"
+#include "semphr.h"
+#endif
 
 #define IIM42653_I2C_ADDR 0x68
 #define IIM42653_CLOCK_SOURCE_SYSTEM 0x6    //Use system clock as source
@@ -112,6 +123,8 @@ typedef union {
 #define R_IIM42653_WHO_AM_I 0x75
 #define B_IIM42653_WHO_AM_I_VALUE 0x56
 
+#define IIM42653_SAMPLE_RATE_HZ 500
+
 class IIM42653 {
 	public: 
         IIM42653(i2c_inst_t* i2c) : i2c {i2c} {};
@@ -133,6 +146,12 @@ class IIM42653 {
 
         static float scale_accel(int16_t unscaled) { return ((float) unscaled) / S_IIM42653_ACCEL_SENSITIVITY_FACTOR; }
         static float scale_gyro(int16_t unscaled) { return ((float) unscaled) / S_IIM42653_GYRO_SENSITIVITY_FACTOR; }
+
+#if ( USE_FREERTOS == 1 )
+        static void update_iim42653_task(void* pvParameters);
+
+        TaskHandle_t update_task_handle = NULL;
+#endif
 
 	private:
         static int16_t sat_sub(int16_t a, int16_t b);

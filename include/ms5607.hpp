@@ -51,6 +51,8 @@
 #define PRESSURE_SCALE 100
 #define TEMPERATURE_SCALE 100
 
+#define MS5607_SAMPLE_RATE_HZ 500
+
 typedef union {
 	struct {
         uint8_t RESERVED: 1;
@@ -70,9 +72,9 @@ typedef enum {
     COMPENSATE
 } sample_state_t;
 
-class altimeter {
+class MS5607 {
     public:
-        altimeter(i2c_inst_t* i2c) : i2c {i2c} {};
+        MS5607(i2c_inst_t* i2c) : i2c {i2c} {};
 
         void initialize();
 
@@ -85,6 +87,7 @@ class altimeter {
         static int64_t ms5607_sample_callback(alarm_id_t id, void* user_data);
 #if (USE_FREERTOS == 1)
         static void ms5607_sample_handler(void* pvParameters);
+        static void update_ms5607_task(void* pvParameters);
 #endif
 
         int32_t pressure_to_altitude(int32_t pressure);
@@ -98,7 +101,8 @@ class altimeter {
         void clear_threshold_altitude();
 
 #if ( USE_FREERTOS == 1 )
-        TaskHandle_t sample_handler_task = NULL;
+        TaskHandle_t sample_handler_task_handle = NULL;
+        TaskHandle_t update_task_handle = NULL;
 #endif
     private:
         void ms5607_compensate();

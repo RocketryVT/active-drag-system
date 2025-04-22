@@ -7,7 +7,7 @@ static const int32_t altitude_table[] = {
 #define ALT_SCALE (1 << ALT_SHIFT)
 #define ALT_MASK (ALT_SCALE - 1)
 
-void altimeter::initialize() {
+void MS5607::initialize() {
     sample_state = NOT_SAMPLING;
 
     alarm_pool_init_default();
@@ -35,11 +35,11 @@ void altimeter::initialize() {
     }
 }
 
-void altimeter::ms5607_write_cmd(ms5607_cmd* cmd) {
+void MS5607::ms5607_write_cmd(ms5607_cmd* cmd) {
     i2c_write_blocking(i2c, addr, (uint8_t *) cmd, 1, false);
 }
 
-void altimeter::ms5607_start_sample() {
+void MS5607::ms5607_start_sample() {
     if (sample_state == NOT_SAMPLING) {
         sample_state = PRESSURE_CONVERT;
         ms5607_sample();
@@ -47,10 +47,10 @@ void altimeter::ms5607_start_sample() {
 }
 
 #if (USE_FREERTOS == 1)
-void altimeter::ms5607_sample_handler(void* pvParameters) {
+void MS5607::ms5607_sample_handler(void* pvParameters) {
     /* xMaxExpectedBlockTime is set to be a little longer than the maximum
     expected time between events. */
-    const TickType_t xInterruptFrequency = pdMS_TO_TICKS( 1000 / 1000 );
+    const TickType_t xInterruptFrequency = pdMS_TO_TICKS( 1000 / (MS5607_SAMPLE_RATE_HZ * 2) );
     const TickType_t xMaxExpectedBlockTime = xInterruptFrequency + pdMS_TO_TICKS( 1 );
     uint32_t ulEventsToProcess;
     while (1) {
@@ -61,7 +61,7 @@ void altimeter::ms5607_sample_handler(void* pvParameters) {
             /* To get here at least one event must have occurred. Loop here
             until all the pending events have been processed */
             while( ulEventsToProcess > 0 ) {
-                altimeter* alt = (altimeter *) pvParameters;
+                MS5607* alt = (MS5607 *) pvParameters;
                 alt->ms5607_sample();
                 ulEventsToProcess--;
             }
@@ -69,24 +69,36 @@ void altimeter::ms5607_sample_handler(void* pvParameters) {
     }
 
 }
+
+void MS5607::update_ms5607_task(void* pvParameters) {
+    TickType_t xLastWakeTime;
+    const TickType_t xFrequency = pdMS_TO_TICKS(1000 / MS5607_SAMPLE_RATE_HZ);
+
+    xLastWakeTime = xTaskGetTickCount();
+    while (1) {
+        vTaskDelayUntil(&xLastWakeTime, xFrequency);
+        MS5607* alt = (MS5607 *) pvParameters;
+        alt->ms5607_start_sample();
+    }
+}
 #endif
 
-int64_t altimeter::ms5607_sample_callback(alarm_id_t id, void* user_data) {
+int64_t MS5607::ms5607_sample_callback(alarm_id_t id, void* user_data) {
 #if ( USE_FREERTOS == 1 )
     BaseType_t xHigherPriorityTaskWoken;
     xHigherPriorityTaskWoken = pdFALSE;
-    altimeter* alt = (altimeter *) user_data;
+    MS5607* alt = (MS5607 *) user_data;
     // Defer ISR handling to separate handler within FreeRTOS context
-    vTaskNotifyGiveFromISR(alt->sample_handler_task, &xHigherPriorityTaskWoken );
+    vTaskNotifyGiveFromISR(alt->sample_handler_task_handle, &xHigherPriorityTaskWoken );
     portYIELD_FROM_ISR( xHigherPriorityTaskWoken );
 #else
-    altimeter* alt = (altimeter *) user_data;
+    MS5607* alt = (MS5607 *) user_data;
     alt->ms5607_sample();
 #endif
     return 0;
 }
 
-void altimeter::ms5607_sample() {
+void MS5607::ms5607_sample() {
     ms5607_cmd cmd = {.data = 0};
 
     switch (sample_state) {
@@ -99,7 +111,7 @@ void altimeter::ms5607_sample() {
 
             ms5607_write_cmd(&cmd);
 
-            add_alarm_in_us(OSR_256_CONVERSION_TIME_US, altimeter::ms5607_sample_callback, (void *) this, true);
+            add_alarm_in_us(OSR_256_CONVERSION_TIME_US, MS5607::ms5607_sample_callback, (void *) this, true);
 
             sample_state = TEMPERATURE_CONVERT;
             break;
@@ -116,7 +128,7 @@ void altimeter::ms5607_sample() {
 
             ms5607_write_cmd(&cmd);
 
-            add_alarm_in_us(OSR_256_CONVERSION_TIME_US, altimeter::ms5607_sample_callback, (void *) this, true);
+            add_alarm_in_us(OSR_256_CONVERSION_TIME_US, MS5607::ms5607_sample_callback, (void *) this, true);
 
             sample_state = COMPENSATE;
             break;
@@ -148,7 +160,7 @@ void altimeter::ms5607_sample() {
 
 }
 
-void altimeter::ms5607_compensate() {
+void MS5607::ms5607_compensate() {
     int32_t dT = uncompensated_temperature - (((uint32_t) prom[4]) << 8);
     temperature = 2000 + ( ( ( (int64_t) dT) * ( (int64_t) prom[5]) ) >> 23);
     int64_t OFF = ( ( (int64_t) prom[1]) << 17) + ( ( ((int64_t) prom[3]) * ( (int64_t) dT)) >> 6);
@@ -157,7 +169,7 @@ void altimeter::ms5607_compensate() {
 
 }
 
-int32_t altimeter::pressure_to_altitude(int32_t pressure) {
+int32_t MS5607::pressure_to_altitude(int32_t pressure) {
 	uint16_t o;
 	int16_t	part;
 	int32_t low, high;
@@ -179,7 +191,7 @@ int32_t altimeter::pressure_to_altitude(int32_t pressure) {
 }
 
 
-void altimeter::set_threshold_altitude(int32_t threshold_altitude, alarm_callback_t callback) {
+void MS5607::set_threshold_altitude(int32_t threshold_altitude, alarm_callback_t callback) {
     this->threshold_altitude = threshold_altitude;
 
     positive_crossing = (threshold_altitude > altitude);
@@ -187,6 +199,6 @@ void altimeter::set_threshold_altitude(int32_t threshold_altitude, alarm_callbac
     threshold_callback = callback;
 }
 
-void altimeter::clear_threshold_altitude() {
+void MS5607::clear_threshold_altitude() {
     this->threshold_callback = NULL;
 }
