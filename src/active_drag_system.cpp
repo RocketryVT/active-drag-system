@@ -1,133 +1,116 @@
-#include "hardware/sync.h"
-#include "pico/multicore.h"
-#include "pico/platform.h"
-#include "pico/sem.h"
+#include <pico.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+#include <inttypes.h>
+
 #include "hardware/gpio.h"
 #include "hardware/i2c.h"
 #include "hardware/adc.h"
+#include <hardware/timer.h>
+#include "pico/rand.h"
 #include "pico/stdlib.h"
+#include "pico/stdio.h"
+#include "pico/multicore.h"
 #include "pico/time.h"
-#include "pico/types.h"
-#include <stdio.h>
-#include <cstring>
-#include <inttypes.h>
-#include <math.h>
+#include <pico/error.h>
+#include <pico/types.h>
 
+#include "FreeRTOS.h"
+#include "FreeRTOSConfig.h"
+#include "portmacro.h"
+#include "projdefs.h"
+#include "serial.hpp"
+#include "task.h"
+#include "semphr.h"
+
+#include "adxl375.hpp"
+#include "ms5607.hpp"
+#include "iim42653.hpp"
+#include "mmc5983ma.hpp"
 #include "pwm.hpp"
-#include "altimeter.hpp"
-#include "heartbeat.hpp"
 #include "pico_logger.h"
-#include "rp2040_micro.h"
-#include "mid_imu.hpp"
-#include "high_accel.hpp"
-#include "magnetometer.hpp"
-#define SERIAL_RATE_HZ 10
+#include "log_format.hpp"
+#include "serial.hpp"
+#include "heartbeat.hpp"
 
-#define MOVING_AVG_MAX_SIZE 20
-#define MAX_SCL 400000
-#define DATA_RATE_HZ 200
-#define LOOP_PERIOD (1.0f / DATA_RATE_HZ)
+/****************************** FREERTOS **************************************/
+#define EVENT_HANDLER_PRIORITY      ( tskIDLE_PRIORITY + 4 )
+#define SENSOR_SAMPLE_PRIORITY      ( tskIDLE_PRIORITY + 3 )
+#define	HEARTBEAT_TASK_PRIORITY		( tskIDLE_PRIORITY + 2 )
+#define LOGGING_PRIORITY            ( tskIDLE_PRIORITY + 2 )
+#define	SERIAL_TASK_PRIORITY		( tskIDLE_PRIORITY + 1 )
 
-#define LOG_RATE_HZ 50
+void vApplicationTickHook(void) { /* optional */ }
+void vApplicationMallocFailedHook(void) { /* optional */ }
+void vApplicationStackOverflowHook(TaskHandle_t xTask, char *pcTaskName) { for( ;; ); }
 
-#define MOTOR_BURN_TIME 2600 // Burn time in milliseconds for L2200G
+static void logging_task(void* pvParameters);
 
-#define PACKET_SIZE 43
-#define PAD_SECONDS 8
-#define PAD_BUFFER_SIZE (PACKET_SIZE * LOG_RATE_HZ * PAD_SECONDS)
+#define ROCKET_TASK_RATE_HZ 100
+volatile TaskHandle_t rocket_task_handle = NULL;
+static void rocket_task(void* pvParameters);
 
-typedef enum {
-    PAD = 0,
-    BOOST,
-    COAST,
-    APOGEE,
-    RECOVERY,
-    END
-} state_t;
+int64_t rocket_event_callback(alarm_id_t id, void* user_data);
 
-typedef struct {
-    // 11 bytes General time and state data
-    uint64_t time_us: 64;
-    state_t state: 4;
-    uint16_t temperature_chip: 12;
-    uint8_t deploy_percent: 8;
+volatile TaskHandle_t rocket_event_handler_task_handle = NULL;
+static void rocket_event_handler_task(void* pvParameters);
 
-    // 7.25 bytes MS5607 data
-    uint32_t pressure: 18;
-    int32_t altitude: 24;
-    int16_t temperature_alt: 16;
+/****************************** FREERTOS **************************************/
 
-    // 12 bytes IMU data
-    int16_t ax : 16;
-    int16_t ay : 16;
-    int16_t az : 16;
-    int16_t gx : 16;
-    int16_t gy : 16;
-    int16_t gz : 16;
+/****************************** SERIAL CONSOLE ********************************/
+static void read_cmd_func();
+static void write_cmd_func();
+static void erase_cmd_func();
+static void show_cmd_func();
 
-    // 6.75 bytes MAG data
-    int32_t mag_x: 18;         // 18 bits (1.125 bytes) == 27.125
-    int32_t mag_y: 18;         // 18 bits (1.125 bytes) == 28.25
-    int32_t mag_z: 18;         // 18 bits (1.125 bytes) == 29.375
+const char* executeable_name = "ads.uf2";
+const size_t num_user_cmds = 3;
+const command_t user_commands[] = { {.name = "read",
+                                     .len = 4,
+                                     .function = &read_cmd_func},
+                                    {.name = "write",
+                                     .len = 5,
+                                     .function = &write_cmd_func},
+                                    {.name = "erase",
+                                     .len = 5,
+                                     .function = &erase_cmd_func},
+                                    {.name = "show",
+                                     .len = 4,
+                                     .function = &show_cmd_func} };
+/****************************** SERIAL CONSOLE ********************************/
 
-    // 6 bytes High G Accel data
-    int16_t high_g_x : 16;
-    int16_t high_g_y : 16;
-    int16_t high_g_z : 16;
-} __attribute__((packed)) log_entry_t;
+/****************************** LOGGING ***************************************/
+volatile bool use_circular_buffer = true;
+volatile TaskHandle_t logging_handle = NULL;
+volatile log_entry_t log_entry;
 
-MidIMU mid(i2c_default);
-HighAccel high(i2c_default);
-Magnetometer mag(i2c_default);
-PWM pwm;
+Logger logger(PACKET_SIZE, LOG_BASE_ADDR, print_log_entry);
 
-int64_t pad_callback(alarm_id_t id, void* user_data);
-int64_t boost_callback(alarm_id_t id, void* user_data);
-int64_t apogee_callback(alarm_id_t id, void* user_data);
-int64_t coast_callback(alarm_id_t id, void* user_data);
-int64_t recovery_callback(alarm_id_t id, void* user_data);
-
-bool timer_callback(repeating_timer_t *rt);
-
-bool logging_buffer_callback(repeating_timer_t *rt);
-bool logging_flash_callback(repeating_timer_t *rt);
-
-void process_cmd(char* buf, uint8_t len);
-bool serial_callback(repeating_timer_t *rt);
-
-void logging_core();
-
-void populate_log_entry();
-void print_log_entry(const uint8_t* entry);
-
-semaphore_t sem;
-
-volatile int32_t altitude = 0;
-volatile int32_t previous_altitude = 0;
-volatile int32_t velocity = 0;
-volatile state_t state = PAD;
-volatile int32_t threshold_altitude = 30;
-volatile float threshold_velocity = 30.0f;
-volatile uint8_t deployment_percent = 0;
+static void populate_log_entry(log_entry_t* log_entry);
+/****************************** LOGGING ***************************************/
 
 volatile bool serial_data_output = false;
 
-repeating_timer_t data_timer;
-repeating_timer_t log_timer;
-repeating_timer_t serial_timer;
+MS5607 alt(i2c_default);
+ADXL375 adxl375(i2c_default);
+IIM42653 iim42653(i2c_default);
+MMC5983MA mmc5983ma(i2c_default);
 
-int32_t ground_altitude = 0;
+PWM pwm;
 
+#define MOTOR_BURN_TIME 6200
+volatile state_t rocket_state = PAD;
+volatile uint8_t deployment_percent = 0;
 
-volatile int32_t moving_average[MOVING_AVG_MAX_SIZE];
-volatile size_t moving_average_offset = 0;
-volatile size_t moving_average_size = 0;
-volatile int32_t moving_average_sum = 0;
+volatile int32_t ground_altitude = 0;
+volatile int32_t threshold_altitude = 30;
 
-altimeter altimeter(i2c_default);
+volatile int32_t altitude = 0;
+volatile int32_t previous_altitude = 0;
 
-Logger logger(PACKET_SIZE, LOG_BASE_ADDR, &print_log_entry);
-log_entry_t log_entry;
+volatile int32_t velocity = 0;
+
 
 int main() {
     stdio_init_all();
@@ -135,413 +118,307 @@ int main() {
     adc_init();
     adc_set_temp_sensor_enabled(true);
 
-    i2c_init(i2c_default, MAX_SCL);
+    heartbeat_initialize(PICO_DEFAULT_LED_PIN);
+
+    i2c_init(i2c_default, 400000);
     gpio_set_function(PICO_DEFAULT_I2C_SDA_PIN, GPIO_FUNC_I2C);
     gpio_set_function(PICO_DEFAULT_I2C_SCL_PIN, GPIO_FUNC_I2C);
-    gpio_pull_up(PICO_DEFAULT_I2C_SDA_PIN);
-    gpio_pull_up(PICO_DEFAULT_I2C_SCL_PIN);
 
-    alarm_pool_init_default();
-
-    altimeter.initialize();
-    sleep_ms(100);
-    logger.initialize(true);
-    logger.initialize_circular_buffer(PAD_BUFFER_SIZE);
-
-    sleep_ms(100);
-
-    altimeter.ms5607_start_sample();
-    sleep_ms(100);
-    ground_altitude = altimeter.get_altitude();
-    altimeter.set_threshold_altitude(ground_altitude + (threshold_altitude * ALTITUDE_SCALE), &pad_callback);
-
-    high.initialize();
-    mag.initialize();
-    mid.initialize();
-
-    pwm.init();
-
-    // Initialize MOSFET
     gpio_init(MICRO_DEFAULT_SERVO_ENABLE);
     gpio_set_dir(MICRO_DEFAULT_SERVO_ENABLE, GPIO_OUT);
     gpio_put(MICRO_DEFAULT_SERVO_ENABLE, 0);
 
-    sem_init(&sem, 1, 1);
+    sleep_ms(2500);
 
-    add_repeating_timer_us(-1000000 / DATA_RATE_HZ,  &timer_callback, NULL, &data_timer);
+    info_cmd_func();
+    stdio_flush();
 
-    multicore_launch_core1(logging_core);
+    logger.initialize(true);
+    logger.initialize_circular_buffer(PAD_BUFFER_SIZE);
 
-    while (1) {
-        tight_loop_contents();
-    }
-}
+    alt.initialize();
+    sleep_ms(500);
+    adxl375.initialize();
+    sleep_ms(500);
+    iim42653.initialize();
+    sleep_ms(500);
+    mmc5983ma.initialize();
+    sleep_ms(500);
+    pwm.init();
 
-// PRIMARY THREAD RELATED FUNCTIONS AND CALLBACKS
-//===============================================================================
+    xTaskCreate(heartbeat_task, "heartbeat", 256, NULL, HEARTBEAT_TASK_PRIORITY, NULL);
+    xTaskCreate(serial_task, "serial", 8192, NULL, SERIAL_TASK_PRIORITY, NULL);
 
-bool timer_callback(repeating_timer_t *rt) {
-    sem_acquire_blocking(&sem);
+    xTaskCreate(MS5607::update_ms5607_task, "update_ms5607", 256, &alt, SENSOR_SAMPLE_PRIORITY, &(alt.update_task_handle));
+    xTaskCreate(ADXL375::update_adxl375_task, "update_adxl375", 256, &adxl375, SENSOR_SAMPLE_PRIORITY, &(adxl375.update_task_handle));
+    xTaskCreate(IIM42653::update_iim42653_task, "update_iim42653", 256, &iim42653, SENSOR_SAMPLE_PRIORITY, &(iim42653.update_task_handle));
+    xTaskCreate(MMC5983MA::update_mmc5983ma_task, "update_mmc5983ma", 256, &mmc5983ma, SENSOR_SAMPLE_PRIORITY, &(mmc5983ma.update_task_handle));
 
-    altimeter.ms5607_start_sample();
-    high.getData();
-    mag.getData();
-    mid.getData();
+    xTaskCreate(MS5607::ms5607_sample_handler, "ms5607_sample_handler", 256, &alt, EVENT_HANDLER_PRIORITY, &(alt.sample_handler_task_handle));
 
-    if (moving_average_size == MOVING_AVG_MAX_SIZE) {
-        moving_average_sum -= moving_average[moving_average_offset];
-    } else {
-        moving_average_size++;
-    }
+    vTaskCoreAffinitySet( alt.update_task_handle, 0x01 );
+    vTaskCoreAffinitySet( adxl375.update_task_handle, 0x01 );
+    vTaskCoreAffinitySet( iim42653.update_task_handle, 0x01 );
+    vTaskCoreAffinitySet( mmc5983ma.update_task_handle, 0x01 );
 
-    moving_average[moving_average_offset] = altimeter.get_altitude();
-    moving_average_sum += moving_average[moving_average_offset];
-    moving_average_offset = (moving_average_offset + 1) % MOVING_AVG_MAX_SIZE;
+    vTaskCoreAffinitySet( alt.sample_handler_task_handle, 0x01 );
 
-    velocity = (altitude - previous_altitude) * DATA_RATE_HZ;
-    previous_altitude = altitude;
-    altitude = moving_average_sum / moving_average_size;
+    xTaskCreate(logging_task, "logging", 256, NULL, LOGGING_PRIORITY, const_cast<TaskHandle_t *>(&logging_handle));
+    vTaskCoreAffinitySet(logging_handle, 0x02);
 
-    deployment_percent = 80;
-
-    switch(state) {
-        case PAD:
-            gpio_put(MICRO_DEFAULT_SERVO_ENABLE, 0);
-            pwm.set_servo_percent(0);
-            deployment_percent = 0;
-            break;
-        case BOOST:
-            gpio_put(MICRO_DEFAULT_SERVO_ENABLE, 1);
-            pwm.set_servo_percent(0);
-            deployment_percent = 0;
-            break;
-        case COAST:
-            gpio_put(MICRO_DEFAULT_SERVO_ENABLE, 1);
-            pwm.set_servo_percent(deployment_percent);
-            break;
-        case APOGEE:
-            gpio_put(MICRO_DEFAULT_SERVO_ENABLE, 1);
-            pwm.set_servo_percent(0);
-            deployment_percent = 0;
-            break;
-        case RECOVERY:
-            gpio_put(MICRO_DEFAULT_SERVO_ENABLE, 1);
-            pwm.set_servo_percent(0);
-            deployment_percent = 0;
-            break;
-        case END:
-            gpio_put(MICRO_DEFAULT_SERVO_ENABLE, 0);
-            pwm.set_servo_percent(0);
-            deployment_percent = 0;
-            break;
-    }
-    sem_release(&sem);
-    return true;
-}
-
-int64_t pad_callback(alarm_id_t id, void* user_data) {
-    sem_acquire_blocking(&sem);
-    altimeter.clear_threshold_altitude();
-    state = BOOST;
-    sem_release(&sem);
-    // start motor burn timer with boost transition function as callback
-    add_alarm_in_ms(MOTOR_BURN_TIME, &boost_callback, NULL, false);
-    return 0;
-}
-
-int64_t boost_callback(alarm_id_t id, void* user_data) {
-    sem_acquire_blocking(&sem);
-    state = COAST;
-    populate_log_entry();
-    logger.write_memory(reinterpret_cast<const uint8_t *>(&log_entry), true);
-    sem_release(&sem);
-    add_alarm_in_ms(1000, &coast_callback, NULL, false);
-    return 0;
-}
-
-int64_t coast_callback(alarm_id_t id, void* user_data) {
-    if (velocity <= 0) {
-        sem_acquire_blocking(&sem);
-        state = APOGEE;
-        populate_log_entry();
-        logger.write_memory(reinterpret_cast<const uint8_t *>(&log_entry), false);
-        sem_release(&sem);
-        add_alarm_in_ms(1, &apogee_callback, NULL, false);
-    } else {
-        add_alarm_in_ms(50, &coast_callback, NULL, false);
-    }
-    return 0;
-}
-
-int64_t apogee_callback(alarm_id_t id, void* user_data) {
-    state = RECOVERY;
-    // Set altimeter interrupt to occur for when rocket touches back to the ground
-    altimeter.set_threshold_altitude((ground_altitude + 100), &recovery_callback);
-
-    sem_acquire_blocking(&sem);
-    populate_log_entry();
-    logger.write_memory(reinterpret_cast<const uint8_t *>(&log_entry), true);
-    sem_release(&sem);
-    return 0;
-}
-
-int64_t recovery_callback(alarm_id_t id, void* user_data) {
-    // Essentially just a signal to stop logging data
-    sem_acquire_blocking(&sem);
-    state = END;
-    populate_log_entry();
-    logger.write_memory(reinterpret_cast<const uint8_t *>(&log_entry), true);
-    sem_acquire_blocking(&sem);
-    return 0;
-}
-
-
-// LOGGING THREAD RELATED FUNCTIONS AND CALLBACKS
-//===============================================================================
-
-void logging_core() {
-    add_repeating_timer_us(-1000000 / LOG_RATE_HZ,  &logging_buffer_callback, NULL, &log_timer);
-
-    add_repeating_timer_us(-1000000 / SERIAL_RATE_HZ,  &serial_callback, NULL, &serial_timer);
-
-    heartbeat_initialize(PICO_DEFAULT_LED_PIN);
+    vTaskStartScheduler();
 
     while (1) {
         tight_loop_contents();
     }
 }
 
-void populate_log_entry() {
-    absolute_time_t now = get_absolute_time();
-    log_entry.time_us = to_us_since_boot(now);
+/****************************** LOGGING ***************************************/
+static void populate_log_entry(log_entry_t* log_entry) {
+    log_entry->time_us = time_us_64();
 
     adc_select_input(4);
-    log_entry.temperature_chip = adc_read();
-    log_entry.state = state;
-    log_entry.deploy_percent = deployment_percent;
-    log_entry.pressure = altimeter.get_pressure();
-    log_entry.altitude = altimeter.get_altitude();
-    log_entry.temperature_alt = altimeter.get_temperature();
+    log_entry->temperature_chip = adc_read();
+    log_entry->state = rocket_state;
+    log_entry->deploy_percent = deployment_percent;
+    log_entry->pressure = alt.get_pressure();
+    log_entry->altitude = alt.get_altitude();
+    log_entry->temperature_alt = alt.get_temperature();
 
-    log_entry.ax = mid.get_ax();
-    log_entry.ay = mid.get_ay();
-    log_entry.az = mid.get_az();
-    log_entry.gx = mid.get_gx();
-    log_entry.gy = mid.get_gy();
-    log_entry.gz = mid.get_gz();
+    log_entry->ax = iim42653.get_ax();
+    log_entry->ay = iim42653.get_ay();
+    log_entry->az = iim42653.get_az();
+    log_entry->gx = iim42653.get_gx();
+    log_entry->gy = iim42653.get_gy();
+    log_entry->gz = iim42653.get_gz();
 
-    log_entry.mag_x = mag.get_ax();
-    log_entry.mag_y = mag.get_ay();
-    log_entry.mag_z = mag.get_az();
+    log_entry->mag_x = mmc5983ma.get_ax();
+    log_entry->mag_y = mmc5983ma.get_ay();
+    log_entry->mag_z = mmc5983ma.get_az();
 
-    log_entry.high_g_x = high.get_ax();
-    log_entry.high_g_y = high.get_ay();
-    log_entry.high_g_z = high.get_az();
+    log_entry->high_g_x = adxl375.get_ax();
+    log_entry->high_g_y = adxl375.get_ay();
+    log_entry->high_g_z = adxl375.get_az();
 
+    log_entry->data0 = get_rand_64();
+    log_entry->data1 = get_rand_64();
+    log_entry->data2 = get_rand_32();
+    log_entry->data3 = get_rand_32();
 }
 
-bool logging_buffer_callback(repeating_timer_t *rt) {
-    sem_acquire_blocking(&sem);
-    populate_log_entry();
-    sem_release(&sem);
+static void logging_task(void* pvParameters) {
+    TickType_t xLastWakeTime;
+    const TickType_t xFrequency = pdMS_TO_TICKS(1000 / LOG_RATE_HZ);
 
-    logger.write_circular_buffer(reinterpret_cast<const uint8_t *>(&log_entry));
+    xLastWakeTime = xTaskGetTickCount();
+    while (1) {
+        vTaskDelayUntil(&xLastWakeTime, xFrequency);
+        populate_log_entry(const_cast<log_entry_t *>(&log_entry));
+        if (serial_data_output) {
+            print_log_entry(reinterpret_cast<const uint8_t *>(const_cast<log_entry_t *>(&log_entry)));
+            stdio_flush();
+        }
 
-    if (state != PAD) {
-        sem_acquire_blocking(&sem);
-        logger.flush_circular_buffer(true);
-        sem_release(&sem);
-        cancel_repeating_timer(&log_timer);
-        add_repeating_timer_us(-1000000 / LOG_RATE_HZ,  &logging_flash_callback, NULL, &log_timer);
-    }
-    return true;
-}
-
-bool logging_flash_callback(repeating_timer_t *rt) {
-    sem_acquire_blocking(&sem);
-    populate_log_entry();
-    logger.write_memory(reinterpret_cast<const uint8_t *>(&log_entry), false);
-    sem_release(&sem);
-    if (state == END) {
-        logger.flush_buffer();
-        cancel_repeating_timer(&log_timer);
-    }
-    return true;
-}
-
-void print_log_entry(const uint8_t* entry) {
-    static bool first_call = true;
-
-    if (first_call) {
-        printf("time_us,state,temperature_chip_celsius,deployment_percent,pressure_mb,altitude_m,temperature_alt_celsius,mid_imu_ax,mid_imu_ay,mid_imu_az,mid_imu_gx,mid_imu_gy,mid_imu_gz,mag_x,mag_y,mag_z,high_g_x,high_g_y,high_g_z\r\n");
-        first_call = false;
-    }
-
-    const log_entry_t* packet = reinterpret_cast<const log_entry_t *>(entry);
-
-    printf("%" PRIu64 ",", packet->time_us);
-    state_t state = (state_t) packet->state;
-    switch (state) {
-        case PAD:
-            printf("PAD,");
-            break;
-        case BOOST:
-            printf("BOOST,");
-            break;
-        case COAST:
-            printf("COAST,");
-            break;
-        case APOGEE:
-            printf("APOGEE,");
-            break;
-        case RECOVERY:
-            printf("RECOVERY,");
-            break;
-        case END:
-            printf("END,");
-            break;
-    }
-    const float conversionFactor = 3.3f / (1 << 12);
-    float tempC = 27.0f - (((float)(packet->temperature_chip) * conversionFactor) - 0.706f) / 0.001721f;
-    printf("%4.2f,", tempC);
-    printf("%d,", packet->deploy_percent);
-    printf("%4.2f,", ((float) packet->pressure) / PRESSURE_SCALE_F);
-    printf("%4.2f,", ((float) packet->altitude) / ALTITUDE_SCALE_F);
-    printf("%4.2f,", ((float) packet->temperature_alt) / TEMPERATURE_SCALE_F);
-
-    printf("%4.2f,", mid.scale_accel(packet->ax));
-    printf("%4.2f,", mid.scale_accel(packet->ay));
-    printf("%4.2f,", mid.scale_accel(packet->az));
-    
-    printf("%4.2f,", mid.scale_gyro(packet->gx));
-    printf("%4.2f,", mid.scale_gyro(packet->gy));
-    printf("%4.2f,", mid.scale_gyro(packet->gz));
-    
-    printf("%4.2f,", mag.scale(packet->mag_x));
-    printf("%4.2f,", mag.scale(packet->mag_y));
-    printf("%4.2f,", mag.scale(packet->mag_z));
-    
-    printf("%4.2f,", high.scale(packet->high_g_x));
-    printf("%4.2f,", high.scale(packet->high_g_y));
-    printf("%4.2f", high.scale(packet->high_g_z));
-    printf("\r\n");
-}
-
-bool serial_callback(repeating_timer_t *rt) {
-    static char c;
-    static char buf[16] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-    static uint8_t idx = 0;
-
-    c = getchar_timeout_us(0);
-    if (c != 255) {
-        if (idx < 16) {
-            if (c == 0x08 && idx > 0) { /* backspace */
-                idx--;
-                buf[idx] = 0;
-                printf("%c", 0x7f);
+        if (use_circular_buffer) {
+            logger.write_circular_buffer(reinterpret_cast<const uint8_t *>(const_cast<log_entry_t *>(&log_entry)));
+            if (rocket_state != PAD) {
+                logger.flush_circular_buffer(true);
+                use_circular_buffer = false;
             }
-            else if (c == 0x0D) { /* carriage return (enter) */
-                process_cmd(buf, idx);
-                for (uint8_t i = 16; i < 16; i++) {
-                    buf[i] = 0;
-                }
-                idx = 0;
-                printf("\n>\t");
-            }
-            else {
-                buf[idx] = c;
-                idx++;
-            }
-            printf("%c", c);
         } else {
-            printf("Overflow! press enter to reset buffer!\n");
-            if (c == 0x0D) {
-                for (uint8_t i = 16; i < 16; i++) {
-                    buf[i] = 0;
-                }
-                idx = 0;
-                printf("\n>\t");
-            }
+            logger.write_memory(reinterpret_cast<const uint8_t *>(const_cast<log_entry_t *>(&log_entry)), false);
+        }
+        if ((xLastWakeTime + xFrequency) < xTaskGetTickCount()) {
+            xLastWakeTime = xTaskGetTickCount();
         }
     }
+}
+/****************************** LOGGING ***************************************/
 
-    if (serial_data_output) {
-     //   switch (state) {
-     //       case PAD:
-     //           printf("PAD");
-     //           break;
-     //       case BOOST:
-     //           printf("BOOST");
-     //           break;
-     //       case COAST:
-     //           printf("COAST");
-     //           break;
-     //       case APOGEE:
-     //           printf("APOGEE");
-     //           break;
-     //       case RECOVERY:
-     //           printf("RECOVERY");
-     //           break;
-     //       case END:
-     //           printf("END");
-     //           break;
-     //   }
-     //   printf(": Altitude: %4.2f, Velocity: %4.2f\n", ((float) altitude) / ALTITUDE_SCALE_F, ((float) velocity) / ALTITUDE_SCALE_F);
-     print_log_entry(reinterpret_cast<const uint8_t *>(&log_entry));
+/****************************** SERIAL CONSOLE ********************************/
+static void read_cmd_func() {
+    if (logging_handle != NULL) {
+        vTaskSuspend(logging_handle);
     }
-
-    return true;
+    if (use_circular_buffer) {
+        logger.read_circular_buffer();
+    } else {
+        logger.read_memory();
+    }
+    if (logging_handle != NULL) {
+        vTaskResume(logging_handle);
+    }
 }
 
-void process_cmd(char* buf, uint8_t len) {
-    if (len > 0) {
-        int8_t result = -1;
-        switch (buf[0]) {
-            case 'r': {
-                if (len >= 4) {
-                    if (buf[1] == 'e' && buf[2] == 'a' && buf[3] == 'd') {
-                        printf("\nReading memory!\n");
-                        uint32_t status = save_and_disable_interrupts();
-                        logger.read_memory();
-                        restore_interrupts(status);
-                        result = 0;
-                    }
-            }
-            case 'e': {
-                if (len >= 5) {
-                    if (buf[1] == 'r' && buf[2] == 'a' && buf[3] == 's' && buf[4] == 'e') {
-                        printf("Are you sure you want to erase all log memory? ");
-                        char c = getchar();
-                        if (c == 'y' or c == 'Y') {
-                            printf("\nErasing memory!\n");
-                            logger.erase_memory();
+static void write_cmd_func() {
+    if (logging_handle != NULL) {
+        vTaskSuspend(logging_handle);
+    }
+    uint64_t start = time_us_64();
+    log_entry_t log_entry;
+    populate_log_entry(&log_entry);
+    printf("\nWriting the following entry!\n");
+    print_log_entry(reinterpret_cast<const uint8_t *>(&log_entry));
+    if (use_circular_buffer) {
+        logger.write_circular_buffer(reinterpret_cast<const uint8_t *>(&log_entry));
+    } else {
+        logger.write_memory(reinterpret_cast<const uint8_t *>(&log_entry), true);
+    }
+    uint64_t end = time_us_64();
+    printf("\nTook %" PRIu64 " us to write that entry!\n", (end - start));
+    if (logging_handle != NULL) {
+        vTaskResume(logging_handle);
+    }
+}
+
+static void erase_cmd_func() {
+    if (logging_handle != NULL) {
+        vTaskSuspend(logging_handle);
+    }
+    logger.erase_memory();
+    if (logging_handle != NULL) {
+        vTaskResume(logging_handle);
+    }
+}
+
+static void show_cmd_func() {
+    serial_data_output = !serial_data_output;
+}
+/****************************** SERIAL CONSOLE ********************************/
+
+
+static void rocket_task(void* pvParameters) {
+    TickType_t xLastWakeTime;
+    const TickType_t xFrequency = pdMS_TO_TICKS(1000 / LOG_RATE_HZ);
+
+    vTaskDelay(pdMS_TO_TICKS(250));
+    ground_altitude = alt.get_altitude();
+    alt.set_threshold_altitude(ground_altitude + (threshold_altitude * ALTITUDE_SCALE), &rocket_event_callback);
+
+    // Sign of life
+    gpio_put(MICRO_DEFAULT_SERVO_ENABLE, 1);
+    pwm.set_servo_percent(5);
+    vTaskDelay(pdMS_TO_TICKS(100));
+    pwm.set_servo_percent(0);
+    vTaskDelay(pdMS_TO_TICKS(100));
+    pwm.set_servo_percent(5);
+    vTaskDelay(pdMS_TO_TICKS(100));
+    pwm.set_servo_percent(0);
+    gpio_put(MICRO_DEFAULT_SERVO_ENABLE, 0);
+
+    xLastWakeTime = xTaskGetTickCount();
+    while (1) {
+        vTaskDelayUntil(&xLastWakeTime, xFrequency);
+
+        switch(rocket_state) {
+            case PAD:
+                gpio_put(MICRO_DEFAULT_SERVO_ENABLE, 0);
+                pwm.set_servo_percent(0);
+                deployment_percent = 0;
+                break;
+            case BOOST:
+                gpio_put(MICRO_DEFAULT_SERVO_ENABLE, 1);
+                pwm.set_servo_percent(0);
+                deployment_percent = 0;
+                break;
+            case COAST:
+                gpio_put(MICRO_DEFAULT_SERVO_ENABLE, 1);
+                pwm.set_servo_percent(deployment_percent);
+                break;
+            case APOGEE:
+                gpio_put(MICRO_DEFAULT_SERVO_ENABLE, 1);
+                pwm.set_servo_percent(0);
+                deployment_percent = 0;
+                break;
+            case RECOVERY:
+                gpio_put(MICRO_DEFAULT_SERVO_ENABLE, 1);
+                pwm.set_servo_percent(0);
+                deployment_percent = 0;
+                break;
+            case END:
+                gpio_put(MICRO_DEFAULT_SERVO_ENABLE, 0);
+                pwm.set_servo_percent(0);
+                deployment_percent = 0;
+                vTaskSuspend(logging_handle);
+                vTaskSuspend(rocket_event_handler_task_handle);
+                vTaskSuspend(rocket_task_handle);
+                break;
+        }
+
+        if ((xLastWakeTime + xFrequency) < xTaskGetTickCount()) {
+            xLastWakeTime = xTaskGetTickCount();
+        }
+    }
+}
+
+static void rocket_event_handler_task(void* pvParameters) {
+    /* xMaxExpectedBlockTime is set to be a little longer than the maximum
+    expected time between events. */
+    const TickType_t xInterruptFrequency = pdMS_TO_TICKS( 1000 / (ROCKET_TASK_RATE_HZ * 2) );
+    const TickType_t xMaxExpectedBlockTime = xInterruptFrequency + pdMS_TO_TICKS( 1 );
+    uint32_t ulEventsToProcess;
+    while (1) {
+        /* Wait to receive a notification sent directly to this task from the
+        interrupt service routine. */
+        ulEventsToProcess = ulTaskNotifyTake( pdTRUE, xMaxExpectedBlockTime );
+        if( ulEventsToProcess != 0 ) {
+            /* To get here at least one event must have occurred. Loop here
+            until all the pending events have been processed */
+            while( ulEventsToProcess > 0 ) {
+                if (logging_handle != NULL) {
+                    vTaskSuspend(logging_handle);
+                }
+                switch(rocket_state) {
+                    case PAD:
+                        alt.clear_threshold_altitude();
+                        rocket_state = BOOST;
+                        add_alarm_in_ms(MOTOR_BURN_TIME, &rocket_event_callback, NULL, false);break;
+                    case BOOST:
+                        rocket_state = COAST;
+                        populate_log_entry(const_cast<log_entry_t *>(&log_entry));
+                        logger.write_memory(reinterpret_cast<const uint8_t *>(const_cast<log_entry_t *>(&log_entry)), true);
+                        add_alarm_in_ms(1000, &rocket_event_callback, NULL, false);
+                        break;
+                    case COAST:
+                        if (velocity <= 0) {
+                            rocket_state = APOGEE;
+                            populate_log_entry(const_cast<log_entry_t *>(&log_entry));
+                            logger.write_memory(reinterpret_cast<const uint8_t *>(const_cast<log_entry_t *>(&log_entry)), true);
+                            add_alarm_in_ms(1, &rocket_event_callback, NULL, false);
                         } else {
-                            printf("\nMemory will NOT be erased!\n");
+                            add_alarm_in_ms(50, &rocket_event_callback, NULL, false);
                         }
-                        result = 0;
-                    }
+                        break;
+                    case APOGEE:
+                        rocket_state = RECOVERY;
+                        // Set altimeter interrupt to occur for when rocket touches back to the ground
+                        alt.set_threshold_altitude((ground_altitude + 100), &rocket_event_callback);
+                        populate_log_entry(const_cast<log_entry_t *>(&log_entry));
+                        logger.write_memory(reinterpret_cast<const uint8_t *>(const_cast<log_entry_t *>(&log_entry)), true);
+                        break;
+                    case RECOVERY:
+                        // Essentially just a signal to stop logging data
+                        rocket_state = END;
+                        populate_log_entry(const_cast<log_entry_t *>(&log_entry));
+                        logger.write_memory(reinterpret_cast<const uint8_t *>(const_cast<log_entry_t *>(&log_entry)), true);
+                        break;
+                    default:
+                        break;
+                }
+                if (logging_handle != NULL) {
+                    vTaskResume(logging_handle);
                 }
             }
-                break;
-            case 't': {
-                if (len >= 6) {
-                    if (buf[1] == 'o' && buf[2] == 'g' && buf[3] == 'g' && buf[4] == 'l' && buf[5] == 'e') {
-                        serial_data_output = !serial_data_output;
-                        result = 0;
-                    }
-                }
-            }
-            case 'i':
-                    logger.initialize(true);
-                    result = 0;
-                break;
-            default:
-                break;
-        }
-        if (result < 0) {
-            printf("Invalid command, try again!\n");
-        }
-    
         }
     }
 }
+
+int64_t rocket_event_callback(alarm_id_t id, void* user_data) {
+    BaseType_t xHigherPriorityTaskWoken;
+    xHigherPriorityTaskWoken = pdFALSE;
+    // Defer ISR handling to separate handler within FreeRTOS context
+    vTaskNotifyGiveFromISR(rocket_event_handler_task_handle, &xHigherPriorityTaskWoken );
+    portYIELD_FROM_ISR( xHigherPriorityTaskWoken );
+    return 0;
+}
+

@@ -29,6 +29,7 @@ using namespace Eigen;  //TODO: Limit scope to necessary components once impleme
 #include "task.h"
 #include "semphr.h"
 
+#include "heartbeat.hpp"
 #include "adxl375.hpp"
 #include "ms5607.hpp"
 #include "iim42653.hpp"
@@ -44,7 +45,6 @@ using namespace Eigen;  //TODO: Limit scope to necessary components once impleme
 #define LOGGING_PRIORITY            ( tskIDLE_PRIORITY + 2 )
 #define	SERIAL_TASK_PRIORITY		( tskIDLE_PRIORITY + 1 )
 
-#define HEARTBEAT_RATE_HZ 5
 #define SENSOR_SAMPLE_RATE_HZ 500
 #define ORIENTATION_ESTIMATION_RATE_HZ 100
 
@@ -59,14 +59,6 @@ static void write_cmd_func();
 static void erase_cmd_func();
 static void orient_cmd_func();
 static void logging_task(void * unused_arg);
-static void update_data_task( void *pvParameters );
-static void heartbeat_task( void *pvParameters );
-
-static void update_ms5607_task( void *pvParameters );
-
-static void update_adxl375_task( void *pvParameters );
-static void update_iim42653_task( void *pvParameters );
-static void update_mmc5983ma_task( void *pvParameters );
 
 void vApplicationTickHook(void) { /* optional */ }
 void vApplicationMallocFailedHook(void) { /* optional */ }
@@ -99,7 +91,7 @@ const command_t user_commands[] = { {.name = "sample",
 volatile bool serial_data_output = false;
 volatile bool use_circular_buffer = false;
 
-altimeter alt(i2c_default);
+MS5607 alt(i2c_default);
 ADXL375 adxl375(i2c_default);
 IIM42653 iim42653(i2c_default);
 MMC5983MA mmc5983ma(i2c_default);
@@ -150,75 +142,6 @@ int main() {
     }
 }
 
-static void update_ms5607_task(void * unused_arg) {
-    TickType_t xLastWakeTime;
-    const TickType_t xFrequency = pdMS_TO_TICKS(1000 / SENSOR_SAMPLE_RATE_HZ);
-
-    // alt.initialize();
-
-    xLastWakeTime = xTaskGetTickCount();
-    while (1) {
-        vTaskDelayUntil(&xLastWakeTime, xFrequency);
-        alt.ms5607_start_sample();
-    }
-}
-
-static void update_adxl375_task(void * unused_arg) {
-    TickType_t xLastWakeTime;
-    const TickType_t xFrequency = pdMS_TO_TICKS(1000 / SENSOR_SAMPLE_RATE_HZ);
-
-    // adxl375.initialize();
-
-    xLastWakeTime = xTaskGetTickCount();
-    while (1) {
-        vTaskDelayUntil(&xLastWakeTime, xFrequency);
-        taskENTER_CRITICAL();
-        adxl375.sample();
-        taskEXIT_CRITICAL();
-        if ((xLastWakeTime + xFrequency) < xTaskGetTickCount()) {
-            xLastWakeTime = xTaskGetTickCount();
-        }
-    }
-}
-
-static void update_iim42653_task(void * unused_arg) {
-    TickType_t xLastWakeTime;
-    const TickType_t xFrequency = pdMS_TO_TICKS(1000 / SENSOR_SAMPLE_RATE_HZ);
-
-    // iim42653.initialize();
-
-    xLastWakeTime = xTaskGetTickCount();
-    while (1) {
-        vTaskDelayUntil(&xLastWakeTime, xFrequency);
-        taskENTER_CRITICAL();
-        iim42653.sample();
-        iim42653.apply_gyro_offset();
-        taskEXIT_CRITICAL();
-        if ((xLastWakeTime + xFrequency) < xTaskGetTickCount()) {
-            xLastWakeTime = xTaskGetTickCount();
-        }
-    }
-}
-
-static void update_mmc5983ma_task(void * unused_arg) {
-    TickType_t xLastWakeTime;
-    const TickType_t xFrequency = pdMS_TO_TICKS(1000 / 200);
-
-    // mmc5983ma.initialize();
-
-    xLastWakeTime = xTaskGetTickCount();
-    while (1) {
-        vTaskDelayUntil(&xLastWakeTime, xFrequency);
-        taskENTER_CRITICAL();
-        mmc5983ma.sample();
-        mmc5983ma.apply_offset();
-        taskEXIT_CRITICAL();
-        if ((xLastWakeTime + xFrequency) < xTaskGetTickCount()) {
-            xLastWakeTime = xTaskGetTickCount();
-        }
-    }
-}
-
 static void logging_task(void * unused_arg) {
     TickType_t xLastWakeTime;
     const TickType_t xFrequency = pdMS_TO_TICKS(1000 / 10);
@@ -256,23 +179,6 @@ static void logging_task(void * unused_arg) {
         stdio_flush();
     }
 
-}
-
-static void heartbeat_task( void *pvParameters ) {
-    TickType_t xLastWakeTime;
-    const TickType_t xFrequency = pdMS_TO_TICKS(1000 / HEARTBEAT_RATE_HZ);
-    static volatile uint8_t led_counter = 0;
-    const bool sequence[] = {true, false, true, false, false};
-    const uint8_t sequence_length = 5;
-
-    xLastWakeTime = xTaskGetTickCount();
-    while (1) {
-        vTaskDelayUntil(&xLastWakeTime, xFrequency);
-        bool led_status = sequence[led_counter];
-        gpio_put(PICO_DEFAULT_LED_PIN, led_status);
-        led_counter++;
-        led_counter %= sequence_length;
-    }
 }
 
 //TODO: This task is getting increasingly complex and involved, it may be worth migrating to a class of its own
@@ -447,47 +353,43 @@ static void pose_estimation_task(void * unused_arg) {
 }
 
 static void sample_cmd_func() {
-    static TaskHandle_t ms5607_handle    = NULL;
-    static TaskHandle_t adxl375_handle   = NULL;
-    static TaskHandle_t iim42653_handle  = NULL;
-    static TaskHandle_t mmc5983ma_handle = NULL;
     static bool sampling = false;
 
     if (sampling == false) {
         vTaskSuspendAll();
 
-        xTaskCreate(update_ms5607_task, "update_ms5607", 256, NULL, SENSOR_SAMPLE_PRIORITY, &ms5607_handle);
-        xTaskCreate(update_adxl375_task, "update_adxl375", 256, NULL, SENSOR_SAMPLE_PRIORITY, &adxl375_handle);
-        xTaskCreate(update_iim42653_task, "update_iim42653", 256, NULL, SENSOR_SAMPLE_PRIORITY, &iim42653_handle);
-        xTaskCreate(update_mmc5983ma_task, "update_mmc5983ma", 256, NULL, SENSOR_SAMPLE_PRIORITY, &mmc5983ma_handle);
+        xTaskCreate(MS5607::update_ms5607_task, "update_ms5607", 256, &alt, SENSOR_SAMPLE_PRIORITY, &(alt.update_task_handle));
+        xTaskCreate(ADXL375::update_adxl375_task, "update_adxl375", 256, &adxl375, SENSOR_SAMPLE_PRIORITY, &(adxl375.update_task_handle));
+        xTaskCreate(IIM42653::update_iim42653_task, "update_iim42653", 256, &iim42653, SENSOR_SAMPLE_PRIORITY, &(iim42653.update_task_handle));
+        xTaskCreate(MMC5983MA::update_mmc5983ma_task, "update_mmc5983ma", 256, &mmc5983ma, SENSOR_SAMPLE_PRIORITY, &(mmc5983ma.update_task_handle));
 
-        xTaskCreate(altimeter::ms5607_sample_handler, "ms5607_sample_handler", 256, &alt, EVENT_HANDLER_PRIORITY, &(alt.sample_handler_task));
+        xTaskCreate(MS5607::ms5607_sample_handler, "ms5607_sample_handler", 256, &alt, EVENT_HANDLER_PRIORITY, &(alt.sample_handler_task_handle));
 
-        vTaskCoreAffinitySet( ms5607_handle, 0x01 );
-        vTaskCoreAffinitySet( adxl375_handle, 0x01 );
-        vTaskCoreAffinitySet( iim42653_handle, 0x01 );
-        vTaskCoreAffinitySet( mmc5983ma_handle, 0x01 );
+        vTaskCoreAffinitySet( alt.update_task_handle, 0x01 );
+        vTaskCoreAffinitySet( adxl375.update_task_handle, 0x01 );
+        vTaskCoreAffinitySet( iim42653.update_task_handle, 0x01 );
+        vTaskCoreAffinitySet( mmc5983ma.update_task_handle, 0x01 );
 
-        vTaskCoreAffinitySet( alt.sample_handler_task, 0x01 );
+        vTaskCoreAffinitySet( alt.sample_handler_task_handle, 0x01 );
         sampling = true;
         xTaskResumeAll();
     } else {
         printf("Stopping sample!\n");
         vTaskSuspendAll();
 
-        vTaskDelete(ms5607_handle);
-        vTaskDelete(adxl375_handle);
-        vTaskDelete(iim42653_handle);
-        vTaskDelete(mmc5983ma_handle);
+        vTaskDelete(alt.update_task_handle);
+        vTaskDelete(adxl375.update_task_handle);
+        vTaskDelete(iim42653.update_task_handle);
+        vTaskDelete(mmc5983ma.update_task_handle);
 
-        vTaskDelete(alt.sample_handler_task);
+        vTaskDelete(alt.sample_handler_task_handle);
 
-        ms5607_handle = NULL;
-        adxl375_handle = NULL;
-        iim42653_handle = NULL;
-        mmc5983ma_handle = NULL;
+        alt.update_task_handle = NULL;
+        adxl375.update_task_handle = NULL;
+        iim42653.update_task_handle = NULL;
+        mmc5983ma.update_task_handle = NULL;
 
-        alt.sample_handler_task = NULL;
+        alt.sample_handler_task_handle = NULL;
 
         sampling = false;
         xTaskResumeAll();

@@ -2,11 +2,22 @@
 
 #include "hardware/gpio.h"
 #include "hardware/i2c.h"
+#include "serial.hpp"
 
 #if ( DEBUG == 1 )
 #include <stdio.h>
 #include <inttypes.h>
 #include "pico/stdio.h"
+#endif
+
+#if ( USE_FREERTOS == 1)
+#include "FreeRTOS.h"
+#include "FreeRTOSConfig.h"
+#include "portmacro.h"
+#include "projdefs.h"
+#include "serial.hpp"
+#include "task.h"
+#include "semphr.h"
 #endif
 
 #define MMC5983MA_I2C_ADDR 0x30
@@ -110,6 +121,8 @@ typedef union {
 #define R_MMC5983MA_PRODUCT_ID 0x2F
 #define B_MMC5983MA_PRODUCT_ID 0x30
 
+#define MMC5983_SAMPLE_RATE_HZ 200
+
 class MMC5983MA {
     public:
         MMC5983MA(i2c_inst_t* i2c) : i2c {i2c} {};
@@ -127,6 +140,12 @@ class MMC5983MA {
         int16_t get_az() { return az; }
 
         static float scale_mag(int16_t unscaled) { return ((float) unscaled) / S_MMC5983MA_SCALE_FACTOR_16BIT; }
+
+#if (USE_FREERTOS == 1)
+        static void update_mmc5983ma_task(void* pvParameters);
+
+        TaskHandle_t update_task_handle = NULL;
+#endif
 
     private:
         static int16_t sat_sub(int16_t a, int16_t b);

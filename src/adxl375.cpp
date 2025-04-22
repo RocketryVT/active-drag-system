@@ -40,3 +40,21 @@ void ADXL375::sample() {
     az = ((int16_t) buffer[4]) | ((int16_t) buffer[5] << 8);
 }
 
+#if (USE_FREERTOS == 1)
+void ADXL375::update_adxl375_task(void* pvParameters) {
+    TickType_t xLastWakeTime;
+    const TickType_t xFrequency = pdMS_TO_TICKS(1000 / ADXL375_SAMPLE_RATE_HZ);
+
+    xLastWakeTime = xTaskGetTickCount();
+    while (1) {
+        vTaskDelayUntil(&xLastWakeTime, xFrequency);
+        taskENTER_CRITICAL();
+        ADXL375* adxl375 = (ADXL375 *) pvParameters;
+        adxl375->sample();
+        taskEXIT_CRITICAL();
+        if ((xLastWakeTime + xFrequency) < xTaskGetTickCount()) {
+            xLastWakeTime = xTaskGetTickCount();
+        }
+    }
+}
+#endif

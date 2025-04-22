@@ -6,6 +6,7 @@ if (COMPILE_TOOLS)
                    ${PROJECT_SOURCE_DIR}/src/iim42653.cpp
                    ${PROJECT_SOURCE_DIR}/src/mmc5983ma.cpp
                    ${PROJECT_SOURCE_DIR}/src/log_format.cpp
+                   ${PROJECT_SOURCE_DIR}/src/heartbeat.cpp
                    ${PROJECT_SOURCE_DIR}/src/serial.cpp
     )
 

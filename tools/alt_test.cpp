@@ -16,7 +16,7 @@ bool data_callback(repeating_timer_t *rt);
 
 repeating_timer_t data_timer;
 
-altimeter altimeter(i2c_default);
+MS5607 altimeter(i2c_default);
 
 int main() {
     stdio_init_all();

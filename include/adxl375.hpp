@@ -4,6 +4,16 @@
 
 #include <hardware/i2c.h>
 
+#if ( USE_FREERTOS == 1)
+#include "FreeRTOS.h"
+#include "FreeRTOSConfig.h"
+#include "portmacro.h"
+#include "projdefs.h"
+#include "serial.hpp"
+#include "task.h"
+#include "semphr.h"
+#endif
+
 #define ADXL375_I2C_ADDRESS 0x1D
 
 // DEVID [Validation]
@@ -201,6 +211,8 @@ typedef union {
 #define R_ADXL375_DATAZ1 0x37
 #define S_ADXL375_SCALE_FACTOR 20.5 // 1 LSB / 20.5
 
+#define ADXL375_SAMPLE_RATE_HZ 500
+
 class ADXL375 {
     public: 
         ADXL375(i2c_inst_t* i2c) : i2c {i2c} {};
@@ -214,6 +226,12 @@ class ADXL375 {
         int16_t get_az() { return az; }
 
         static float scale(int16_t unscaled) { return ((float) unscaled) / S_ADXL375_SCALE_FACTOR; }
+
+#if (USE_FREERTOS == 1)
+        static void update_adxl375_task(void *pvParameters);
+
+        TaskHandle_t update_task_handle = NULL;
+#endif
 
     private:
         const uint8_t addr = ADXL375_I2C_ADDRESS;

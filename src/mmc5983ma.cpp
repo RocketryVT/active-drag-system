@@ -123,3 +123,23 @@ void MMC5983MA::calibrate() {
     printf("MMC5983MA: Calibrated!\n\toffset_x: %" PRIi16 "\n\toffset_y: %" PRIi16 "\n\toffset_z: %" PRIi16 "\n", offset_x, offset_y, offset_z);
 #endif
 }
+
+#if (USE_FREERTOS == 1)
+void MMC5983MA::update_mmc5983ma_task(void* pvParameters) {
+    TickType_t xLastWakeTime;
+    const TickType_t xFrequency = pdMS_TO_TICKS(1000 / MMC5983_SAMPLE_RATE_HZ);
+
+    xLastWakeTime = xTaskGetTickCount();
+    while (1) {
+        vTaskDelayUntil(&xLastWakeTime, xFrequency);
+        taskENTER_CRITICAL();
+        MMC5983MA* mag = (MMC5983MA *) pvParameters;
+        mag->sample();
+        mag->apply_offset();
+        taskEXIT_CRITICAL();
+        if ((xLastWakeTime + xFrequency) < xTaskGetTickCount()) {
+            xLastWakeTime = xTaskGetTickCount();
+        }
+    }
+}
+#endif
