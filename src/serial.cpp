@@ -75,7 +75,7 @@ void info_cmd_func() {
     printf("%s", logo);
     printf("#####################################################################################\n");
     printf("#                          \e[0;31mRocketry \e[0;37mat \e[0;33mVirginia Tech\e[0;37m                                #\n");
-    printf("#                         Executeable: %s                               #\n", executeable_name);
+    printf("#                         Executeable: %s                       #\n", executeable_name);
     printf("#####################################################################################\n\n");
 }
 

@@ -64,8 +64,8 @@ static void write_cmd_func();
 static void erase_cmd_func();
 static void show_cmd_func();
 
-const char* executeable_name = "ads.uf2";
-const size_t num_user_cmds = 3;
+const char* executeable_name = "active-drag-system.uf2";
+const size_t num_user_cmds = 4;
 const command_t user_commands[] = { {.name = "read",
                                      .len = 4,
                                      .function = &read_cmd_func},
@@ -110,6 +110,12 @@ volatile int32_t altitude = 0;
 volatile int32_t previous_altitude = 0;
 
 volatile int32_t velocity = 0;
+
+#define MOVING_AVG_MAX_SIZE 50
+volatile int32_t moving_average[MOVING_AVG_MAX_SIZE];
+volatile size_t moving_average_offset = 0;
+volatile size_t moving_average_size = 0;
+volatile int32_t moving_average_sum = 0;
 
 
 int main() {
@@ -156,10 +162,16 @@ int main() {
 
     xTaskCreate(MS5607::ms5607_sample_handler, "ms5607_sample_handler", 256, &alt, EVENT_HANDLER_PRIORITY, &(alt.sample_handler_task_handle));
 
+    xTaskCreate(rocket_task, "rocket_task", 512, NULL, SENSOR_SAMPLE_PRIORITY, const_cast<TaskHandle_t *>(&rocket_task_handle));
+    xTaskCreate(rocket_event_handler_task, "rocket_event_handler", 512, NULL, EVENT_HANDLER_PRIORITY, const_cast<TaskHandle_t *>(&rocket_event_handler_task_handle));
+
     vTaskCoreAffinitySet( alt.update_task_handle, 0x01 );
     vTaskCoreAffinitySet( adxl375.update_task_handle, 0x01 );
     vTaskCoreAffinitySet( iim42653.update_task_handle, 0x01 );
     vTaskCoreAffinitySet( mmc5983ma.update_task_handle, 0x01 );
+
+    vTaskCoreAffinitySet(rocket_task_handle, 0x01);
+    vTaskCoreAffinitySet(rocket_event_handler_task_handle, 0x01);
 
     vTaskCoreAffinitySet( alt.sample_handler_task_handle, 0x01 );
 
@@ -309,6 +321,20 @@ static void rocket_task(void* pvParameters) {
     xLastWakeTime = xTaskGetTickCount();
     while (1) {
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
+
+        if (moving_average_size == MOVING_AVG_MAX_SIZE) {
+            moving_average_sum -= moving_average[moving_average_offset];
+        } else {
+            moving_average_size++;
+        }
+
+        moving_average[moving_average_offset] = alt.get_altitude();
+        moving_average_sum += moving_average[moving_average_offset];
+        moving_average_offset = (moving_average_offset + 1) % MOVING_AVG_MAX_SIZE;
+
+        velocity = (altitude - previous_altitude) * ROCKET_TASK_RATE_HZ;
+        previous_altitude = altitude;
+        altitude = moving_average_sum / moving_average_size;
 
         switch(rocket_state) {
             case PAD:
