@@ -33,6 +33,8 @@ typedef struct {
     // 8 bytes MS5607 data
     uint32_t pressure :24; // 3
     int32_t altitude :24; // 3
+    int32_t velocity :24; // 3
+    int32_t altitude_avg :24; // 3
     int16_t temperature_alt :16; // 2
 
     // 12 bytes IMU data
@@ -54,9 +56,7 @@ typedef struct {
     int16_t high_g_z :16;
 
     uint64_t data0: 64;
-    uint64_t data1: 64;
-    uint32_t data2: 32;
-    uint8_t data3: 8;
+    uint64_t data1: 56;
 } __attribute__((packed)) log_entry_t;
 
 void print_log_entry(const uint8_t* entry);

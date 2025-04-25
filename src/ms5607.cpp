@@ -62,7 +62,9 @@ void MS5607::ms5607_sample_handler(void* pvParameters) {
             until all the pending events have been processed */
             while( ulEventsToProcess > 0 ) {
                 MS5607* alt = (MS5607 *) pvParameters;
+                taskENTER_CRITICAL();
                 alt->ms5607_sample();
+                taskEXIT_CRITICAL();
                 ulEventsToProcess--;
             }
         }
@@ -78,7 +80,9 @@ void MS5607::update_ms5607_task(void* pvParameters) {
     while (1) {
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
         MS5607* alt = (MS5607 *) pvParameters;
+        taskENTER_CRITICAL();
         alt->ms5607_start_sample();
+        taskEXIT_CRITICAL();
     }
 }
 #endif

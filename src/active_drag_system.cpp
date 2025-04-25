@@ -15,6 +15,7 @@
 #include "pico/time.h"
 #include <pico/error.h>
 #include <pico/types.h>
+#include "math.h"
 
 #include "FreeRTOS.h"
 #include "FreeRTOSConfig.h"
@@ -35,11 +36,13 @@
 #include "heartbeat.hpp"
 
 /****************************** FREERTOS **************************************/
-#define EVENT_HANDLER_PRIORITY      ( tskIDLE_PRIORITY + 4 )
-#define SENSOR_SAMPLE_PRIORITY      ( tskIDLE_PRIORITY + 3 )
-#define	HEARTBEAT_TASK_PRIORITY		( tskIDLE_PRIORITY + 2 )
-#define LOGGING_PRIORITY            ( tskIDLE_PRIORITY + 2 )
-#define	SERIAL_TASK_PRIORITY		( tskIDLE_PRIORITY + 1 )
+#define SENSOR_EVENT_HANDLER_PRIORITY   ( tskIDLE_PRIORITY + 6 )
+#define SENSOR_SAMPLE_PRIORITY          ( tskIDLE_PRIORITY + 5 )
+#define ROCKET_TASK_PRIORITY            ( tskIDLE_PRIORITY + 4 )
+#define ROCKET_EVENT_HANDLER_PRIORITY   ( tskIDLE_PRIORITY + 3 )
+#define	HEARTBEAT_TASK_PRIORITY		    ( tskIDLE_PRIORITY + 2 )
+#define LOGGING_PRIORITY                ( tskIDLE_PRIORITY + 2 )
+#define	SERIAL_TASK_PRIORITY		    ( tskIDLE_PRIORITY + 1 )
 
 void vApplicationTickHook(void) { /* optional */ }
 void vApplicationMallocFailedHook(void) { /* optional */ }
@@ -51,10 +54,16 @@ static void logging_task(void* pvParameters);
 volatile TaskHandle_t rocket_task_handle = NULL;
 static void rocket_task(void* pvParameters);
 
-int64_t rocket_event_callback(alarm_id_t id, void* user_data);
+int64_t launch_event_callback(alarm_id_t id, void* user_data);
+int64_t coast_event_callback(alarm_id_t id, void* user_data);
+int64_t end_event_callback(alarm_id_t id, void* user_data);
 
-volatile TaskHandle_t rocket_event_handler_task_handle = NULL;
-static void rocket_event_handler_task(void* pvParameters);
+volatile TaskHandle_t launch_event_handler_task_handle = NULL;
+volatile TaskHandle_t coast_event_handler_task_handle = NULL;
+volatile TaskHandle_t end_event_handler_task_handle = NULL;
+static void launch_event_handler_task(void* pvParameters);
+static void coast_event_handler_task(void* pvParameters);
+static void end_event_handler_task(void* pvParameters);
 
 /****************************** FREERTOS **************************************/
 
@@ -63,9 +72,10 @@ static void read_cmd_func();
 static void write_cmd_func();
 static void erase_cmd_func();
 static void show_cmd_func();
+static void deploy_cmd_func();
 
 const char* executeable_name = "active-drag-system.uf2";
-const size_t num_user_cmds = 4;
+const size_t num_user_cmds = 5;
 const command_t user_commands[] = { {.name = "read",
                                      .len = 4,
                                      .function = &read_cmd_func},
@@ -77,7 +87,10 @@ const command_t user_commands[] = { {.name = "read",
                                      .function = &erase_cmd_func},
                                     {.name = "show",
                                      .len = 4,
-                                     .function = &show_cmd_func} };
+                                     .function = &show_cmd_func},
+                                    {.name = "deploy",
+                                     .len = 6,
+                                     .function = &deploy_cmd_func} };
 /****************************** SERIAL CONSOLE ********************************/
 
 /****************************** LOGGING ***************************************/
@@ -111,7 +124,7 @@ volatile int32_t previous_altitude = 0;
 
 volatile int32_t velocity = 0;
 
-#define MOVING_AVG_MAX_SIZE 50
+#define MOVING_AVG_MAX_SIZE 100
 volatile int32_t moving_average[MOVING_AVG_MAX_SIZE];
 volatile size_t moving_average_offset = 0;
 volatile size_t moving_average_size = 0;
@@ -155,23 +168,20 @@ int main() {
     xTaskCreate(heartbeat_task, "heartbeat", 256, NULL, HEARTBEAT_TASK_PRIORITY, NULL);
     xTaskCreate(serial_task, "serial", 8192, NULL, SERIAL_TASK_PRIORITY, NULL);
 
-    xTaskCreate(MS5607::update_ms5607_task, "update_ms5607", 256, &alt, SENSOR_SAMPLE_PRIORITY, &(alt.update_task_handle));
-    xTaskCreate(ADXL375::update_adxl375_task, "update_adxl375", 256, &adxl375, SENSOR_SAMPLE_PRIORITY, &(adxl375.update_task_handle));
-    xTaskCreate(IIM42653::update_iim42653_task, "update_iim42653", 256, &iim42653, SENSOR_SAMPLE_PRIORITY, &(iim42653.update_task_handle));
-    xTaskCreate(MMC5983MA::update_mmc5983ma_task, "update_mmc5983ma", 256, &mmc5983ma, SENSOR_SAMPLE_PRIORITY, &(mmc5983ma.update_task_handle));
+    xTaskCreate(MS5607::update_ms5607_task, "update_ms5607", 1024, &alt, SENSOR_SAMPLE_PRIORITY, &(alt.update_task_handle));
+    xTaskCreate(ADXL375::update_adxl375_task, "update_adxl375", 1024, &adxl375, SENSOR_SAMPLE_PRIORITY, &(adxl375.update_task_handle));
+    xTaskCreate(IIM42653::update_iim42653_task, "update_iim42653", 1024, &iim42653, SENSOR_SAMPLE_PRIORITY, &(iim42653.update_task_handle));
+    xTaskCreate(MMC5983MA::update_mmc5983ma_task, "update_mmc5983ma", 1024, &mmc5983ma, SENSOR_SAMPLE_PRIORITY, &(mmc5983ma.update_task_handle));
 
-    xTaskCreate(MS5607::ms5607_sample_handler, "ms5607_sample_handler", 256, &alt, EVENT_HANDLER_PRIORITY, &(alt.sample_handler_task_handle));
+    xTaskCreate(MS5607::ms5607_sample_handler, "ms5607_sample_handler", 1024, &alt, SENSOR_EVENT_HANDLER_PRIORITY, &(alt.sample_handler_task_handle));
 
     xTaskCreate(rocket_task, "rocket_task", 512, NULL, SENSOR_SAMPLE_PRIORITY, const_cast<TaskHandle_t *>(&rocket_task_handle));
-    xTaskCreate(rocket_event_handler_task, "rocket_event_handler", 512, NULL, EVENT_HANDLER_PRIORITY, const_cast<TaskHandle_t *>(&rocket_event_handler_task_handle));
-
     vTaskCoreAffinitySet( alt.update_task_handle, 0x01 );
     vTaskCoreAffinitySet( adxl375.update_task_handle, 0x01 );
     vTaskCoreAffinitySet( iim42653.update_task_handle, 0x01 );
     vTaskCoreAffinitySet( mmc5983ma.update_task_handle, 0x01 );
 
     vTaskCoreAffinitySet(rocket_task_handle, 0x01);
-    vTaskCoreAffinitySet(rocket_event_handler_task_handle, 0x01);
 
     vTaskCoreAffinitySet( alt.sample_handler_task_handle, 0x01 );
 
@@ -195,6 +205,8 @@ static void populate_log_entry(log_entry_t* log_entry) {
     log_entry->deploy_percent = deployment_percent;
     log_entry->pressure = alt.get_pressure();
     log_entry->altitude = alt.get_altitude();
+    log_entry->altitude_avg = altitude;
+    log_entry->velocity = velocity;
     log_entry->temperature_alt = alt.get_temperature();
 
     log_entry->ax = iim42653.get_ax();
@@ -214,8 +226,6 @@ static void populate_log_entry(log_entry_t* log_entry) {
 
     log_entry->data0 = get_rand_64();
     log_entry->data1 = get_rand_64();
-    log_entry->data2 = get_rand_32();
-    log_entry->data3 = get_rand_32();
 }
 
 static void logging_task(void* pvParameters) {
@@ -252,11 +262,7 @@ static void read_cmd_func() {
     if (logging_handle != NULL) {
         vTaskSuspend(logging_handle);
     }
-    if (use_circular_buffer) {
-        logger.read_circular_buffer();
-    } else {
-        logger.read_memory();
-    }
+    logger.read_memory();
     if (logging_handle != NULL) {
         vTaskResume(logging_handle);
     }
@@ -296,27 +302,55 @@ static void erase_cmd_func() {
 static void show_cmd_func() {
     serial_data_output = !serial_data_output;
 }
+
+static void deploy_cmd_func() {
+    vTaskSuspend(rocket_task_handle);
+    printf("Enabling servo!\n");
+    gpio_put(MICRO_DEFAULT_SERVO_ENABLE, 1);
+    vTaskDelay(pdMS_TO_TICKS(1000));
+    printf("Setting servo to 80%\n");
+    pwm.set_servo_percent(80);
+    vTaskDelay(pdMS_TO_TICKS(5000));
+    printf("Setting servo to 0%\n");
+    pwm.set_servo_percent(0);
+    vTaskDelay(pdMS_TO_TICKS(5000));
+    printf("Setting servo to 80%\n");
+    pwm.set_servo_percent(80);
+    vTaskDelay(pdMS_TO_TICKS(5000));
+    printf("Setting servo to 0%\n");
+    pwm.set_servo_percent(0);
+    vTaskDelay(pdMS_TO_TICKS(5000));
+    printf("Disabling servo!\n");
+    gpio_put(MICRO_DEFAULT_SERVO_ENABLE, 0);
+    vTaskResume(rocket_task_handle);
+}
 /****************************** SERIAL CONSOLE ********************************/
 
 
 static void rocket_task(void* pvParameters) {
     TickType_t xLastWakeTime;
-    const TickType_t xFrequency = pdMS_TO_TICKS(1000 / LOG_RATE_HZ);
+    const TickType_t xFrequency = pdMS_TO_TICKS(1000 / ROCKET_TASK_RATE_HZ);
 
-    vTaskDelay(pdMS_TO_TICKS(250));
+    vTaskDelay(pdMS_TO_TICKS(1000));
     ground_altitude = alt.get_altitude();
-    alt.set_threshold_altitude(ground_altitude + (threshold_altitude * ALTITUDE_SCALE), &rocket_event_callback);
 
     // Sign of life
     gpio_put(MICRO_DEFAULT_SERVO_ENABLE, 1);
-    pwm.set_servo_percent(5);
-    vTaskDelay(pdMS_TO_TICKS(100));
     pwm.set_servo_percent(0);
-    vTaskDelay(pdMS_TO_TICKS(100));
-    pwm.set_servo_percent(5);
-    vTaskDelay(pdMS_TO_TICKS(100));
+    vTaskDelay(pdMS_TO_TICKS(1000));
+    pwm.set_servo_percent(20);
+    vTaskDelay(pdMS_TO_TICKS(3000));
     pwm.set_servo_percent(0);
+    vTaskDelay(pdMS_TO_TICKS(3000));
+    pwm.set_servo_percent(20);
+    vTaskDelay(pdMS_TO_TICKS(3000));
+    pwm.set_servo_percent(0);
+    vTaskDelay(pdMS_TO_TICKS(3000));
     gpio_put(MICRO_DEFAULT_SERVO_ENABLE, 0);
+
+    xTaskCreate(launch_event_handler_task, "launch_event_handler", 512, NULL, ROCKET_EVENT_HANDLER_PRIORITY, const_cast<TaskHandle_t *>(&launch_event_handler_task_handle));
+    vTaskCoreAffinitySet(launch_event_handler_task_handle, 0x01);
+    alt.set_threshold_altitude(ground_altitude + (threshold_altitude * ALTITUDE_SCALE), &launch_event_callback);
 
     xLastWakeTime = xTaskGetTickCount();
     while (1) {
@@ -332,42 +366,55 @@ static void rocket_task(void* pvParameters) {
         moving_average_sum += moving_average[moving_average_offset];
         moving_average_offset = (moving_average_offset + 1) % MOVING_AVG_MAX_SIZE;
 
+        altitude = moving_average_sum / moving_average_size;
         velocity = (altitude - previous_altitude) * ROCKET_TASK_RATE_HZ;
         previous_altitude = altitude;
-        altitude = moving_average_sum / moving_average_size;
+        deployment_percent = 80;
 
         switch(rocket_state) {
             case PAD:
-                gpio_put(MICRO_DEFAULT_SERVO_ENABLE, 0);
-                pwm.set_servo_percent(0);
                 deployment_percent = 0;
+                pwm.set_servo_percent(deployment_percent);
+                gpio_put(MICRO_DEFAULT_SERVO_ENABLE, 0);
                 break;
             case BOOST:
                 gpio_put(MICRO_DEFAULT_SERVO_ENABLE, 1);
-                pwm.set_servo_percent(0);
                 deployment_percent = 0;
+                pwm.set_servo_percent(deployment_percent);
                 break;
             case COAST:
                 gpio_put(MICRO_DEFAULT_SERVO_ENABLE, 1);
+                if (velocity <= 0) {
+                    rocket_state = APOGEE;
+                    populate_log_entry(const_cast<log_entry_t *>(&log_entry));
+                    logger.write_memory(reinterpret_cast<const uint8_t *>(const_cast<log_entry_t *>(&log_entry)), false);
+                    deployment_percent = 0;
+                    pwm.set_servo_percent(deployment_percent);
+                    rocket_state = RECOVERY;
+                    xTaskCreate(end_event_handler_task, "end_event_handler", 1024, NULL, ROCKET_EVENT_HANDLER_PRIORITY, const_cast<TaskHandle_t *>(&end_event_handler_task_handle));
+                    vTaskCoreAffinitySet(end_event_handler_task_handle, 0x01);
+                    add_alarm_in_ms(450000, end_event_callback, NULL, false);
+                }
                 pwm.set_servo_percent(deployment_percent);
                 break;
             case APOGEE:
                 gpio_put(MICRO_DEFAULT_SERVO_ENABLE, 1);
-                pwm.set_servo_percent(0);
                 deployment_percent = 0;
+                pwm.set_servo_percent(deployment_percent);
                 break;
             case RECOVERY:
                 gpio_put(MICRO_DEFAULT_SERVO_ENABLE, 1);
-                pwm.set_servo_percent(0);
                 deployment_percent = 0;
+                pwm.set_servo_percent(deployment_percent);
                 break;
             case END:
-                gpio_put(MICRO_DEFAULT_SERVO_ENABLE, 0);
-                pwm.set_servo_percent(0);
                 deployment_percent = 0;
-                vTaskSuspend(logging_handle);
-                vTaskSuspend(rocket_event_handler_task_handle);
-                vTaskSuspend(rocket_task_handle);
+                pwm.set_servo_percent(deployment_percent);
+                vTaskDelay(pdMS_TO_TICKS(1000));
+                gpio_put(MICRO_DEFAULT_SERVO_ENABLE, 0);
+                vTaskDelete(logging_handle);
+                vTaskDelete(end_event_handler_task_handle);
+                vTaskDelete(rocket_task_handle);
                 break;
         }
 
@@ -377,11 +424,9 @@ static void rocket_task(void* pvParameters) {
     }
 }
 
-static void rocket_event_handler_task(void* pvParameters) {
-    /* xMaxExpectedBlockTime is set to be a little longer than the maximum
-    expected time between events. */
-    const TickType_t xInterruptFrequency = pdMS_TO_TICKS( 1000 / (ROCKET_TASK_RATE_HZ * 2) );
-    const TickType_t xMaxExpectedBlockTime = xInterruptFrequency + pdMS_TO_TICKS( 1 );
+static void launch_event_handler_task(void* pvParameters) {
+    const TickType_t xInterruptFrequency = pdMS_TO_TICKS( 1000 );
+    const TickType_t xMaxExpectedBlockTime = xInterruptFrequency + pdMS_TO_TICKS( 500 );
     uint32_t ulEventsToProcess;
     while (1) {
         /* Wait to receive a notification sent directly to this task from the
@@ -391,60 +436,85 @@ static void rocket_event_handler_task(void* pvParameters) {
             /* To get here at least one event must have occurred. Loop here
             until all the pending events have been processed */
             while( ulEventsToProcess > 0 ) {
-                if (logging_handle != NULL) {
-                    vTaskSuspend(logging_handle);
-                }
-                switch(rocket_state) {
-                    case PAD:
-                        alt.clear_threshold_altitude();
-                        rocket_state = BOOST;
-                        add_alarm_in_ms(MOTOR_BURN_TIME, &rocket_event_callback, NULL, false);break;
-                    case BOOST:
-                        rocket_state = COAST;
-                        populate_log_entry(const_cast<log_entry_t *>(&log_entry));
-                        logger.write_memory(reinterpret_cast<const uint8_t *>(const_cast<log_entry_t *>(&log_entry)), true);
-                        add_alarm_in_ms(1000, &rocket_event_callback, NULL, false);
-                        break;
-                    case COAST:
-                        if (velocity <= 0) {
-                            rocket_state = APOGEE;
-                            populate_log_entry(const_cast<log_entry_t *>(&log_entry));
-                            logger.write_memory(reinterpret_cast<const uint8_t *>(const_cast<log_entry_t *>(&log_entry)), true);
-                            add_alarm_in_ms(1, &rocket_event_callback, NULL, false);
-                        } else {
-                            add_alarm_in_ms(50, &rocket_event_callback, NULL, false);
-                        }
-                        break;
-                    case APOGEE:
-                        rocket_state = RECOVERY;
-                        // Set altimeter interrupt to occur for when rocket touches back to the ground
-                        alt.set_threshold_altitude((ground_altitude + 100), &rocket_event_callback);
-                        populate_log_entry(const_cast<log_entry_t *>(&log_entry));
-                        logger.write_memory(reinterpret_cast<const uint8_t *>(const_cast<log_entry_t *>(&log_entry)), true);
-                        break;
-                    case RECOVERY:
-                        // Essentially just a signal to stop logging data
-                        rocket_state = END;
-                        populate_log_entry(const_cast<log_entry_t *>(&log_entry));
-                        logger.write_memory(reinterpret_cast<const uint8_t *>(const_cast<log_entry_t *>(&log_entry)), true);
-                        break;
-                    default:
-                        break;
-                }
-                if (logging_handle != NULL) {
-                    vTaskResume(logging_handle);
-                }
+                vTaskSuspendAll();
+                rocket_state = BOOST;
+                xTaskCreate(coast_event_handler_task, "coast_event_handler", 512, NULL, ROCKET_EVENT_HANDLER_PRIORITY, const_cast<TaskHandle_t *>(&coast_event_handler_task_handle));
+                vTaskCoreAffinitySet(coast_event_handler_task_handle, 0x01);
+                add_alarm_in_ms(MOTOR_BURN_TIME, coast_event_callback, NULL, false);
+                vTaskDelete(launch_event_handler_task_handle);
+                launch_event_handler_task_handle = NULL;
+                xTaskResumeAll();
             }
         }
     }
 }
 
-int64_t rocket_event_callback(alarm_id_t id, void* user_data) {
+static void coast_event_handler_task(void* pvParameters) {
+    const TickType_t xInterruptFrequency = pdMS_TO_TICKS( MOTOR_BURN_TIME );
+    const TickType_t xMaxExpectedBlockTime = xInterruptFrequency + pdMS_TO_TICKS( 500 );
+    uint32_t ulEventsToProcess;
+    while (1) {
+        /* Wait to receive a notification sent directly to this task from the
+        interrupt service routine. */
+        ulEventsToProcess = ulTaskNotifyTake( pdTRUE, xMaxExpectedBlockTime );
+        if( ulEventsToProcess != 0 ) {
+            /* To get here at least one event must have occurred. Loop here
+            until all the pending events have been processed */
+            while( ulEventsToProcess > 0 ) {
+                vTaskSuspendAll();
+                rocket_state = COAST;
+                vTaskDelete(coast_event_handler_task_handle);
+                coast_event_handler_task_handle = NULL;
+                xTaskResumeAll();
+            }
+        }
+    }
+}
+
+static void end_event_handler_task(void* pvParameters) {
+    const TickType_t xInterruptFrequency = pdMS_TO_TICKS( 30000 );
+    const TickType_t xMaxExpectedBlockTime = xInterruptFrequency + pdMS_TO_TICKS( 500 );
+
+    uint32_t ulEventsToProcess;
+    while (1) {
+        /* Wait to receive a notification sent directly to this task from the
+        interrupt service routine. */
+        ulEventsToProcess = ulTaskNotifyTake( pdTRUE, xMaxExpectedBlockTime );
+        if( ulEventsToProcess != 0 ) {
+            /* To get here at least one event must have occurred. Loop here
+            until all the pending events have been processed */
+            while( ulEventsToProcess > 0 ) {
+                rocket_state = END;
+                vTaskDelete(end_event_handler_task_handle);
+                end_event_handler_task_handle = NULL;
+            }
+        }
+    }
+}
+
+int64_t launch_event_callback(alarm_id_t id, void* user_data) {
     BaseType_t xHigherPriorityTaskWoken;
     xHigherPriorityTaskWoken = pdFALSE;
     // Defer ISR handling to separate handler within FreeRTOS context
-    vTaskNotifyGiveFromISR(rocket_event_handler_task_handle, &xHigherPriorityTaskWoken );
+    vTaskNotifyGiveFromISR(launch_event_handler_task_handle, &xHigherPriorityTaskWoken );
     portYIELD_FROM_ISR( xHigherPriorityTaskWoken );
     return 0;
 }
 
+int64_t coast_event_callback(alarm_id_t id, void* user_data) {
+    BaseType_t xHigherPriorityTaskWoken;
+    xHigherPriorityTaskWoken = pdFALSE;
+    // Defer ISR handling to separate handler within FreeRTOS context
+    vTaskNotifyGiveFromISR(coast_event_handler_task_handle, &xHigherPriorityTaskWoken );
+    portYIELD_FROM_ISR( xHigherPriorityTaskWoken );
+    return 0;
+}
+
+int64_t end_event_callback(alarm_id_t id, void* user_data) {
+    BaseType_t xHigherPriorityTaskWoken;
+    xHigherPriorityTaskWoken = pdFALSE;
+    // Defer ISR handling to separate handler within FreeRTOS context
+    vTaskNotifyGiveFromISR(end_event_handler_task_handle, &xHigherPriorityTaskWoken );
+    portYIELD_FROM_ISR( xHigherPriorityTaskWoken );
+    return 0;
+}

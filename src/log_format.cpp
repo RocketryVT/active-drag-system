@@ -38,6 +38,8 @@ void print_log_entry(const uint8_t* entry) {
     printf("%d,", packet->deploy_percent);
     printf("%4.2f,", ((float) packet->pressure) / PRESSURE_SCALE_F);
     printf("%4.2f,", ((float) packet->altitude) / ALTITUDE_SCALE_F);
+    printf("%4.2f,", ((float) packet->altitude_avg) / ALTITUDE_SCALE_F);
+    printf("%4.2f,", ((float) packet->velocity) / ALTITUDE_SCALE_F);
     printf("%4.2f,", ((float) packet->temperature_alt) / TEMPERATURE_SCALE_F);
 
     printf("%4.2f,", IIM42653::scale_accel(packet->ax));
@@ -57,8 +59,6 @@ void print_log_entry(const uint8_t* entry) {
     printf("%4.2f,", ADXL375::scale(packet->high_g_z));
     printf("%" PRIu64 ",", packet->data0);
     printf("%" PRIu64 ",", packet->data1);
-    printf("%" PRIu32 ",", packet->data2);
-    printf("%" PRIu8 "", packet->data3);
     printf("\r\n");
     stdio_flush();
 }
