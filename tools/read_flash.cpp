@@ -115,13 +115,20 @@ int main() {
     gpio_init(PICO_DEFAULT_LED_PIN);
     gpio_set_dir(PICO_DEFAULT_LED_PIN, GPIO_OUT);
     gpio_put(PICO_DEFAULT_LED_PIN, 0);
-
+    
+    //Init on-PCB I2C bus
     i2c_init(i2c_default, MAX_SCL);
     gpio_set_function(PICO_DEFAULT_I2C_SDA_PIN, GPIO_FUNC_I2C);
     gpio_set_function(PICO_DEFAULT_I2C_SCL_PIN, GPIO_FUNC_I2C);
     gpio_pull_up(PICO_DEFAULT_I2C_SDA_PIN);
     gpio_pull_up(PICO_DEFAULT_I2C_SCL_PIN);
-
+    
+    //Init breakout I2C bus
+    i2c_init(i2c1, MAX_SCL);
+    gpio_set_function(PICO_BREAKOUT_I2C_SDA_PIN, GPIO_FUNC_I2C);
+    gpio_set_function(PICO_BREAKOUT_I2C_SCL_PIN, GPIO_FUNC_I2C);
+    gpio_pull_up(PICO_BREAKOUT_I2C_SDA_PIN);
+    gpio_pull_up(PICO_BREAKOUT_I2C_SCL_PIN);    
     sleep_ms(2500);
 
     info_cmd_func();
@@ -473,8 +480,9 @@ static void populate_log_entry(log_entry_t * log_entry) {
 
     log_entry->data0 = get_rand_64();
     log_entry->data1 = get_rand_64();
-    log_entry->data2 = get_rand_32();
-    log_entry->data3 = get_rand_32();
+    //TODO: Confirm log formatting/add data2 and data3
+//    log_entry->data2 = get_rand_32();
+//    log_entry->data3 = get_rand_32();
 }
 
 static void write_cmd_func() {
@@ -544,7 +552,7 @@ static void orient_cmd_func() {
 
 static void scan_cmd_func() {
     printf("\n================ I2C0 Bus Scan ================\n");
-    scan_i2c_bus_addresses(i2c_default);
+    scan_i2c_bus_addresses(i2c0);
     printf("============ I2C0 Bus Scan Complete! ============\n\n");
 
     printf("================== I2C1 Bus Scan ================\n");
@@ -571,7 +579,7 @@ void scan_i2c_bus_addresses(i2c_inst_t* bus) {
         if ((addr & 0x78) == 0 || (addr & 0x78) == 0x78)
             ret = PICO_ERROR_GENERIC;
         else
-            ret = i2c_read_blocking(i2c_default, addr, &rxdata, 1, false);
+            ret = i2c_read_blocking(bus, addr, &rxdata, 1, false);
 
         printf(ret < 0 ? "." : "@");
         printf(addr % 16 == 15 ? "\n" : "  ");
