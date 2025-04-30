@@ -60,12 +60,15 @@ static void erase_cmd_func();
 static void orient_cmd_func();
 static void logging_task(void * unused_arg);
 
+void scan_i2c_bus_addresses(i2c_inst_t* bus);
+static void scan_cmd_func();
+
 void vApplicationTickHook(void) { /* optional */ }
 void vApplicationMallocFailedHook(void) { /* optional */ }
 void vApplicationStackOverflowHook(TaskHandle_t xTask, char *pcTaskName) { for( ;; ); }
 
 const char* executeable_name = "read_flash.uf2";
-const size_t num_user_cmds = 7;
+const size_t num_user_cmds = 8;
 const command_t user_commands[] = { {.name = "sample",
                                      .len = 6,
                                      .function = &sample_cmd_func},
@@ -86,7 +89,10 @@ const command_t user_commands[] = { {.name = "sample",
                                      .function = &erase_cmd_func},
                                     {.name = "orient",
                                      .len = 6,
-                                     .function = &orient_cmd_func} };
+                                     .function = &orient_cmd_func},
+                                    {.name = "scan",
+                                     .len = 4,
+                                     .function = &scan_cmd_func} };
 
 volatile bool serial_data_output = false;
 volatile bool use_circular_buffer = false;
@@ -536,3 +542,38 @@ static void orient_cmd_func() {
     }   
 }
 
+static void scan_cmd_func() {
+    printf("\n================ I2C0 Bus Scan ================\n");
+    scan_i2c_bus_addresses(i2c_default);
+    printf("============ I2C0 Bus Scan Complete! ============\n\n");
+
+    printf("================== I2C1 Bus Scan ================\n");
+    scan_i2c_bus_addresses(i2c1);
+    printf("============ I2C1 Bus Scan Complete! ============\n\n");
+}
+
+//Copied directly from RP2040 SDK examples, performs a read on all I2C addresses on bus instance and prints devices
+void scan_i2c_bus_addresses(i2c_inst_t* bus) {
+    printf("   0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F\n");
+    for (int addr = 0; addr < (1 << 7); ++addr) {
+        if (addr % 16 == 0) {
+            printf("%02x ", addr);
+        }
+
+        // Perform a 1-byte dummy read from the probe address. If a slave
+        // acknowledges this address, the function returns the number of bytes
+        // transferred. If the address byte is ignored, the function returns
+        // -1.
+
+        // Skip over any reserved addresses.
+        int ret;
+        uint8_t rxdata;
+        if ((addr & 0x78) == 0 || (addr & 0x78) == 0x78)
+            ret = PICO_ERROR_GENERIC;
+        else
+            ret = i2c_read_blocking(i2c_default, addr, &rxdata, 1, false);
+
+        printf(ret < 0 ? "." : "@");
+        printf(addr % 16 == 15 ? "\n" : "  ");
+    }
+}
