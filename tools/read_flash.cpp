@@ -34,6 +34,7 @@ using namespace Eigen;  //TODO: Limit scope to necessary components once impleme
 #include "ms5607.hpp"
 #include "iim42653.hpp"
 #include "mmc5983ma.hpp"
+#include "icm20948.hpp"
 #include "serial.hpp"
 #include "pico_logger.h"
 #include "log_format.hpp"
@@ -101,6 +102,7 @@ MS5607 alt(i2c_default);
 ADXL375 adxl375(i2c_default);
 IIM42653 iim42653(i2c_default);
 MMC5983MA mmc5983ma(i2c_default);
+ICM20948 icm20948(i2c1);
 
 Logger logger(PACKET_SIZE, LOG_BASE_ADDR, print_log_entry);
 
@@ -143,6 +145,8 @@ int main() {
     iim42653.initialize();
     sleep_ms(500);
     mmc5983ma.initialize();
+    sleep_ms(500);
+    icm20948.initialize();
     sleep_ms(500);
 
     xTaskCreate(heartbeat_task, "heartbeat", 256, NULL, HEARTBEAT_TASK_PRIORITY, NULL);
