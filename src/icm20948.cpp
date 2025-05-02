@@ -31,12 +31,15 @@ void ICM20948::initialize() {
     i2c_read_blocking(i2c, addr, buffer, 23, false);
     printf("FIRST THREE BYTES OF MAGNETOMETER (hopefully lol): [%x, %x, %x]\n", buffer[14], buffer[15], buffer[16]);
 
-    uint8_t mag_id = read_aux_register(0x8C, 0x01);
-    printf("MAG ID FROM HELPER METHOD: [%x]\n", mag_id);
 }
 
 //Configure the auxilary i2c bus for proper operation, and then configure the magnetometer *on* that bus
 void ICM20948::configure_mag_i2c() {
+    //Disable I2C bypass???
+    set_register_bank(0);
+    buffer[0] = R_ICM20948_B0_INT_PIN_CFG;
+    buffer[1] = 0x02;   //TODO: Define this formally in a struct, single bit in the interrupt pin config for some reason
+    
     //Configure the speed and stop conditions of the auxilary I2C bus
     set_register_bank(3);
     buffer[0] = R_ICM20948_B3_I2C_MST_CTRL;
@@ -46,7 +49,24 @@ void ICM20948::configure_mag_i2c() {
     //Enable the auxilary I2C bus
     set_register_bank(0);
     buffer[0] = R_ICM20948_B0_USER_CTRL;
-    buffer[1] = 0x20;   //TODO: Define this formally in a struct, enables electrical isolation of internal I2C pins
+    buffer[1] = 0x20;   //TODO: Define this formally in a struct, enables electrical isolation of internal I2C pins??
+    
+    //Weird "auxI2CBusSetupFailed()" iterative reset stolen from Adafruit, who stole it from SparkFun
+    bool aux_i2c_setup_failed = true;
+    printf("Beginning setup failure check loop...\n");
+    for (int i = 0; i < 10; i++) {
+        uint8_t mag_id = read_aux_register(0x8C, 0x01);
+        printf("MAG ID FROM HELPER METHOD: [%x]\n", mag_id);
+        if (mag_id != ICM20948_MAG_AUX_ID) {
+            printf("Resetting master I2C bus!\n");
+            
+            buffer[0] = R_ICM20948_B0_USER_CTRL;
+            buffer[1] = 0x02;   //TODO: Define this in the same struct as above, Master I2C module reset bit
+            i2c_write_blocking(i2c, addr, buffer, 2, false);
+        } else {
+            printf("Ending setup failed loop, ID check ran successfully!\n");
+        }
+    }
 
     //TODO: Actually do the magnetometer configuration like for ODR and such
 }
@@ -88,13 +108,14 @@ void ICM20948::write_aux_register(uint8_t slv_addr, uint8_t slv_reg, uint8_t val
     set_register_bank(0);
     size_t waitCount = 0;
     bool opComplete = false;
-    while (!opComplete) {
+    while (!opComplete && waitCount < MAX_SLV4_ACK_CHECKS) {
         buffer[0] = R_ICM20948_B0_I2C_MST_STATUS;
         i2c_write_blocking(i2c, addr, buffer, 1, true);
         i2c_read_blocking(i2c, addr, buffer, 1, false);
         opComplete = buffer[0] & B_ICM20948_I2C_SLV4_DONE_MASK;
 
         printf("Waiting for auxilary I2C write to complete...\n");
+        waitCount++;
         sleep_ms(1);
     }
 }
@@ -127,13 +148,14 @@ uint8_t ICM20948::read_aux_register(uint8_t slv_addr, uint8_t slv_reg) {
     set_register_bank(0);
     size_t waitCount = 0;
     bool opComplete = false;
-    while (!opComplete) {
+    while (!opComplete && waitCount < MAX_SLV4_ACK_CHECKS) {
         buffer[0] = R_ICM20948_B0_I2C_MST_STATUS;
         i2c_write_blocking(i2c, addr, buffer, 1, true);
         i2c_read_blocking(i2c, addr, buffer, 1, false);
-        opComplete = buffer[0] & B_ICM20948_I2C_SLV4_DONE_MASK;
+        opComplete = (buffer[0] & B_ICM20948_I2C_SLV4_DONE_MASK) >> 4;
 
-        printf("Waiting for auxilary I2C read to complete - [%x]\n", buffer[0]);
+        printf("Waiting for auxilary I2C read to complete (actual, masked) - [%x], [%x]\n", buffer[0], buffer[0] & B_ICM20948_I2C_SLV4_DONE_MASK);
+        waitCount++;
         sleep_ms(1);
     }
 

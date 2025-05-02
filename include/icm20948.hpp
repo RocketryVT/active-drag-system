@@ -15,13 +15,19 @@
 #endif
 
 #define ICM20948_I2C_ADDR 0x69
+#define ICM20948_MAG_AUX_ID 0x09
 
+#define MAX_I2C_MASTER_RESETS 10
+#define MAX_SLV4_ACK_CHECKS 100
 // WHO_AM_I [Validation]
 #define R_ICM20948_B0_WHO_AM_I 0x00
 #define B_ICM20948_WHO_AM_I_VALUE 0xEA
 
 // USER_CTRL [Configuration, mainly auxilary I2C bus enabling]
 #define R_ICM20948_B0_USER_CTRL 0x01
+
+// INT_PIN_CFG [Configuration, interrupts but also I2C bypass bit for some reason]
+#define R_ICM20948_B0_INT_PIN_CFG 0x0F
 
 // Data output registers
 #define R_ICM20948_B0_ACCEL_XOUT_H 0x2D
@@ -34,7 +40,7 @@
 
 // I2C_MST_STATUS [Status, check ongoing auxilary I2C operations]
 #define R_ICM20948_B0_I2C_MST_STATUS 0x17
-#define B_ICM20948_I2C_SLV4_DONE_MASK 0x40
+#define B_ICM20948_I2C_SLV4_DONE_MASK (1 << 4)
 
 // I2C_SLV4_ADDR [Configuration, auxilary I2C bus operations (Address of slave)]
 #define R_ICM20948_B3_I2C_SLV4_ADDR 0x13
