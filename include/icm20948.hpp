@@ -17,8 +17,9 @@
 #define ICM20948_I2C_ADDR 0x69
 #define ICM20948_MAG_AUX_ID 0x09
 
-#define MAX_I2C_MASTER_RESETS 10
+#define MAX_I2C_MASTER_RESETS 20
 #define MAX_SLV4_ACK_CHECKS 100
+
 // WHO_AM_I [Validation]
 #define R_ICM20948_B0_WHO_AM_I 0x00
 #define B_ICM20948_WHO_AM_I_VALUE 0xEA
@@ -101,6 +102,7 @@ class ICM20948 {
         void write_aux_register(uint8_t slv_addr, uint8_t slv_reg, uint8_t value);
         uint8_t read_aux_register(uint8_t slv_addr, uint8_t slv_reg);
         void configure_mag_i2c();
+        void bypass_mag_i2c();
 
         //Auxilary (internal) I2C handling and register fields
         ICM20948_I2C_SLV4_CTRL slv4_ctrl;
@@ -108,7 +110,7 @@ class ICM20948 {
         //External i2c handling and register fields
         const uint8_t addr = ICM20948_I2C_ADDR;
         i2c_inst_t* i2c;
-        uint8_t buffer[24];
+        uint8_t buffer[32];
 
         //Internal data fields
         int16_t raw_ax, raw_ay, raw_az;
