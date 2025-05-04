@@ -15,12 +15,13 @@
 #endif
 
 #define ICM20948_I2C_ADDR 0x69
-#define ICM20948_MAG_AUX_ID 0x09
+#define AK09916_I2C_ADDR 0x0C
 
-#define MAX_I2C_MASTER_RESETS 20
-#define MAX_SLV4_ACK_CHECKS 100
+#define ICM20948_SAMPLE_RATE_HZ 500
+#define AK09916_SAMPLE_RATE_HZ 100
 
-// WHO_AM_I [Validation]
+/* ============ ICM20948 Internal 6DoF IMU ============ */
+// WHO_AM_I [Validation, Chip ID]
 #define R_ICM20948_B0_WHO_AM_I 0x00
 #define B_ICM20948_WHO_AM_I_VALUE 0xEA
 
@@ -35,20 +36,48 @@
 
 // REG_BANK_SEL [Configuration, register bank]
 #define R_ICM20948_REG_BANK_SEL 0x7F
+/* ============ ICM20948 Internal 6DoF IMU ============ */
+
+/* ============ AK09916 3DoF Magnetometer ============ */
+// WIA2 [Validation, Chip ID]
+#define R_AK09916_WIA2       0x01
+#define B_AK09916_WIA2_VALUE 0x09
+
+// HXL-HZH [Data Output]
+#define R_AK09916_HXL 0x11
+#define R_AK09916_HXH 0x12
+#define R_AK09916_HYL 0x13
+#define R_AK09916_HYH 0x14
+#define R_AK09916_HZL 0x15
+#define R_AK09916_HZH 0x16
+
+// ST2 [Status 2, purely for overflow detection]
+#define R_AK09916_ST2 0x18
+
+// CNTL2 [Control 2 - Configuration, measurement mode/frequency]
+#define R_AK09916_CNTL2 0x31
+#define B_AK09916_CNTL2_POWER_DOWN_MODE         0x00
+#define B_AK09916_CNTL2_SINGLE_MEASUREMENT_MODE 0x01
+#define B_AK09916_CNTL2_CONTINUOUS_MODE_10HZ    0x02
+#define B_AK09916_CNTL2_CONTINUOUS_MODE_20HZ    0x04
+#define B_AK09916_CNTL2_CONTINUOUS_MODE_50HZ    0x06
+#define B_AK09916_CNTL2_CONTINUOUS_MODE_100HZ   0x08
+#define B_AK09916_CNTL2_SELF_TEST_MODE          0x10
+/* ============ AK09916 3DoF Magnetometer ============ */
+
+/* ======================== DEPRECATED, TO BE REMOVED ========================
+#define MAX_I2C_MASTER_RESETS 20
+#define MAX_SLV4_ACK_CHECKS 100
 
 // I2C_MST_CTRL [Configuration, auxilary I2C bus speed and enable]
 #define R_ICM20948_B3_I2C_MST_CTRL 0x01
-
 // I2C_MST_STATUS [Status, check ongoing auxilary I2C operations]
 #define R_ICM20948_B0_I2C_MST_STATUS 0x17
 #define B_ICM20948_I2C_SLV4_DONE_MASK (1 << 4)
-
 // I2C_SLV4_ADDR [Configuration, auxilary I2C bus operations (Address of slave)]
 #define R_ICM20948_B3_I2C_SLV4_ADDR 0x13
-
 // I2C_SLV4_REG [Configuration, auxilary I2C bus operations (Register of slave)]
 #define R_ICM20948_B3_I2C_SLV4_REG 0x14
-
 // I2C_SLV4_CTRL [Configuration, auxilary I2C bus operations (Control of I2C operations)]
 #define R_ICM20948_B3_I2C_SLV4_CTRL 0x15
 typedef union {
@@ -60,14 +89,11 @@ typedef union {
     } fields;
     uint8_t data;
 } ICM20948_I2C_SLV4_CTRL;
-
 // I2C_SLV4_DO ["Data out when slave 4 is set to write"]
 #define R_ICM20948_B3_I2C_SLV4_DO 0x16
-
 // I2C_SLV4_DI ["Data read from i2c slave 4"]
 #define R_ICM20948_B3_I2C_SLV4_DI 0x17
-
-#define ICM20948_SAMPLE_RATE_HZ 500
+============================= DEPRECATED, TO BE REMOVED ========================*/
 
 class ICM20948 {
     public:
@@ -87,6 +113,8 @@ class ICM20948 {
         int16_t get_my() { return my; }
         int16_t get_mz() { return mz; }
         int16_t get_temp() { return temp; }
+        
+        static float scale_mag(int16_t unscaled { return ((float) unscaled) / S_AK09916_MAG_SENSITIVITY_FACTOR; }
 
 #if ( USE_FREERTOS == 1 )
         static void update_icm20948_task(void* pvParameters);
@@ -99,16 +127,20 @@ class ICM20948 {
         void set_register_bank(uint8_t bank);
 
         //Helper methods for dealing with the stupid-ass way that this chip handles magnetometer communication
+        /* DEPRECATED, TO BE REMOVED
         void write_aux_register(uint8_t slv_addr, uint8_t slv_reg, uint8_t value);
         uint8_t read_aux_register(uint8_t slv_addr, uint8_t slv_reg);
-        void configure_mag_i2c();
+        void configure_mag_i2c(); */
         void bypass_mag_i2c();
+    
+        void validate();    //Debug, ping IMU and Mag (AFTER configuration)
 
         //Auxilary (internal) I2C handling and register fields
         ICM20948_I2C_SLV4_CTRL slv4_ctrl;
 
         //External i2c handling and register fields
         const uint8_t addr = ICM20948_I2C_ADDR;
+        const uint8_t mag_addr = AK09916_I2C_ADDR;
         i2c_inst_t* i2c;
         uint8_t buffer[32];
 

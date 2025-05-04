@@ -7,35 +7,31 @@ void ICM20948::initialize() {
     buffer[1] = 0x00;   //Normal power mode
     i2c_write_blocking(i2c, addr, buffer, 2, false);
     
-    //Read the value of the WHO_AM_I register and print whether the device was found
-    printf("ATTEMPTING COMMUNICATION WITH BREAKOUT SENSOR...\n");
-    buffer[0] = R_ICM20948_B0_WHO_AM_I;
-    i2c_write_blocking(i2c, addr, buffer, 1, true);
-    i2c_read_blocking(i2c, addr, buffer, 1, false);
-    printf("COMMUNICATION COMPLETE!\n");
-
-    if (buffer[0] == B_ICM20948_WHO_AM_I_VALUE) {
-        printf("WHO_AM_I value was returned successfully!\n");
-    } else {
-        printf("WHO_AM_I value was NOT returned successfully, something is wrong!\n");
-        printf("Output from read command: [%x]\n\n", buffer[0]);
-    }
+    //Configure the aux I2C mux for "bypass mode," directly plugging the AK09916 onto the main bus
+    bypass_mag_i2c();
+    validate(); //Confirm I2C bus has been configured correctly, and both sensors are communicating over it
 
     //Configure Gyroscope FSR and ODR
     
     //Configure Accelerometer FSR and ODR
-
-    //Configure Magnetometer, just like, generally
-    bypass_mag_i2c();
-
-    //Enable Gyroscope, Accelerometer, and Magnetometer
     
-    //Perform sample read??? my mind is mush and full of itussy nonsense
-    buffer[0] = R_ICM20948_B0_ACCEL_XOUT_H;
-    i2c_write_blocking(i2c, addr, buffer, 1, true);
-    i2c_read_blocking(i2c, addr, buffer, 23, false);
-    printf("FIRST THREE BYTES OF MAGNETOMETER (hopefully lol): [%x, %x, %x]\n", buffer[14], buffer[15], buffer[16]);
+    //Enable Gyroscope and Accelerometer
 
+    //Configure Magnetometer ODR (which enables it)
+    buffer[0] = R_AK09916_CNTL2;
+    buffer[1] = B_AK09916_CNTL2_CONTINUOUS_MODE_100HZ;
+    i2c_write_blocking(i2c, mag_addr, buffer, 2, false);
+}
+
+//Read all 6 mag data registers, and the 2 after them to check the overflow bit
+void ICM20948::sample_mag() {
+    //Read HXL-HZH-ST2
+    buffer[0] = R_AK09916_HXL;
+    i2c_write_blocking(i2c, mag_addr, buffer, 1, true);
+    i2c_read_blocking(i2c, mag_addr, buffer, 8, false);
+
+    //Check if the overflow bit has been flipped (if not, data is valid)
+    bool dataValid = (buffer[7]);   //TODO
 }
 
 //Configure the auxilary i2c bus for bypass operation, directly connecting it to I2C1 for comms with AK09916 mag sensor
@@ -50,10 +46,48 @@ void ICM20948::bypass_mag_i2c() {
     buffer[0] = R_ICM20948_B0_INT_PIN_CFG;
     buffer[1] = 0x02;   //BYPASS_EN
     i2c_write_blocking(i2c, addr, buffer, 2, false);
-
 }
 
+//Ping IMU and Mag over I2C bus and read their chipIDs to confirm comms initialization
+void validate() {
+    //Read the value of the IMU's WHO_AM_I register and print whether the device was found
+    printf("ATTEMPTING COMMUNICATION WITH BREAKOUT ICM20948...\n");
+    buffer[0] = R_ICM20948_B0_WHO_AM_I;
+    i2c_write_blocking(i2c, addr, buffer, 1, true);
+    i2c_read_blocking(i2c, addr, buffer, 1, false);
+    printf("COMMUNICATION COMPLETE!\n");
+
+    if (buffer[0] == B_ICM20948_WHO_AM_I_VALUE) {
+        printf("WHO_AM_I value was returned successfully!\n");
+    } else {
+        printf("WHO_AM_I value was NOT returned successfully, something is wrong!\n");
+    }
+
+    //Read the value of the Magnetometer's WIA2 register and print whether the device was found
+    printf("ATTEMPTING COMMUNICATION WITH BREAKOUT AK09916...\n");
+    buffer[0] = R_AK09916_WIA2;
+    i2c_write_blocking(i2c, mag_addr, buffer, 1, true);
+    i2c_read_blocking(i2c, mag_addr, buffer, 1, false);
+    printf("COMMUNICATION COMPLETE!\n");
+
+    if (buffer[0] == B_AK09916_WIA2_VALUE) {
+        printf("WIA2 value was returned successfully!\n");
+    } else {
+        printf("WIA2 value was NOT returned successfully, something is wrong!\n");
+    }
+}
+
+//Configure register bank to parameter, used for initialization/configuration of sensors
+void ICM20948::set_register_bank(uint8_t bank) {
+    buffer[0] = R_ICM20948_REG_BANK_SEL;
+    buffer[1] = bank << 4;  //User bank is configured in bits 5:4, 3:0 are reserved
+    printf("SWAPPING REGISTER BANK TO (dec, shifted hex): [%i, %x]\n", bank, (bank << 4));
+    i2c_write_blocking(i2c, addr, buffer, 2, false);
+}
+
+//TODO: DEPRECATED, remove once full functionality implemented elsewhere
 //Configure the auxilary i2c bus for proper operation, and then configure the magnetometer *on* that bus
+/*
 void ICM20948::configure_mag_i2c() {
     //Enable the auxilary I2C bus
     set_register_bank(0);
@@ -126,14 +160,6 @@ void ICM20948::configure_mag_i2c() {
     }
 
     //TODO: Actually do the magnetometer configuration like for ODR and such
-}
-
-//Configure register bank to parameter, used for initialization/configuration of sensors
-void ICM20948::set_register_bank(uint8_t bank) {
-    buffer[0] = R_ICM20948_REG_BANK_SEL;
-    buffer[1] = bank << 4;  //User bank is configured in bits 5:4, 3:0 are reserved
-    printf("SWAPPING REGISTER BANK TO (dec, shifted hex): [%i, %x]\n", bank, (bank << 4));
-    i2c_write_blocking(i2c, addr, buffer, 2, false);
 }
 
 //Write a byte to a slave register on the auxilary (internal) i2c bus of the sensor
@@ -250,4 +276,4 @@ uint8_t ICM20948::read_aux_register(uint8_t slv_addr, uint8_t slv_reg) {
     
     return buffer[0];
 }
-
+*/
