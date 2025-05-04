@@ -247,9 +247,15 @@ static void pose_estimation_task(void * unused_arg) {
         float imu_gx = -IIM42653::scale_gyro(iim42653.get_gx())/180.0f*M_PI;
         float imu_gy = -IIM42653::scale_gyro(iim42653.get_gy())/180.0f*M_PI;
         float imu_gz = IIM42653::scale_gyro(iim42653.get_gz())/180.0f*M_PI;
-        float mag_x = -MMC5983MA::scale_mag(mmc5983ma.get_ay());   //TODO: Not convinced mag axes are correct
-        float mag_y = MMC5983MA::scale_mag(mmc5983ma.get_ax());
-        float mag_z = -MMC5983MA::scale_mag(mmc5983ma.get_az());
+
+        float mmc_mag_x = -MMC5983MA::scale_mag(mmc5983ma.get_ay());   //TODO: Not convinced mag axes are correct
+        float mmc_mag_y = MMC5983MA::scale_mag(mmc5983ma.get_ax());
+        float mmc_mag_z = -MMC5983MA::scale_mag(mmc5983ma.get_az());
+        
+        //Breakout ICM20948 magnetometer (internal AK09916)
+        float mag_x = ICM20948::scale_mag(icm20948.get_my());
+        float mag_y = ICM20948::scale_mag(icm20948.get_mx());
+        float mag_z = ICM20948::scale_mag(icm20948.get_mz());
 
         //Normalize accelerometer and magnetometer measurements
         float imu_a_mag = std::sqrt(std::pow(imu_ax, 2) + std::pow(imu_ay, 2) + std::pow(imu_az, 2));
@@ -257,13 +263,14 @@ static void pose_estimation_task(void * unused_arg) {
         imu_ax /= imu_a_mag;
         imu_ay /= imu_a_mag;
         imu_az /= imu_a_mag;
-        mag_x /= mag_mag;
-        mag_y /= mag_mag;
-        mag_z /= mag_mag;
+        //mag_x /= mag_mag;
+        //mag_y /= mag_mag;
+        //mag_z /= mag_mag;
 
         printf("--- [I] INITIALIZATION | IMU Accel direct outputs (x, y, z): [%4.3f, %4.3f, %4.3f]\n", imu_ax, imu_ay, imu_az);
         printf("--- [I] INITIALIZATION | IMU Gyro direct outputs (x, y, z): [%4.3f, %4.3f, %4.3f]\n", imu_gx, imu_gy, imu_gz);
-        printf("--- [I] INITIALIZATION | Magnetometer direct outputs (x, y, z): [%4.3f, %4.3f, %4.3f]\n", mag_x, mag_y, mag_z);
+        printf("--- [I] INITIALIZATION | Magnetometer direct outputs (x, y, z): [%2.4f, %2.4f, %2.4f]\n", mmc_mag_x, mmc_mag_y, mmc_mag_z);
+        printf("--- [I] INITIALIZATION | Breakout direct Mag outputs (x, y, z): [%2.4f, %2.4f, %2.4f]\n", mag_x, mag_y, mag_z);
 
         float mag_D = imu_ax*mag_x + imu_ay*mag_y + imu_az*mag_z;
         float mag_N = std::sqrt(1.0f - std::pow(mag_D, 2));
@@ -379,13 +386,15 @@ static void sample_cmd_func() {
         xTaskCreate(ADXL375::update_adxl375_task, "update_adxl375", 256, &adxl375, SENSOR_SAMPLE_PRIORITY, &(adxl375.update_task_handle));
         xTaskCreate(IIM42653::update_iim42653_task, "update_iim42653", 256, &iim42653, SENSOR_SAMPLE_PRIORITY, &(iim42653.update_task_handle));
         xTaskCreate(MMC5983MA::update_mmc5983ma_task, "update_mmc5983ma", 256, &mmc5983ma, SENSOR_SAMPLE_PRIORITY, &(mmc5983ma.update_task_handle));
-
+        xTaskCreate(ICM20948::update_icm20948_task, "update_icm20948", 256, &icm20948, SENSOR_SAMPLE_PRIORITY, &(icm20948.update_task_handle));
+        
         xTaskCreate(MS5607::ms5607_sample_handler, "ms5607_sample_handler", 256, &alt, EVENT_HANDLER_PRIORITY, &(alt.sample_handler_task_handle));
 
         vTaskCoreAffinitySet( alt.update_task_handle, 0x01 );
         vTaskCoreAffinitySet( adxl375.update_task_handle, 0x01 );
         vTaskCoreAffinitySet( iim42653.update_task_handle, 0x01 );
         vTaskCoreAffinitySet( mmc5983ma.update_task_handle, 0x01 );
+        vTaskCoreAffinitySet( icm20948.update_task_handle, 0x01 );
 
         vTaskCoreAffinitySet( alt.sample_handler_task_handle, 0x01 );
         sampling = true;
@@ -398,6 +407,7 @@ static void sample_cmd_func() {
         vTaskDelete(adxl375.update_task_handle);
         vTaskDelete(iim42653.update_task_handle);
         vTaskDelete(mmc5983ma.update_task_handle);
+        vTaskDelete(icm20948.update_task_handle);
 
         vTaskDelete(alt.sample_handler_task_handle);
 
@@ -405,6 +415,7 @@ static void sample_cmd_func() {
         adxl375.update_task_handle = NULL;
         iim42653.update_task_handle = NULL;
         mmc5983ma.update_task_handle = NULL;
+        icm20948.update_task_handle = NULL;
 
         alt.sample_handler_task_handle = NULL;
 

@@ -21,6 +21,19 @@ void ICM20948::initialize() {
     buffer[0] = R_AK09916_CNTL2;
     buffer[1] = B_AK09916_CNTL2_CONTINUOUS_MODE_100HZ;
     i2c_write_blocking(i2c, mag_addr, buffer, 2, false);
+    
+    //Test read CNTL2??
+    i2c_write_blocking(i2c, mag_addr, buffer, 1, true);
+    i2c_read_blocking(i2c, mag_addr, buffer, 1, false);
+    printf("OUTPUT OF CNTL2: [%X]\n", buffer[0]);
+
+    //Test output for debug purposes
+    sample_mag();
+    float s_mx = scale_mag(mx);
+    float s_my = scale_mag(my);
+    float s_mz = scale_mag(mz);
+    printf("SAMPLE READ FROM MAGNETOMETER: [%2.4f, %2.4f, %2.4f]\n", s_mx, s_my, s_mz);
+    printf("DIRECT MAG BUFFER OUTPUT (HXL, HXH, ST2): [%X, %X, %X]\n", buffer[0], buffer[1], buffer[7]);
 }
 
 //Read all 6 mag data registers, and the 2 after them to check the overflow bit
@@ -31,7 +44,15 @@ void ICM20948::sample_mag() {
     i2c_read_blocking(i2c, mag_addr, buffer, 8, false);
 
     //Check if the overflow bit has been flipped (if not, data is valid)
-    bool dataValid = (buffer[7]);   //TODO
+    bool dataValid = !((buffer[7] & B_AK09916_ST2_HOFL_MASK) >> 3);
+    if (dataValid) {
+        mx = (((int16_t)buffer[1]) << 8) | ((int16_t)buffer[0]);
+        my = (((int16_t)buffer[3]) << 8) | ((int16_t)buffer[2]);
+        mz = (((int16_t)buffer[5]) << 8) | ((int16_t)buffer[4]);
+    } else {
+        //TODO: This is for debug, assume in testing that any overflow will just be lost data
+        //printf("AK09916 Overflow Detected, Data Dumped for Cycle!\n");
+    }
 }
 
 //Configure the auxilary i2c bus for bypass operation, directly connecting it to I2C1 for comms with AK09916 mag sensor
@@ -49,7 +70,7 @@ void ICM20948::bypass_mag_i2c() {
 }
 
 //Ping IMU and Mag over I2C bus and read their chipIDs to confirm comms initialization
-void validate() {
+void ICM20948::validate() {
     //Read the value of the IMU's WHO_AM_I register and print whether the device was found
     printf("ATTEMPTING COMMUNICATION WITH BREAKOUT ICM20948...\n");
     buffer[0] = R_ICM20948_B0_WHO_AM_I;
@@ -81,9 +102,30 @@ void validate() {
 void ICM20948::set_register_bank(uint8_t bank) {
     buffer[0] = R_ICM20948_REG_BANK_SEL;
     buffer[1] = bank << 4;  //User bank is configured in bits 5:4, 3:0 are reserved
-    printf("SWAPPING REGISTER BANK TO (dec, shifted hex): [%i, %x]\n", bank, (bank << 4));
+    //printf("SWAPPING REGISTER BANK TO (dec, shifted hex): [%i, %x]\n", bank, (bank << 4));
     i2c_write_blocking(i2c, addr, buffer, 2, false);
 }
+
+//Update task for sampling during computation
+#if ( USE_FREERTOS == 1 )
+void ICM20948::update_icm20948_task(void* pvParameters) {
+    TickType_t xLastWakeTime;
+    //TODO: Figure out reasonable way of splitting the sample rate of the Gyro/Accel out if faster sampling desired
+    const TickType_t xFrequency = pdMS_TO_TICKS(1000 / AK09916_SAMPLE_RATE_HZ);
+
+    xLastWakeTime = xTaskGetTickCount();
+    while (1) {
+        vTaskDelayUntil(&xLastWakeTime, xFrequency);
+        taskENTER_CRITICAL();
+        ICM20948* icm20948 = (ICM20948*) pvParameters;
+        icm20948->sample_mag();
+        taskEXIT_CRITICAL();
+        if ((xLastWakeTime + xFrequency) < xTaskGetTickCount()) {
+            xLastWakeTime = xTaskGetTickCount();
+        }
+    }
+}
+#endif
 
 //TODO: DEPRECATED, remove once full functionality implemented elsewhere
 //Configure the auxilary i2c bus for proper operation, and then configure the magnetometer *on* that bus

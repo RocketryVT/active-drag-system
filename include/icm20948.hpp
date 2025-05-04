@@ -10,6 +10,7 @@
 #include "FreeRTOSConfig.h"
 #include "portmacro.h"
 #include "projdefs.h"
+#include "serial.hpp"
 #include "task.h"
 #include "semphr.h"
 #endif
@@ -50,9 +51,11 @@
 #define R_AK09916_HYH 0x14
 #define R_AK09916_HZL 0x15
 #define R_AK09916_HZH 0x16
+#define S_AK09916_MAG_SENSITIVITY_FACTOR_G (0.1495*0.01)  //0.1495uT/LSB, 0.01G/uT
 
 // ST2 [Status 2, purely for overflow detection]
 #define R_AK09916_ST2 0x18
+#define B_AK09916_ST2_HOFL_MASK 0x08
 
 // CNTL2 [Control 2 - Configuration, measurement mode/frequency]
 #define R_AK09916_CNTL2 0x31
@@ -101,8 +104,9 @@ class ICM20948 {
 
         void initialize();
 
-        void sample();
-        
+        void sample_gyro_accel();
+        void sample_mag();
+
         int16_t get_ax() { return ax; }
         int16_t get_ay() { return ay; }
         int16_t get_az() { return az; }
@@ -114,7 +118,7 @@ class ICM20948 {
         int16_t get_mz() { return mz; }
         int16_t get_temp() { return temp; }
         
-        static float scale_mag(int16_t unscaled { return ((float) unscaled) / S_AK09916_MAG_SENSITIVITY_FACTOR; }
+        static float scale_mag(int16_t unscaled) { return ((float) unscaled) * S_AK09916_MAG_SENSITIVITY_FACTOR_G; }
 
 #if ( USE_FREERTOS == 1 )
         static void update_icm20948_task(void* pvParameters);
@@ -136,7 +140,7 @@ class ICM20948 {
         void validate();    //Debug, ping IMU and Mag (AFTER configuration)
 
         //Auxilary (internal) I2C handling and register fields
-        ICM20948_I2C_SLV4_CTRL slv4_ctrl;
+        //ICM20948_I2C_SLV4_CTRL slv4_ctrl;
 
         //External i2c handling and register fields
         const uint8_t addr = ICM20948_I2C_ADDR;
