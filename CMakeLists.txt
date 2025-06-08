@@ -24,6 +24,26 @@ endif()
 # Initialize the SDK
 pico_sdk_init()
 
+# BEGIN libfixmath library generation
+    add_library(libfixmath INTERFACE)
+
+    file(GLOB libfixmath-srcs ${CMAKE_CURRENT_LIST_DIR}/include/libfixmath/libfixmath/*.c)
+    target_sources(libfixmath INTERFACE ${libfixmath-srcs})
+    target_include_directories(libfixmath INTERFACE
+            ${CMAKE_CURRENT_LIST_DIR}/include/libfixmath/libfixmath
+    )
+    target_compile_definitions(libfixmath INTERFACE
+            FIXMATH_FAST_SIN
+            FIXMATH_NO_64BIT
+            # FIXMATH_SIN_LUT
+            # FIXMATH_NO_CACHE
+            # FIXMATH_NO_HARD_DIVISION
+            # FIXMATH_NO_OVERFLOW
+            # FIXMATH_NO_ROUNDING
+            # FIXMATH_OPTIMIZE_8BIT
+    )
+# END libfixmath library generation
+
 add_subdirectory(src)
 add_subdirectory(tools)
 

@@ -25,6 +25,10 @@
 #include "task.h"
 #include "semphr.h"
 
+extern "C" {
+#include <fix16.h>
+}
+
 #include "adxl375.hpp"
 #include "ms5607.hpp"
 #include "iim42653.hpp"
@@ -164,6 +168,9 @@ int main() {
     mmc5983ma.initialize();
     sleep_ms(500);
     pwm.init();
+
+    fix16_t test = fix16_add(fix16_one, fix16_from_float(1.2f));
+    printf("Performed 1 + 1.2 = %4.2f", fix16_to_float(test));
 
     xTaskCreate(heartbeat_task, "heartbeat", 256, NULL, HEARTBEAT_TASK_PRIORITY, NULL);
     xTaskCreate(serial_task, "serial", 8192, NULL, SERIAL_TASK_PRIORITY, NULL);

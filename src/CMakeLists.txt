@@ -12,7 +12,7 @@ add_executable(active_drag_system
 
 pico_set_binary_type(active_drag_system copy_to_ram)
 
-target_link_libraries(active_drag_system pico_stdlib pico_logger pico_flash pico_rand pico_multicore pico_sync hardware_i2c hardware_adc hardware_timer hardware_pwm FreeRTOS-Kernel FreeRTOS-Kernel-Heap4)
+target_link_libraries(active_drag_system pico_stdlib pico_logger pico_flash pico_rand pico_multicore pico_sync hardware_i2c hardware_adc hardware_timer hardware_pwm FreeRTOS-Kernel FreeRTOS-Kernel-Heap4 libfixmath)
 target_include_directories(active_drag_system PUBLIC ${PROJECT_SOURCE_DIR}/include)
 target_compile_definitions(active_drag_system PRIVATE
         USE_FREERTOS=1
