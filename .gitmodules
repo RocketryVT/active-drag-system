@@ -13,3 +13,6 @@
 [submodule "include/libfixmath"]
 	path = include/libfixmath
 	url = https://github.com/PetteriAimonen/libfixmath.git
+[submodule "include/libfixmatrix"]
+	path = include/libfixmatrix
+	url = https://github.com/PetteriAimonen/libfixmatrix.git

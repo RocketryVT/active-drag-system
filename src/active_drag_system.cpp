@@ -27,6 +27,7 @@
 
 extern "C" {
 #include <fix16.h>
+#include <fixmatrix.h>
 }
 
 #include "adxl375.hpp"
@@ -170,7 +171,23 @@ int main() {
     pwm.init();
 
     fix16_t test = fix16_add(fix16_one, fix16_from_float(1.2f));
-    printf("Performed 1 + 1.2 = %4.2f", fix16_to_float(test));
+    printf("Performed 1 + 1.2 = %4.2f\n", fix16_to_float(test));
+
+    mf16 test_mat1 = {2, 2, 0,
+            {{fix16_one, fix16_from_int(12)},
+             {fix16_from_float(12.54), fix16_one}}
+    };
+
+    mf16 test_mat2 = {2, 2, 0,
+            {{fix16_from_float(11.11), fix16_one},
+             {fix16_from_int(13), 0}}
+    };
+
+    mf16 result;
+
+    mf16_mul(&result, &test_mat1, &test_mat2);
+
+    printf("Resultant matrix = [%4.2f, %4.2f; %4.2f, %4.2f]\n", fix16_to_float(result.data[0][0]), fix16_to_float(result.data[0][1]), fix16_to_float(result.data[1][0]), fix16_to_float(result.data[1][1]));
 
     xTaskCreate(heartbeat_task, "heartbeat", 256, NULL, HEARTBEAT_TASK_PRIORITY, NULL);
     xTaskCreate(serial_task, "serial", 8192, NULL, SERIAL_TASK_PRIORITY, NULL);

@@ -24,7 +24,7 @@ endif()
 # Initialize the SDK
 pico_sdk_init()
 
-# BEGIN libfixmath library generation
+# BEGIN libfixmath and libfixmatrix library generation
     add_library(libfixmath INTERFACE)
 
     file(GLOB libfixmath-srcs ${CMAKE_CURRENT_LIST_DIR}/include/libfixmath/libfixmath/*.c)
@@ -42,7 +42,18 @@ pico_sdk_init()
             # FIXMATH_NO_ROUNDING
             # FIXMATH_OPTIMIZE_8BIT
     )
-# END libfixmath library generation
+
+    add_library(libfixmatrix INTERFACE)
+
+    file(GLOB libfixmatrix-srcs ${CMAKE_CURRENT_LIST_DIR}/include/libfixmatrix/*.c)
+    list(FILTER libfixmatrix-srcs EXCLUDE REGEX ".*unittests\\.c$")
+    target_sources(libfixmatrix INTERFACE ${libfixmatrix-srcs})
+    target_include_directories(libfixmatrix INTERFACE
+            ${CMAKE_CURRENT_LIST_DIR}/include/libfixmatrix
+    )
+    target_compile_definitions(libfixmatrix INTERFACE FIXMATRIX_MAX_SIZE=4)
+    target_link_libraries(libfixmatrix INTERFACE libfixmath)
+# END libfixmath and libfixmatrix library generation
 
 add_subdirectory(src)
 add_subdirectory(tools)
