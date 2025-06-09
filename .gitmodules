@@ -16,3 +16,6 @@
 [submodule "include/libfixmatrix"]
 	path = include/libfixmatrix
 	url = https://github.com/PetteriAimonen/libfixmatrix.git
+[submodule "include/libfixkalman"]
+	path = include/libfixkalman
+	url = https://github.com/sunsided/libfixkalman.git

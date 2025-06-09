@@ -4,7 +4,7 @@ void print_log_entry(const uint8_t* entry) {
     static bool first_call = true;
 
     if (first_call) {
-        printf("time_us,state,temperature_chip_celsius,deployment_percent,pressure_mb,altitude_m,temperature_alt_celsius,mid_imu_ax,mid_imu_ay,mid_imu_az,mid_imu_gx,mid_imu_gy,mid_imu_gz,mag_x,mag_y,mag_z,high_g_x,high_g_y,high_g_z\r\n");
+        printf("time_us,state,temperature_chip_celsius,deployment_percent,pressure_mb,altitude,altitude_filt,velocity_filt,temperature_alt_celsius,mid_imu_ax,mid_imu_ay,mid_imu_az,mid_imu_gx,mid_imu_gy,mid_imu_gz,mag_x,mag_y,mag_z,high_g_x,high_g_y,high_g_z,drag_force,apogee_prediction,desired_drag_force\r\n");
         first_call = false;
     }
 
@@ -38,8 +38,8 @@ void print_log_entry(const uint8_t* entry) {
     printf("%d,", packet->deploy_percent);
     printf("%4.2f,", ((float) packet->pressure) / PRESSURE_SCALE_F);
     printf("%4.2f,", ((float) packet->altitude) / ALTITUDE_SCALE_F);
-    printf("%4.2f,", ((float) packet->altitude_avg) / ALTITUDE_SCALE_F);
-    printf("%4.2f,", ((float) packet->velocity) / ALTITUDE_SCALE_F);
+    printf("%4.2f,", (fix16_to_float(packet->altitude_filt)));
+    printf("%4.2f,", (fix16_to_float(packet->velocity_filt)));
     printf("%4.2f,", ((float) packet->temperature_alt) / TEMPERATURE_SCALE_F);
 
     printf("%4.2f,", IIM42653::scale_accel(packet->ax));
@@ -57,8 +57,9 @@ void print_log_entry(const uint8_t* entry) {
     printf("%4.2f,", ADXL375::scale(packet->high_g_x));
     printf("%4.2f,", ADXL375::scale(packet->high_g_y));
     printf("%4.2f,", ADXL375::scale(packet->high_g_z));
-    printf("%" PRIu64 ",", packet->data0);
-    printf("%" PRIu64 ",", packet->data1);
+    printf("%4.2f,", (fix16_to_float(packet->drag_force)));
+    printf("%4.2f,", (fix16_to_float(packet->apogee_prediction)));
+    printf("%4.2f,", (fix16_to_float(packet->desired_drag_force)));
     printf("\r\n");
     stdio_flush();
 }

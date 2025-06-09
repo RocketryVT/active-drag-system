@@ -1,4 +1,5 @@
 #include "serial.hpp"
+#include "portable.h"
 #include "portmacro.h"
 #include <pico/multicore.h>
 #include <pico/stdio.h>
@@ -101,6 +102,11 @@ void top_cmd_func() {
     vTaskGetRunTimeStats(buffer);
     printf("%s", buffer);
     free(buffer);
+#endif
+#if (configSUPPORT_DYNAMIC_ALLOCATION == 1)
+    HeapStats_t heap_stats;
+    vPortGetHeapStats(&heap_stats);
+    printf("\n\tAvailable Heap Space In Bytes:\t%d\nSize Of Largest Free Block In Bytes:\t%d\nNumber Of Successful Allocations:\t%d\n", heap_stats.xAvailableHeapSpaceInBytes, heap_stats.xSizeOfLargestFreeBlockInBytes, heap_stats.xNumberOfSuccessfulAllocations);
 #endif
 }
 

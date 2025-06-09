@@ -12,11 +12,11 @@ add_executable(active_drag_system
 
 pico_set_binary_type(active_drag_system copy_to_ram)
 
-target_link_libraries(active_drag_system pico_stdlib pico_logger pico_flash pico_rand pico_multicore pico_sync hardware_i2c hardware_adc hardware_timer hardware_pwm FreeRTOS-Kernel FreeRTOS-Kernel-Heap4 libfixmath libfixmatrix)
+target_link_libraries(active_drag_system pico_stdlib pico_logger pico_flash pico_rand pico_multicore pico_sync hardware_i2c hardware_adc hardware_timer hardware_pwm FreeRTOS-Kernel FreeRTOS-Kernel-Heap4 libfixmath libfixmatrix libfixkalman)
 target_include_directories(active_drag_system PUBLIC ${PROJECT_SOURCE_DIR}/include)
 target_compile_definitions(active_drag_system PRIVATE
         USE_FREERTOS=1
-        DEBUG=1
+        #        DEBUG=1
         PICO_STDIO_STACK_BUFFER_SIZE=64 # use a small printf on stack buffer
 )
 
