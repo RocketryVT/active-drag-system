@@ -582,7 +582,7 @@ static void rocket_task(void* pvParameters) {
                     add_alarm_in_ms(450000, end_event_callback, NULL, false);
                 }
                 deployment_percent = desired_deployment;
-                if (alt.get_altitude() > (2895 * ALTITUDE_SCALE)) {
+                if ((alt.get_altitude() - ground_altitude)> (2895 * ALTITUDE_SCALE)) {
                     deployment_percent = 100;
                 }
                 pwm.set_servo_percent(deployment_percent);
