@@ -4,3 +4,18 @@
 [submodule "include/eigen"]
 	path = include/eigen
 	url = https://gitlab.com/libeigen/eigen.git
+[submodule "include/pico-logger"]
+	path = include/pico-logger
+	url = https://github.com/rocketryvt/pico-logger.git
+[submodule "include/FreeRTOS-Kernel"]
+	path = include/FreeRTOS-Kernel
+	url = https://github.com/FreeRTOS/FreeRTOS-Kernel.git
+[submodule "include/libfixmath"]
+	path = include/libfixmath
+	url = https://github.com/PetteriAimonen/libfixmath.git
+[submodule "include/libfixmatrix"]
+	path = include/libfixmatrix
+	url = https://github.com/PetteriAimonen/libfixmatrix.git
+[submodule "include/libfixkalman"]
+	path = include/libfixkalman
+	url = https://github.com/sunsided/libfixkalman.git

@@ -7,7 +7,6 @@
 #include "pico/types.h"
 #include "pico/divider.h"
 
-#define SERVO_PIN 27 // Servo motor connected to GPIO PIN 32 (GP27)
 #define WRAP_VALUE 65535
 #define CLOCK_DIV_RATE 38.15
 #define SERVO_MIN 13
