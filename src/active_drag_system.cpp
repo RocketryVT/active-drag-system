@@ -2,6 +2,9 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+
+//<sys/types.h> must be included before <inttypes.h> to fix WSL cmake compilation
+#include <sys/types.h>
 #include <inttypes.h>
 
 #include "hardware/gpio.h"

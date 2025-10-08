@@ -1,6 +1,9 @@
 #pragma once
 
 #include <stdint.h>
+
+//<sys/types.h> must be included before <inttypes.h> to fix WSL cmake compilation
+#include <sys/types.h>
 #include <inttypes.h>
 
 #include "iim42653.hpp"
