@@ -70,6 +70,10 @@
 /* Library includes. */
 #include <stdio.h>
 #include "hardware/gpio.h"
+#include "hardware/i2c.h"
+
+static SemaphoreHandle_t i2cMutex;
+static i2c_inst_t *i2cBus = i2c0;
 
 /* Priorities at which the tasks are created. */
 #define mainQUEUE_RECEIVE_TASK_PRIORITY		( tskIDLE_PRIORITY + 2 )
@@ -121,6 +125,30 @@ void blinky_task(void *pvParameters) {
 void vApplicationStackOverflowHook(TaskHandle_t xTask, char *pcTaskName) {
     // handle stack overflow
     for( ;; );
+}
+
+void initI2C() {
+    // Create a mutex to protect I2C operations
+    i2cMutex = xSemaphoreCreateMutex();
+    
+    // Init the I2C hardware
+    i2c_init(i2cBus, 100 * 1000);
+    gpio_set_function(4, GPIO_FUNC_I2C);
+    gpio_set_function(5, GPIO_FUNC_I2C);
+    gpio_pull_up(4);
+    gpio_pull_up(5);
+}
+
+// Example task function that uses I2C
+void myI2CTask(void *pvParameters) {
+    for (;;) {
+        if (xSemaphoreTake(i2cMutex, portMAX_DELAY) == pdTRUE) {
+            // Perform I2C transactions 
+            // ...
+            xSemaphoreGive(i2cMutex);
+        }
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
 }
 
 int main( void )

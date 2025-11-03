@@ -21,7 +21,7 @@ target_include_directories(rtos_blinky PUBLIC ${CMAKE_CURRENT_LIST_DIR} ../inclu
 target_compile_definitions(rtos_blinky PRIVATE
         PICO_STDIO_STACK_BUFFER_SIZE=64 # use a small printf on stack buffer
 )
-target_link_libraries(rtos_blinky pico_stdlib FreeRTOS-Kernel FreeRTOS-Kernel-Heap4)
+target_link_libraries(rtos_blinky pico_stdlib pico_stdio pico_multicore hardware_i2c pico_sync FreeRTOS-Kernel FreeRTOS-Kernel-Heap4)
 
 pico_enable_stdio_usb(ads 1)
 pico_enable_stdio_uart(ads 0)
