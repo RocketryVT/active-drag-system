@@ -1,5 +1,6 @@
 #include <stdio.h>
 
+#include "pico.h"
 #include "boards/pico_w.h"
 #include "pico/stdio.h"
 #include "hardware/gpio.h"

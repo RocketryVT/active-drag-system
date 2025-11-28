@@ -39,7 +39,7 @@ extern "C" {
 #include "iim42653.hpp"
 #include "mmc5983ma.hpp"
 #include "pwm.hpp"
-#include "pico_logger.h"
+#include "pico_logger.hpp"
 #include "log_format.hpp"
 #include "serial.hpp"
 #include "heartbeat.hpp"

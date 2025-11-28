@@ -1,11 +1,11 @@
-#include "boards/pico_w.h"
-#include "hardware/gpio.h"
-#include "hardware/i2c.h"
-#include "hardware/pwm.h"
 #include "pico/stdlib.h"
 #include "pico/time.h"
 #include "pico/types.h"
 #include "pico/divider.h"
+#include "boards/pico_w.h"
+#include "hardware/gpio.h"
+#include "hardware/i2c.h"
+#include "hardware/pwm.h"
 
 #define WRAP_VALUE 65535
 #define CLOCK_DIV_RATE 38.15
