@@ -22,7 +22,7 @@ if (COMPILE_TOOLS)
     )
 
     # pull in common dependencies
-    target_link_libraries(read_flash pico_stdlib pico_logger pico_flash pico_rand pico_multicore pico_sync hardware_i2c hardware_adc hardware_timer FreeRTOS-Kernel FreeRTOS-Kernel-Heap4)
+    target_link_libraries(read_flash pico_stdlib pico_logger pico_flash pico_rand pico_multicore pico_sync hardware_i2c hardware_adc hardware_timer FreeRTOS-Kernel FreeRTOS-Kernel-Heap4 libfixmath libfixmatrix libfixkalman)
     target_include_directories(read_flash PUBLIC ${PROJECT_SOURCE_DIR}/include)
     target_compile_definitions(read_flash PRIVATE
             USE_FREERTOS=1

@@ -35,7 +35,7 @@ using namespace Eigen;  //TODO: Limit scope to necessary components once impleme
 #include "iim42653.hpp"
 #include "mmc5983ma.hpp"
 #include "serial.hpp"
-#include "pico_logger.h"
+#include "pico_logger.hpp"
 #include "log_format.hpp"
 
 /* Priorities at which the tasks are created. */
@@ -309,7 +309,7 @@ static void pose_estimation_task(void * unused_arg) {
         //printf("-------- COMPLETED UPDATE COMPUTATION! --------\n\n");
         //if (orient_count == ORIENTATION_ESTIMATION_RATE_HZ) {
             printf("~~> Estimate (q_k) Coefficients [w, x, y, z]: [%1.4f, %1.4f, %1.4f, %1.4f]\n", q_k.w(), q_k.x(), q_k.y(), q_k.z());
-            Vector3f testVect = q_k.toRotationMatrix().eulerAngles(2, 1, 0)*180.0f/M_PI;
+            Vector3f testVect = q_k.toRotationMatrix().canonicalEulerAngles(2, 1, 0)*180.0f/M_PI;
             printf("~~> Estimate (q_k) in Euler [Yaw, Pitch, Roll]: [%3.3f, %3.3f, %3.3f]\n", testVect[0], testVect[1], testVect[2]);
             Vector3f testAccelVect(imu_ax, imu_ay, imu_az);
             Vector3f testAccelVectRotated = q_k._transformVector(testAccelVect);
@@ -465,10 +465,7 @@ static void populate_log_entry(log_entry_t * log_entry) {
     log_entry->high_g_y = adxl375.get_ay();
     log_entry->high_g_z = adxl375.get_az();
 
-    log_entry->data0 = get_rand_64();
-    log_entry->data1 = get_rand_64();
-    log_entry->data2 = get_rand_32();
-    log_entry->data3 = get_rand_32();
+    log_entry->data0 = get_rand_32();
 }
 
 static void write_cmd_func() {

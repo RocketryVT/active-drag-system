@@ -42,7 +42,7 @@ set(CMAKE_TRY_COMPILE_TARGET_TYPE "STATIC_LIBRARY")
 
 project(active-drag-system C CXX ASM)
 set(CMAKE_C_STANDARD 11)
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 
 if (PICO_SDK_VERSION_STRING VERSION_LESS "1.3.0")
     message(FATAL_ERROR "Raspberry Pi Pico SDK version 1.3.0 (or later) required. Your version is ${PICO_SDK_VERSION_STRING}")
@@ -52,6 +52,7 @@ endif()
 pico_sdk_init()
 
 add_subdirectory(${PICO_LOGGER_ROOT} ${CMAKE_CURRENT_BINARY_DIR}/pico-logger)
+add_subdirectory(${AVIONICS_ROOT}/projects/libs/lora ${CMAKE_CURRENT_BINARY_DIR}/lora)
 
 # BEGIN libfixmath, libfixmatrix, and libfixkalman library generation
     add_library(libfixmath INTERFACE)

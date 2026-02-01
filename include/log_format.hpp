@@ -69,4 +69,7 @@ typedef struct {
     uint8_t data0: 8;
 } __attribute__((packed)) log_entry_t;
 
+// Compile time assertion to ensure log_entry_t is of expected size of 64 bytes
+static_assert(sizeof(log_entry_t) == PACKET_SIZE, "log_entry_t size is not equal to PACKET_SIZE");
+
 void print_log_entry(const uint8_t* entry);
