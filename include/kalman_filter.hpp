@@ -6,8 +6,8 @@ extern "C" {
 #include <fixkalman.h>
 }
 
-/**
-* @brief initialize the Kalman Filter for verticality estimation
+        /**
+        * @brief initialize the Kalman Filter for verticality estimation
         */
         void kalman_verticality_init();
 
