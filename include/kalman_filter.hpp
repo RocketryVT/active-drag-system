@@ -1,96 +1,83 @@
 #pragma once
-#include <Eigen/Dense>
 
-using namespace Eigen;
+extern "C" {
+#include <fix16.h>
+#include <fixmatrix.h>
+#include <fixkalman.h>
+}
 
-class kalman_filter {
-
-    private:
-
-        VectorXf state_vector; // x
-        MatrixXf state_covariance; // P
-
-        MatrixXf state_transition_M; // F
-        MatrixXf control_input_M; // B
-        MatrixXf measurement_M; // H
-
-        MatrixXf process_noise_covariance; // Q
-        MatrixXf measurement_covariance; // R
-
-        MatrixXf I; // Identity
-
-        int n; // State Vector Dimension
-        int p; // Control Vector Dimension
-        int m; // Measurement Vector Dimension
-
-        float dt; // timestep
+/**
+* @brief initialize the Kalman Filter for verticality estimation
+        */
+        void kalman_verticality_init();
 
         /**
-         * @brief Initialize all necessary matrices.
+         * @brief update the Kalman Filter with new measurements
          * 
+         * @param altitude current altitude measurement
+         * @param vertical_acceleration current vertical acceleration measurement
          */
-        void matrix_initialize();
-
-        /**
-         * @brief Update any existing variable elements in your State Transition 
-         * & Control Input matrices.
-         * 
-         */
-        void matrix_update();
-
-        /**
-         * @brief Predict current State Vector & State Covariance 
-         * given the current control input.
-         * 
-         * @param control_vec The control input to be applied to the
-         * previous State Vector
-         */
-        void predict(VectorXf control_vec);
-
-        /**
-         * @brief Correct the State Vector & State Covariance predictions
-         * given a related current measurement.
-         * 
-         * @param measurement Current measurement
-         */
-        void update(VectorXf measurement);
-
-    public:
-
-        kalman_filter();
-        
-        /**
-         * @brief Construct a new Kalman Filter object
-         * Set the sizes of the Filter's user inputs
-         * 
-         * @param state_dim State Vector Dimension. i.e. dim(x)
-         * @param control_dim Control/Input Vector Dimension. i.e. dim(u)
-         * @param measurement_dim Measurement Vector Dimension. i.e. dim(z)
-         * @param dt timestep
-         */
-        kalman_filter(int state_dim, int control_dim, int measurement_dim, float dt);
+        void kalman_update(fix16_t altitude, fix16_t vertical_acceleration);
 
 
         /**
-         * @brief Optional function to set a custom initial state for the Filter.
-         * If not called, State Vector & State Covariance are zero-initialized 
+         * @brief calculate the drag force based on current deployment percentage and vertical velocity
          * 
-         * @param state_vec Initial State Vector
-         * @param state_cov Initial State Covariance
-         * 
-         * @return Whether state initialization was successful
+         * @param deployment_percentage current deployment percentage measurement
+         * @param vertical_velocity current vertical velocity measurement
          */
-        bool state_initialize(VectorXf state_vec, MatrixXf state_cov);
+        fix16_t calculate_drag_force(fix16_t deployment_percentage, fix16_t vertical_velocity);
 
         /**
-         * @brief Perform Kalman Filter operation with given control input vector
-         * and measurement.
+         * @brief predict the apogee based on current altitude, vertical velocity, and drag force
          * 
-         * @param control current control command
-         * @param measurement current measurement
-         * @param dt timestep
-         * 
-         * @return Filtered state vector
+         * @param altitude current altitude measurement
+         * @param vertical_velocity current vertical velocity measurement
+         * @param drag_force current drag force measurement
          */
-        VectorXf run(VectorXf control, VectorXf measurement, float _dt);
-};
+        fix16_t predict_apogee(fix16_t altitude, fix16_t vertical_velocity, fix16_t drag_force);
+
+        /**
+         * @brief calculate the deployment percentage based on current drag force and vertical velocity
+         * 
+         * @param drag_force current drag force measurement
+         * @param vertical_velocity current vertical velocity measurement
+         */
+        fix16_t calculate_deployment_percentage(fix16_t drag_force, fix16_t vertical_velocity);
+
+        /**
+         * @brief calculate the desired drag force based on current altitude and vertical velocity
+         * 
+         * @param altitude current altitude measurement
+         * @param vertical_velocity current vertical velocity measurement
+         */
+        fix16_t calculate_desired_drag_force(fix16_t altitude, fix16_t vertical_velocity);
+
+        extern kalman16_t kf;
+
+        extern kalman16_observation_t kfm;
+
+        #define KALMAN_NAME verticality
+        #define KALMAN_NUM_STATES 2
+        #define KALMAN_NUM_INPUTS 1
+
+        #define KALMAN_MEASUREMENT_NAME altitude
+        #define KALMAN_NUM_MEASUREMENTS 1
+
+        #define matrix_set(matrix, row, column, value) \
+            matrix->data[row][column] = value
+
+        #define matrix_set_symmetric(matrix, row, column, value) \
+            matrix->data[row][column] = value; \
+            matrix->data[column][row] = value
+
+        #ifndef FIXMATRIX_MAX_SIZE
+        #error FIXMATRIX_MAX_SIZE must be defined and greater or equal to the number of states, inputs and measurements.
+        #endif
+
+        #if (FIXMATRIX_MAX_SIZE < KALMAN_NUM_STATES) || (FIXMATRIX_MAX_SIZE < KALMAN_NUM_INPUTS) || (FIXMATRIX_MAX_SIZE < KALMAN_NUM_MEASUREMENTS)
+        #error FIXMATRIX_MAX_SIZE must be greater or equal to the number of states, inputs and measurements.
+        #endif
+
+
+
