@@ -1,3 +1,4 @@
+#include <cstdlib>
 #include <pico.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -416,8 +417,7 @@ static void rocket_task(void* pvParameters) {
         desired_drag_force = calculate_desired_drag_force(altitude_filt, velocity_filt);
         desired_deployment = calculate_deployment_percentage(desired_drag_force, velocity_filt);
         desired_deployment = fix16_clamp(desired_deployment, 0, fix16_from_int(100));
-        float desired_deployment_float = fix16_to_float(desired_deployment);
-        uint8_t desired_deployment_uint8 = (uint8_t)desired_deployment_float;
+        uint8_t desired_deployment_uint8 = std::abs(static_cast<uint8_t>(desired_deployment >> 16));
 
         switch(rocket_state) {
             case PAD:
