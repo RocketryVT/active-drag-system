@@ -416,6 +416,8 @@ static void rocket_task(void* pvParameters) {
         desired_drag_force = calculate_desired_drag_force(altitude_filt, velocity_filt);
         desired_deployment = calculate_deployment_percentage(desired_drag_force, velocity_filt);
         desired_deployment = fix16_clamp(desired_deployment, 0, fix16_from_int(100));
+        float desired_deployment_float = fix16_to_float(desired_deployment);
+        uint8_t desired_deployment_uint8 = (uint8_t)desired_deployment_float;
 
         switch(rocket_state) {
             case PAD:
@@ -441,7 +443,7 @@ static void rocket_task(void* pvParameters) {
                     vTaskCoreAffinitySet(end_event_handler_task_handle, 0x01);
                     add_alarm_in_ms(450000, end_event_callback, NULL, false);
                 }
-                deployment_percent = desired_deployment;
+                deployment_percent = desired_deployment_uint8;
                 if ((alt.get_altitude() - ground_altitude)> (2895 * ALTITUDE_SCALE)) {
                     deployment_percent = 100;
                 }
