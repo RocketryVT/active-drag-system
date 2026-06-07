@@ -417,7 +417,7 @@ static void rocket_task(void* pvParameters) {
         desired_drag_force = calculate_desired_drag_force(altitude_filt, velocity_filt);
         desired_deployment = calculate_deployment_percentage(desired_drag_force, velocity_filt);
         desired_deployment = fix16_clamp(desired_deployment, 0, fix16_from_int(100));
-        uint8_t desired_deployment_uint8 = std::abs(static_cast<uint8_t>(desired_deployment >> 16));
+        uint8_t desired_deployment_uint8 = static_cast<uint8_t>(std::abs(desired_deployment >> 16));
 
         switch(rocket_state) {
             case PAD:
